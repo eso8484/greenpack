@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button";
 import PriceTag from "@/components/ui/PriceTag";
 import Badge from "@/components/ui/Badge";
 import { useCart } from "@/hooks/useCart";
+import { toast } from "sonner";
 import type { Service } from "@/types";
 
 interface ServiceCardProps {
@@ -23,6 +24,9 @@ export default function ServiceCard({ service, shopName }: ServiceCardProps) {
       name: service.name,
       price: service.price,
       quantity: 1,
+    });
+    toast.success("Service added to cart", {
+      description: `${service.name} from ${shopName}`,
     });
   };
 

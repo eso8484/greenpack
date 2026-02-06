@@ -3,6 +3,7 @@
 import Link from "next/link";
 import SearchBar from "./SearchBar";
 import MobileNav from "./MobileNav";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 
@@ -12,7 +13,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+      <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 transition-colors">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo */}
@@ -20,8 +21,8 @@ export default function Header() {
               <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">G</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">
-                Green<span className="text-green-500">Pack</span>
+              <span className="text-xl font-bold text-gray-900 dark:text-white">
+                Green<span className="text-green-500 dark:text-green-400">Pack</span>
               </span>
             </Link>
 
@@ -45,11 +46,14 @@ export default function Header() {
             <SearchBar className="hidden md:block flex-1 max-w-md" />
 
             {/* Actions */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {/* Theme toggle */}
+              <ThemeToggle />
+
               {/* Cart */}
               <Link
                 href="/cart"
-                className="relative p-2 text-gray-600 hover:text-green-600 transition-colors"
+                className="relative p-2 text-gray-600 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors"
               >
                 <svg
                   className="w-6 h-6"

@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import PriceTag from "@/components/ui/PriceTag";
 import Badge from "@/components/ui/Badge";
 import { useCart } from "@/hooks/useCart";
+import { toast } from "sonner";
 import type { Product } from "@/types";
 
 interface ProductCardProps {
@@ -26,6 +27,9 @@ export default function ProductCard({ product, shopName }: ProductCardProps) {
       price: product.price,
       quantity: 1,
       image: product.image,
+    });
+    toast.success("Added to cart", {
+      description: `${product.name} from ${shopName}`,
     });
   };
 
