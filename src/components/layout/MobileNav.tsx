@@ -1,0 +1,102 @@
+"use client";
+
+import Link from "next/link";
+import SearchBar from "./SearchBar";
+import { categories } from "@/lib/data/categories";
+
+interface MobileNavProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function MobileNav({ open, onClose }: MobileNavProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 md:hidden">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div className="absolute top-0 left-0 w-80 max-w-[85vw] h-full bg-white shadow-xl overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <span className="text-lg font-bold text-gray-900">
+            Green<span className="text-green-500">Pack</span>
+          </span>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 cursor-pointer"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="p-4">
+          <SearchBar />
+        </div>
+
+        {/* Nav Links */}
+        <nav className="px-4 pb-4 space-y-1">
+          <Link
+            href="/"
+            onClick={onClose}
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors"
+          >
+            Home
+          </Link>
+          <Link
+            href="/browse"
+            onClick={onClose}
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors"
+          >
+            Browse All
+          </Link>
+          <Link
+            href="/cart"
+            onClick={onClose}
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors"
+          >
+            Cart
+          </Link>
+        </nav>
+
+        {/* Categories */}
+        <div className="px-4 pb-6">
+          <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            Categories
+          </h3>
+          <div className="space-y-0.5">
+            {categories.map((cat) => (
+              <Link
+                key={cat.id}
+                href={`/browse?category=${cat.slug}`}
+                onClick={onClose}
+                className="flex items-center gap-3 px-3 py-2 text-sm text-gray-600 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors"
+              >
+                <span className="text-lg">{cat.icon}</span>
+                <span>{cat.name}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
