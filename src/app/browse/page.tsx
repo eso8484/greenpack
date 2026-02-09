@@ -40,7 +40,7 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">{pageTitle}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{pageTitle}</h1>
         {/* Mobile search */}
         <div className="md:hidden mb-4">
           <SearchBar />

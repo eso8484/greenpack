@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import PriceTag from "@/components/ui/PriceTag";
 import Badge from "@/components/ui/Badge";
 import { useCart } from "@/hooks/useCart";
+import { BLUR_PLACEHOLDER } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Product } from "@/types";
 
@@ -35,13 +36,15 @@ export default function ProductCard({ product, shopName }: ProductCardProps) {
 
   return (
     <Card>
-      <div className="relative aspect-square bg-gray-100">
+      <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
         <Image
           src={product.image}
           alt={product.name}
           fill
           className="object-cover"
           unoptimized
+          placeholder="blur"
+          blurDataURL={BLUR_PLACEHOLDER}
         />
         {!product.inStock && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -50,7 +53,7 @@ export default function ProductCard({ product, shopName }: ProductCardProps) {
         )}
       </div>
       <div className="p-3">
-        <h4 className="font-medium text-gray-900 text-sm mb-1 leading-tight">
+        <h4 className="font-medium text-gray-900 dark:text-white text-sm mb-1 leading-tight">
           {product.name}
         </h4>
         <PriceTag

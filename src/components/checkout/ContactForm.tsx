@@ -51,7 +51,7 @@ export default function ContactForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-900 mb-4">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
         Contact Information
       </h2>
       <Input
@@ -92,7 +92,7 @@ export default function ContactForm({
       <div className="space-y-1">
         <label
           htmlFor="message"
-          className="block text-sm font-medium text-gray-700"
+          className="block text-sm font-medium text-gray-700 dark:text-gray-300"
         >
           Message / Notes (optional)
         </label>
@@ -102,7 +102,7 @@ export default function ContactForm({
           placeholder="Any special instructions or requests..."
           value={form.message || ""}
           onChange={(e) => update("message", e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 transition-colors resize-none"
+          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-colors resize-none"
         />
       </div>
       <Button

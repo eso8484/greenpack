@@ -11,7 +11,7 @@ export default function CategorySidebar({
 }: CategorySidebarProps) {
   return (
     <aside className="w-full">
-      <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+      <h3 className="text-sm font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
         Categories
       </h3>
       <nav className="space-y-0.5">
@@ -20,8 +20,8 @@ export default function CategorySidebar({
           className={cn(
             "block px-3 py-2 text-sm rounded-lg transition-colors",
             !activeCategory
-              ? "bg-green-100 text-green-700 font-medium"
-              : "text-gray-600 hover:bg-gray-100"
+              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium"
+              : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
           )}
         >
           All Categories
@@ -41,7 +41,7 @@ export default function CategorySidebar({
               <span>{cat.icon}</span>
               <span>{cat.name}</span>
             </span>
-            <span className="text-xs text-gray-400">{cat.shopCount}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">{cat.shopCount}</span>
           </Link>
         ))}
       </nav>

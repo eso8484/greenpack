@@ -126,3 +126,10 @@ export function filterShops(
 export function cn(...classes: (string | boolean | undefined | null)[]): string {
   return classes.filter(Boolean).join(" ");
 }
+
+// Tiny green-tinted SVG blur placeholder for Next.js Image blurDataURL
+export const BLUR_PLACEHOLDER =
+  "data:image/svg+xml;base64," +
+  Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#d1fae5"/><rect width="40" height="30" fill="#22c55e" opacity="0.15"/></svg>'
+  ).toString("base64");

@@ -6,7 +6,7 @@ const steps = [
       "Explore shops and services by category or search for what you need.",
     icon: (
       <svg
-        className="w-8 h-8 text-green-600"
+        className="w-8 h-8 text-green-600 dark:text-green-400"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -27,7 +27,7 @@ const steps = [
       "View shop profiles, watch videos, check reviews, and compare services.",
     icon: (
       <svg
-        className="w-8 h-8 text-green-600"
+        className="w-8 h-8 text-green-600 dark:text-green-400"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -48,7 +48,7 @@ const steps = [
       "Reach out directly via phone, WhatsApp, or send an inquiry through GreenPack.",
     icon: (
       <svg
-        className="w-8 h-8 text-green-600"
+        className="w-8 h-8 text-green-600 dark:text-green-400"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -69,24 +69,24 @@ export default function HowItWorks() {
     <section className="py-16">
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-10">
-          <h2 className="text-2xl font-bold text-gray-900">How It Works</h2>
-          <p className="mt-2 text-gray-500">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">How It Works</h2>
+          <p className="mt-2 text-gray-500 dark:text-gray-400">
             Find and connect with local businesses in 3 simple steps
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {steps.map((step) => (
             <div key={step.number} className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 {step.icon}
               </div>
-              <div className="w-8 h-8 bg-green-500 text-white text-sm font-bold rounded-full flex items-center justify-center mx-auto -mt-8 mb-4 border-4 border-white relative z-10">
+              <div className="w-8 h-8 bg-green-500 text-white text-sm font-bold rounded-full flex items-center justify-center mx-auto -mt-8 mb-4 border-4 border-white dark:border-gray-900 relative z-10">
                 {step.number}
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                 {step.title}
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed max-w-xs mx-auto">
+              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed max-w-xs mx-auto">
                 {step.description}
               </p>
             </div>

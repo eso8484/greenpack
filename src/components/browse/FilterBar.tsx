@@ -25,8 +25,8 @@ export default function FilterBar({ totalResults }: FilterBarProps) {
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm text-gray-500">
-        <span className="font-medium text-gray-900">{totalResults}</span>{" "}
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        <span className="font-medium text-gray-900 dark:text-white">{totalResults}</span>{" "}
         {totalResults === 1 ? "shop" : "shops"} found
       </p>
 
@@ -37,7 +37,7 @@ export default function FilterBar({ totalResults }: FilterBarProps) {
           className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
             !currentCategory
               ? "bg-green-500 text-white"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
           }`}
         >
           All
@@ -49,7 +49,7 @@ export default function FilterBar({ totalResults }: FilterBarProps) {
             className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
               currentCategory === cat.slug
                 ? "bg-green-500 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
             }`}
           >
             {cat.icon} {cat.name}
@@ -61,7 +61,7 @@ export default function FilterBar({ totalResults }: FilterBarProps) {
       <select
         value={currentSort}
         onChange={(e) => updateParam("sort", e.target.value)}
-        className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-700 focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none cursor-pointer"
+        className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 focus:outline-none cursor-pointer"
       >
         <option value="relevance">Sort: Relevance</option>
         <option value="rating">Sort: Highest Rated</option>

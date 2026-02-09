@@ -11,7 +11,7 @@ export default function ServiceList({ services, shopName }: ServiceListProps) {
 
   return (
     <section>
-      <h2 className="text-xl font-bold text-gray-900 mb-4">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
         Services Offered
       </h2>
       <div className="space-y-3">

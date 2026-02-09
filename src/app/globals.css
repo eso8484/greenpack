@@ -9,7 +9,7 @@
   }
 
   body {
-    @apply bg-white text-gray-900 antialiased;
+    @apply bg-white text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100;
   }
 
   html {
@@ -33,4 +33,17 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #16a34a;
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4ade80;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #22c55e;
 }

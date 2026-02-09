@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Badge from "@/components/ui/Badge";
 import Rating from "@/components/ui/Rating";
+import { BLUR_PLACEHOLDER } from "@/lib/utils";
 import type { Shop } from "@/types";
 
 interface ShopHeaderProps {
@@ -11,13 +12,15 @@ export default function ShopHeader({ shop }: ShopHeaderProps) {
   return (
     <div>
       {/* Banner */}
-      <div className="relative h-48 md:h-64 bg-gray-100 rounded-xl overflow-hidden">
+      <div className="relative h-48 md:h-64 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden">
         <Image
           src={shop.images.banner}
           alt={shop.name}
           fill
           className="object-cover"
           unoptimized
+          placeholder="blur"
+          blurDataURL={BLUR_PLACEHOLDER}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute bottom-4 left-4 right-4">
@@ -61,7 +64,7 @@ export default function ShopHeader({ shop }: ShopHeaderProps) {
       </div>
 
       {/* Description */}
-      <p className="mt-4 text-gray-600 leading-relaxed">{shop.description}</p>
+      <p className="mt-4 text-gray-600 dark:text-gray-400 leading-relaxed">{shop.description}</p>
     </div>
   );
 }

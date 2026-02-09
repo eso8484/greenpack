@@ -3,7 +3,7 @@ import { categories } from "@/lib/data/categories";
 
 export default function Footer() {
   return (
-    <footer className="bg-green-900 text-white">
+    <footer className="bg-green-900 dark:bg-gray-950 text-white">
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* About */}
@@ -74,7 +74,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-green-800 mt-8 pt-6 text-center">
+        <div className="border-t border-green-800 dark:border-gray-800 mt-8 pt-6 text-center">
           <p className="text-sm text-green-300">
             &copy; {new Date().getFullYear()} GreenPack. All rights reserved.
           </p>

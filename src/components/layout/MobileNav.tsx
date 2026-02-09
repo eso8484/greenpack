@@ -21,15 +21,15 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
       />
 
       {/* Panel */}
-      <div className="absolute top-0 left-0 w-80 max-w-[85vw] h-full bg-white shadow-xl overflow-y-auto">
+      <div className="absolute top-0 left-0 w-80 max-w-[85vw] h-full bg-white dark:bg-gray-900 shadow-xl overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <span className="text-lg font-bold text-gray-900">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <span className="text-lg font-bold text-gray-900 dark:text-white">
             Green<span className="text-green-500">Pack</span>
           </span>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 cursor-pointer"
+            className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-pointer"
           >
             <svg
               className="w-5 h-5"
@@ -57,21 +57,21 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
           <Link
             href="/"
             onClick={onClose}
-            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors"
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
           >
             Home
           </Link>
           <Link
             href="/browse"
             onClick={onClose}
-            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors"
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
           >
             Browse All
           </Link>
           <Link
             href="/cart"
             onClick={onClose}
-            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors"
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
           >
             Cart
           </Link>
@@ -79,7 +79,7 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
 
         {/* Categories */}
         <div className="px-4 pb-6">
-          <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+          <h3 className="px-3 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
             Categories
           </h3>
           <div className="space-y-0.5">
@@ -88,7 +88,7 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
                 key={cat.id}
                 href={`/browse?category=${cat.slug}`}
                 onClick={onClose}
-                className="flex items-center gap-3 px-3 py-2 text-sm text-gray-600 hover:bg-green-50 hover:text-green-600 rounded-lg transition-colors"
+                className="flex items-center gap-3 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
               >
                 <span className="text-lg">{cat.icon}</span>
                 <span>{cat.name}</span>

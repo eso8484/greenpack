@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { BLUR_PLACEHOLDER } from "@/lib/utils";
 import type { Shop } from "@/types";
 
 interface VideoShowcaseProps {
@@ -18,7 +19,7 @@ export default function VideoShowcase({ shop }: VideoShowcaseProps) {
   return (
     <div>
       {/* Main display */}
-      <div className="relative aspect-video bg-gray-100 rounded-xl overflow-hidden">
+      <div className="relative aspect-video bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden">
         {showVideo && shop.video.url ? (
           <video
             src={shop.video.url}
@@ -34,6 +35,8 @@ export default function VideoShowcase({ shop }: VideoShowcaseProps) {
               fill
               className="object-cover"
               unoptimized
+              placeholder="blur"
+              blurDataURL={BLUR_PLACEHOLDER}
             />
             {/* Play button overlay */}
             {shop.video.url && (
@@ -54,7 +57,7 @@ export default function VideoShowcase({ shop }: VideoShowcaseProps) {
             )}
             {!shop.video.url && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                <div className="bg-white/80 rounded-lg px-4 py-2 text-sm text-gray-500">
+                <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
                   Shop Preview
                 </div>
               </div>
@@ -83,6 +86,8 @@ export default function VideoShowcase({ shop }: VideoShowcaseProps) {
                 fill
                 className="object-cover"
                 unoptimized
+                placeholder="blur"
+                blurDataURL={BLUR_PLACEHOLDER}
               />
             </button>
           ))}

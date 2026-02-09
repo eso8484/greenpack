@@ -6,13 +6,13 @@ export default function FeaturedShops() {
   const featured = getFeaturedShops();
 
   return (
-    <section className="py-12 bg-gray-50">
+    <section className="py-12 bg-gray-50 dark:bg-gray-900/50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Featured Shops</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Featured Shops</h2>
           <Link
             href="/browse"
-            className="text-sm font-medium text-green-600 hover:text-green-700 transition-colors"
+            className="text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
           >
             View All &rarr;
           </Link>

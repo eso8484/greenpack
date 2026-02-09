@@ -15,10 +15,10 @@ export default function ReviewSection({ reviews }: ReviewSectionProps) {
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Customer Reviews</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Customer Reviews</h2>
         <div className="flex items-center gap-2">
           <Rating value={avgRating} />
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             ({reviews.length} {reviews.length === 1 ? "review" : "reviews"})
           </span>
         </div>
