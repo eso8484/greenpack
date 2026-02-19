@@ -47,6 +47,24 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
           </button>
         </div>
 
+        {/* Auth Buttons */}
+        <div className="p-4 flex gap-3 border-b border-gray-100 dark:border-gray-800">
+          <Link
+            href="/login"
+            onClick={onClose}
+            className="flex-1 text-center py-2.5 text-sm font-bold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          >
+            Login
+          </Link>
+          <Link
+            href="/signup"
+            onClick={onClose}
+            className="flex-1 text-center py-2.5 text-sm font-bold rounded-lg bg-green-500 text-white shadow-sm hover:bg-green-600 transition-colors"
+          >
+            Sign Up
+          </Link>
+        </div>
+
         {/* Search */}
         <div className="p-4">
           <SearchBar />
@@ -76,6 +94,20 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
             Cart
           </Link>
         </nav>
+
+        {/* Sell on GreenPack CTA */}
+        <div className="px-4 pb-4">
+          <Link
+            href="/sell"
+            onClick={onClose}
+            className="flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-500/20 text-green-700 dark:text-green-400 rounded-xl font-semibold text-sm hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+          >
+            <span className="material-symbols-outlined text-lg">
+              storefront
+            </span>
+            Sell on GreenPack
+          </Link>
+        </div>
 
         {/* Categories */}
         <div className="px-4 pb-6">
