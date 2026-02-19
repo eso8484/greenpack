@@ -123,8 +123,11 @@ export function filterShops(
   return filtered;
 }
 
-export function cn(...classes: (string | boolean | undefined | null)[]): string {
-  return classes.filter(Boolean).join(" ");
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
 }
 
 // Tiny green-tinted SVG blur placeholder for Next.js Image blurDataURL

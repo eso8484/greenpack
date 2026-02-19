@@ -29,7 +29,7 @@ export default function RootLayout({
         <ThemeProvider>
           <CartProvider>
             <Header />
-            <main className="min-h-screen bg-white dark:bg-gray-900">
+            <main className="min-h-screen bg-[#eef1f5] dark:bg-gray-900">
               {children}
             </main>
             <Footer />

@@ -1,7 +1,9 @@
 import HeroSection from "@/components/home/HeroSection";
 import CategoryNav from "@/components/home/CategoryNav";
 import FeaturedShops from "@/components/home/FeaturedShops";
-import HowItWorks from "@/components/home/HowItWorks";
+import VideoHighlights from "@/components/home/VideoHighlights";
+import TrustSection from "@/components/home/TrustSection";
+import CTABanner from "@/components/home/CTABanner";
 
 export default function Home() {
   return (
@@ -9,7 +11,9 @@ export default function Home() {
       <HeroSection />
       <CategoryNav />
       <FeaturedShops />
-      <HowItWorks />
+      <VideoHighlights />
+      <TrustSection />
+      <CTABanner />
     </>
   );
 }

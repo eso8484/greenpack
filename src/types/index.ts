@@ -120,3 +120,20 @@ export interface SearchFilters {
   sortBy: "relevance" | "rating" | "price_low" | "price_high" | "newest";
   verifiedOnly: boolean;
 }
+
+// === SELLER ===
+export interface SellerUser {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  shopId?: string;
+  avatar?: string;
+}
+
+export interface DashboardStats {
+  totalViews: number;
+  totalOrders: number;
+  revenue: number;
+  averageRating: number;
+}

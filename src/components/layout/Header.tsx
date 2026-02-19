@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import SearchBar from "./SearchBar";
 import MobileNav from "./MobileNav";
 import ThemeToggle from "@/components/ui/ThemeToggle";
@@ -18,9 +19,14 @@ export default function Header() {
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2 shrink-0">
-              <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">G</span>
-              </div>
+              <Image
+                src="/logo.png"
+                alt="Green Pack Delight Logo"
+                width={36}
+                height={36}
+                className="rounded-full"
+                unoptimized
+              />
               <span className="text-xl font-bold text-gray-900 dark:text-white">
                 Green<span className="text-green-500 dark:text-green-400">Pack</span>
               </span>
@@ -39,6 +45,12 @@ export default function Header() {
                 className="text-sm font-medium text-gray-600 hover:text-green-600 transition-colors"
               >
                 Browse
+              </Link>
+              <Link
+                href="/login"
+                className="text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors"
+              >
+                Seller Login
               </Link>
             </nav>
 
