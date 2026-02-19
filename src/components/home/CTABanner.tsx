@@ -1,58 +1,31 @@
 import Link from "next/link";
-import Button from "@/components/ui/Button";
 
 export default function CTABanner() {
     return (
-        <section className="py-16">
-            <div className="max-w-7xl mx-auto px-4">
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-green-500 to-emerald-500">
-                    {/* Background decoration */}
-                    <div className="absolute inset-0">
-                        <div className="absolute -top-20 -right-20 w-80 h-80 bg-white/5 rounded-full blur-2xl" />
-                        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-emerald-400/10 rounded-full blur-2xl" />
-                        <div
-                            className="absolute inset-0 opacity-[0.04]"
-                            style={{
-                                backgroundImage:
-                                    "radial-gradient(circle, white 1px, transparent 1px)",
-                                backgroundSize: "30px 30px",
-                            }}
-                        />
-                    </div>
+        <section className="max-w-7xl mx-auto px-6 mb-24">
+            <div className="bg-gray-900 rounded-3xl p-12 md:p-20 relative overflow-hidden text-center text-white">
+                {/* Decorative glow circles */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-green-500/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
 
-                    <div className="relative px-8 py-14 md:px-16 md:py-16 flex flex-col md:flex-row items-center justify-between gap-8">
-                        <div className="text-center md:text-left max-w-lg">
-                            <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-                                Own a local
-                                <br />
-                                shop?
-                            </h2>
-                            <p className="mt-4 text-green-100/90 text-lg leading-relaxed">
-                                Get discovered by thousands of customers looking for quality
-                                services. Join the Green Pack community today.
-                            </p>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3">
-                            <Link href="/register">
-                                <Button
-                                    variant="secondary"
-                                    size="lg"
-                                    className="bg-white text-green-700 hover:bg-green-50 shadow-lg shadow-black/10 font-semibold whitespace-nowrap"
-                                >
-                                    Register Your Shop
-                                </Button>
-                            </Link>
-                            <Link href="/register">
-                                <Button
-                                    variant="outline"
-                                    size="lg"
-                                    className="border-white/40 text-white hover:bg-white/10 backdrop-blur-sm whitespace-nowrap"
-                                >
-                                    Learn More
-                                </Button>
-                            </Link>
-                        </div>
-                    </div>
+                <h2 className="text-4xl md:text-5xl font-black mb-6 relative z-10">
+                    Own a local business?
+                </h2>
+                <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 relative z-10">
+                    Get discovered by thousands of customers looking for quality services.
+                    Join the Green Pack community today.
+                </p>
+                <div className="flex flex-col md:flex-row gap-4 justify-center relative z-10">
+                    <Link href="/sell">
+                        <button className="bg-green-500 hover:bg-green-600 text-white font-bold px-10 py-4 rounded-xl shadow-xl shadow-green-500/20 transition-all cursor-pointer">
+                            List Your Business
+                        </button>
+                    </Link>
+                    <Link href="/register">
+                        <button className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold px-10 py-4 rounded-xl border border-white/20 transition-all cursor-pointer">
+                            Learn More
+                        </button>
+                    </Link>
                 </div>
             </div>
         </section>

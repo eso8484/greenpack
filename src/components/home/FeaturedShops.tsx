@@ -6,41 +6,25 @@ export default function FeaturedShops() {
   const featured = getFeaturedShops();
 
   return (
-    <section className="py-14 bg-gray-50 dark:bg-gray-900/50">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <span className="inline-block text-sm font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider mb-1">
-              Community Verified
-            </span>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-              Featured Businesses
-            </h2>
-            <p className="mt-1 text-gray-500 dark:text-gray-400 text-sm">
-              Every business here has passed our 12-point community trust check.
-            </p>
+    <section className="bg-white dark:bg-gray-900/50 py-24 px-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-12">
+          <div className="inline-flex items-center gap-2 bg-green-500/10 text-green-600 dark:text-green-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
+            <span className="material-symbols-outlined text-sm fill-1">
+              verified
+            </span>{" "}
+            Verified &amp; Trusted
           </div>
-          <Link
-            href="/browse"
-            className="hidden md:inline-flex items-center gap-1 text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors group"
-          >
-            View All
-            <svg
-              className="w-4 h-4 group-hover:translate-x-0.5 transition-transform"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </Link>
+          <h2 className="text-4xl font-black text-gray-900 dark:text-white mb-4 tracking-tight">
+            Featured Businesses
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 max-w-xl">
+            Every business in this section has passed our 12-point community
+            trust check.
+          </p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {featured.slice(0, 6).map((shop) => (
             <ShopCard key={shop.id} shop={shop} />
           ))}

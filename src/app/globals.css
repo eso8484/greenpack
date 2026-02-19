@@ -9,12 +9,21 @@
   }
 
   body {
-    @apply bg-[#eef1f5] text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100;
+    @apply bg-[#f6f8f7] text-gray-900 antialiased dark:bg-[#122017] dark:text-gray-100;
+    font-family: 'Inter', sans-serif;
   }
 
   html {
     scroll-behavior: smooth;
   }
+}
+
+/* Hero background with image + green overlay */
+.hero-gradient {
+  background: linear-gradient(to right, rgba(18, 32, 23, 0.85), rgba(33, 196, 93, 0.35)),
+    url('https://images.unsplash.com/photo-1618828665011-0abd973f7bb8?q=80&w=2000&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
 }
 
 /* Custom scrollbar */
@@ -71,4 +80,23 @@
     transform: translateY(-4px);
     box-shadow: 0 12px 40px -12px rgba(34, 197, 94, 0.15);
   }
+
+  /* Hide scrollbar for carousels */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Material Symbols (used for icons matching the template) */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.fill-1 {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }

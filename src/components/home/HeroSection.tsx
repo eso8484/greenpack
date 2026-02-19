@@ -1,14 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useEffect } from "react";
-import Button from "@/components/ui/Button";
-
-const stats = [
-  { label: "Local Shops", value: "500+" },
-  { label: "Happy Customers", value: "10K+" },
-  { label: "Verified Businesses", value: "350+" },
-];
 
 export default function HeroSection() {
   const [isVisible, setIsVisible] = useState(false);
@@ -18,80 +10,53 @@ export default function HeroSection() {
   }, []);
 
   return (
-    <section className="relative bg-gradient-to-br from-green-700 via-green-600 to-emerald-500 overflow-hidden min-h-[520px] flex items-center">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute top-1/2 -right-20 w-80 h-80 bg-emerald-400/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
-        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-green-300/8 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
-        {/* Decorative grid pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-      </div>
+    <section
+      className="relative w-full flex items-center justify-center px-6 overflow-hidden hero-gradient"
+      style={{ height: 640 }}
+    >
+      {/* Subtle overlay */}
+      <div className="absolute inset-0 bg-green-500/10" />
 
-      <div className="relative max-w-7xl mx-auto px-4 py-20 md:py-28 w-full">
-        <div
-          className={`max-w-2xl transition-all duration-1000 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
-        >
-          {/* Label pill */}
-          <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-full px-4 py-1.5 mb-6 border border-white/20">
-            <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
-            <span className="text-sm font-medium text-white/90">
-              Trusted by 10,000+ happy customers
+      {/* Content */}
+      <div
+        className={`relative z-10 max-w-4xl w-full text-center transition-all duration-1000 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          }`}
+      >
+        <h1 className="text-5xl md:text-7xl font-black text-white leading-[1.1] mb-6 tracking-tight">
+          Discover the best{" "}
+          <br />
+          <span className="text-green-400">near you</span>
+        </h1>
+        <p className="text-lg md:text-xl text-slate-100/90 mb-10 max-w-2xl mx-auto font-medium">
+          Connecting you with trusted local services and authentic shops in your
+          neighborhood.
+        </p>
+
+        {/* Search Bar */}
+        <div className="bg-white dark:bg-gray-900 p-2 md:p-3 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-3xl mx-auto border border-white/20">
+          <div className="flex-1 flex items-center px-4 gap-3 border-b md:border-b-0 md:border-r border-gray-100 dark:border-gray-800">
+            <span className="material-symbols-outlined text-gray-400">
+              search
             </span>
+            <input
+              className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-gray-900 dark:text-white placeholder:text-gray-400 py-4 text-sm"
+              placeholder="Laundry, barbers, food..."
+              type="text"
+            />
           </div>
-
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight">
-            Discover the
-            <br />
-            <span className="bg-gradient-to-r from-green-200 to-emerald-100 bg-clip-text text-transparent">
-              best near you
+          <div className="flex-1 flex items-center px-4 gap-3">
+            <span className="material-symbols-outlined text-gray-400">
+              location_on
             </span>
-          </h1>
-          <p className="mt-5 text-lg md:text-xl text-green-100/90 leading-relaxed max-w-lg">
-            Connecting you with trusted local services and authentic shops in
-            your neighborhood.
-          </p>
-
-
-
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/browse">
-              <Button
-                variant="secondary"
-                size="lg"
-                className="bg-white text-green-700 hover:bg-green-50 active:bg-green-100 shadow-lg shadow-black/10 font-semibold"
-              >
-                Explore Shops
-              </Button>
-            </Link>
-            <Link href="/browse">
-              <Button
-                variant="outline"
-                size="lg"
-                className="border-white/40 text-white hover:bg-white/10 backdrop-blur-sm"
-              >
-                Browse Categories
-              </Button>
-            </Link>
+            <input
+              className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-gray-900 dark:text-white placeholder:text-gray-400 py-4 text-sm"
+              placeholder="Enter your city..."
+              type="text"
+            />
           </div>
-
-          {/* Stats */}
-          <div className="mt-12 flex gap-8">
-            {stats.map((stat) => (
-              <div key={stat.label}>
-                <div className="text-2xl md:text-3xl font-bold text-white">
-                  {stat.value}
-                </div>
-                <div className="text-sm text-green-200/80">{stat.label}</div>
-              </div>
-            ))}
-          </div>
+          <button className="bg-green-500 text-white px-10 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all text-sm cursor-pointer">
+            Search Now
+          </button>
         </div>
       </div>
     </section>

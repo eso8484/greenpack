@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import SearchBar from "./SearchBar";
 import MobileNav from "./MobileNav";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { useCart } from "@/hooks/useCart";
@@ -14,51 +13,56 @@ export default function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 transition-colors">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16 gap-4">
+      <header className="sticky top-0 z-50 w-full bg-white/80 dark:bg-[#122017]/80 backdrop-blur-md border-b border-green-500/10">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between h-20 gap-4">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2 shrink-0">
-              <Image
-                src="/logo.png"
-                alt="Green Pack Delight Logo"
-                width={36}
-                height={36}
-                className="rounded-full"
-                unoptimized
-              />
-              <span className="text-xl font-bold text-gray-900 dark:text-white">
-                Green<span className="text-green-500 dark:text-green-400">Pack</span>
+            <Link href="/" className="flex items-center gap-3 shrink-0">
+              <div className="bg-green-500 p-1.5 rounded-lg">
+                <Image
+                  src="/logo.png"
+                  alt="Green Pack Delight Logo"
+                  width={28}
+                  height={28}
+                  className="rounded"
+                  unoptimized
+                />
+              </div>
+              <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
+                Green Pack Delight
               </span>
             </Link>
 
             {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-6">
+            <nav className="hidden md:flex items-center gap-10">
               <Link
                 href="/"
-                className="text-sm font-medium text-gray-600 hover:text-green-600 transition-colors"
+                className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors"
               >
                 Home
               </Link>
               <Link
                 href="/browse"
-                className="text-sm font-medium text-gray-600 hover:text-green-600 transition-colors"
+                className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors"
               >
                 Browse
               </Link>
               <Link
-                href="/login"
-                className="text-sm font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-colors"
+                href="/browse"
+                className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors"
               >
-                Seller Login
+                Shops
+              </Link>
+              <Link
+                href="/sell"
+                className="text-sm font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
+              >
+                Sell on GreenPack
               </Link>
             </nav>
 
-            {/* Search */}
-            <SearchBar className="hidden md:block flex-1 max-w-md" />
-
             {/* Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {/* Theme toggle */}
               <ThemeToggle />
 
@@ -85,6 +89,22 @@ export default function Header() {
                     {itemCount}
                   </span>
                 )}
+              </Link>
+
+              {/* Login — for general users/buyers */}
+              <Link
+                href="/login"
+                className="hidden md:block text-sm font-bold px-5 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-all text-gray-700 dark:text-gray-300"
+              >
+                Login
+              </Link>
+
+              {/* Sign Up — for general users/buyers */}
+              <Link
+                href="/signup"
+                className="hidden md:block bg-green-500 text-white text-sm font-bold px-6 py-2.5 rounded-lg shadow-lg shadow-green-500/20 hover:scale-105 active:scale-95 transition-all"
+              >
+                Sign Up
               </Link>
 
               {/* Mobile menu button */}

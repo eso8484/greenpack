@@ -25,11 +25,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
           <CartProvider>
             <Header />
-            <main className="min-h-screen bg-[#eef1f5] dark:bg-gray-900">
+            <main className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900">
               {children}
             </main>
             <Footer />
