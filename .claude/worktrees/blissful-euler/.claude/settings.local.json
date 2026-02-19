@@ -4,7 +4,18 @@
       "Bash(npx next build:*)",
       "Bash(npm uninstall:*)",
       "Bash(npm install:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(echo:*)",
+      "Bash(git -C \"C:/Users/Eso/OneDrive/Desktop/GreenPack\" branch)",
+      "Bash(git -C \"C:/Users/Eso/OneDrive/Desktop/GreenPack\" show HEAD:src/app/page.tsx)",
+      "Bash(git -C \"C:/Users/Eso/OneDrive/Desktop/GreenPack\" show master:src/app/page.tsx)",
+      "Bash(git -C \"C:/Users/Eso/OneDrive/Desktop/GreenPack\" log --oneline -3)",
+      "Bash(git -C \"C:/Users/Eso/OneDrive/Desktop/GreenPack\" show 0c68c06:src/app/page.tsx)",
+      "Bash(git -C \"C:/Users/Eso/OneDrive/Desktop/GreenPack\" ls-tree --name-only -r HEAD src/)",
+      "Bash(git -C \"C:/Users/Eso/OneDrive/Desktop/GreenPack\" ls-tree --name-only HEAD)",
+      "Bash(git -C \"C:/Users/Eso/OneDrive/Desktop/GreenPack\" ls-tree:*)"
     ]
   }
 }
