@@ -4,6 +4,15 @@ import { shops } from "@/lib/data/shops";
 
 const videoShops = shops.filter((s) => s.video?.url).slice(0, 4);
 
+// Generate stable stats based on shop ID (consistent across renders)
+const getShopStats = (shopId: string) => {
+    const hash = shopId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return {
+        views: ((hash % 20) + 5).toFixed(1),
+        likes: Math.floor((hash % 2000) + 200),
+    };
+};
+
 export default function VideoHighlights() {
     if (videoShops.length === 0) return null;
 
@@ -64,13 +73,13 @@ export default function VideoHighlights() {
                                     <span className="material-symbols-outlined text-sm">
                                         visibility
                                     </span>{" "}
-                                    {(Math.random() * 20 + 5).toFixed(1)}k
+                                    {getShopStats(shop.id).views}k
                                 </span>
                                 <span className="flex items-center gap-1">
                                     <span className="material-symbols-outlined text-sm">
                                         favorite
                                     </span>{" "}
-                                    {Math.floor(Math.random() * 2000 + 200)}
+                                    {getShopStats(shop.id).likes}
                                 </span>
                             </div>
                         </div>

@@ -87,6 +87,13 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
             Browse All
           </Link>
           <Link
+            href="/help"
+            onClick={onClose}
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
+          >
+            Help Center
+          </Link>
+          <Link
             href="/cart"
             onClick={onClose}
             className="block px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"

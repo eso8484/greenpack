@@ -1,4 +1,3 @@
-import Link from "next/link";
 import ShopCard from "@/components/browse/ShopCard";
 import { getFeaturedShops } from "@/lib/utils";
 

@@ -1,13 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-
 export default function HeroSection() {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    setIsVisible(true);
-  }, []);
+  const isVisible = true;
 
   return (
     <section

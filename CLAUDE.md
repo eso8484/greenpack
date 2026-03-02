@@ -33,7 +33,8 @@ src/
 │   ├── browse/page.tsx           # Browse/listings
 │   ├── shop/[shopId]/page.tsx    # Shop detail (generateStaticParams)
 │   ├── cart/page.tsx             # Cart
-│   └── checkout/page.tsx         # Checkout
+│   ├── checkout/page.tsx         # Checkout
+│   └── help/page.tsx             # Help Center with FAQs
 ├── components/
 │   ├── ui/         # Button, Card, Badge, Rating, PriceTag, Input, EmptyState, Skeleton
 │   ├── layout/     # Header, Footer, MobileNav, SearchBar, ThemeToggle
@@ -42,9 +43,10 @@ src/
 │   ├── shop/       # ShopHeader, VideoShowcase, ServiceList, ServiceCard,
 │   │               # ProductGrid, ProductCard, ShopContactInfo, ReviewSection, ReviewCard
 │   ├── cart/       # CartItem, CartItemList, CartSummary
-│   └── checkout/   # ContactForm, OrderReview, CheckoutSummary
+│   ├── checkout/   # ContactForm, OrderReview, CheckoutSummary
+│   └── help/       # FAQAccordion, CategoryCard
 ├── lib/
-│   ├── data/       # shops.ts, categories.ts, services.ts, products.ts, reviews.ts
+│   ├── data/       # shops.ts, categories.ts, services.ts, products.ts, reviews.ts, faqs.ts
 │   ├── utils.ts    # formatPrice, filterShops, cn(), BLUR_PLACEHOLDER, etc.
 │   └── constants.ts # SITE_NAME, CURRENCY, CURRENCY_SYMBOL
 ├── hooks/          # useCart.ts, useSearch.ts
@@ -61,6 +63,7 @@ src/
 | `/shop/[shopId]` | Server | Shop detail — video, services, products, reviews, contact info |
 | `/cart` | Client | Cart management — grouped by shop, quantity controls |
 | `/checkout` | Client | Contact form + order review, success state clears cart |
+| `/help` | Client | Help Center — FAQ categories, search, accordion Q&A |
 
 ## Architecture Patterns
 
@@ -70,7 +73,7 @@ Server Components by default. Only add `"use client"` when the component needs:
 - Event handlers (onClick, onChange)
 - Browser APIs
 
-**Client components**: CartContext, SearchBar, MobileNav, FilterBar, VideoShowcase, ProductCard, ServiceCard, CartItem, CartItemList, CartSummary, ThemeToggle, AnimatedContainer, cart/page, checkout/page
+**Client components**: CartContext, SearchBar, MobileNav, FilterBar, VideoShowcase, ProductCard, ServiceCard, CartItem, CartItemList, CartSummary, ThemeToggle, AnimatedContainer, FAQAccordion, CategoryCard, cart/page, checkout/page, help/page
 
 ### State Management
 - **Cart**: `src/context/CartContext.tsx` — React Context + `useReducer`
@@ -93,6 +96,7 @@ All mock data lives in `src/lib/data/*.ts`. Query functions in `src/lib/utils.ts
 All TypeScript interfaces in `src/types/index.ts`:
 - `Category`, `Shop`, `Service`, `Product`, `Review`
 - `CartItem`, `CustomerInfo`, `SearchFilters`
+- `FAQCategory`, `FAQItem`
 
 ## Styling Conventions
 
@@ -126,6 +130,12 @@ Apply these consistently when adding dark mode to new components:
 - Use `next/image` with `unoptimized` for external placeholder URLs (placehold.co)
 - Add `placeholder="blur"` and `blurDataURL={BLUR_PLACEHOLDER}` to all images
 - `BLUR_PLACEHOLDER` is a green-tinted SVG base64 constant from `src/lib/utils.ts`
+
+## Skills
+
+| Skill | Trigger | Description |
+|-------|---------|-------------|
+| `/feature-builder` | "add X to GreenPack", "build a new feature", "implement X" | Plans and implements new features end-to-end following all project conventions. Gathers requirements, explores code, plans, implements, updates CLAUDE.md, and verifies the build. |
 
 ## Key Files Reference
 | File | Purpose |

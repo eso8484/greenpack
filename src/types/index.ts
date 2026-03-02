@@ -137,3 +137,20 @@ export interface DashboardStats {
   revenue: number;
   averageRating: number;
 }
+
+// === FAQ / HELP CENTER ===
+export interface FAQCategory {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  slug: string;
+}
+
+export interface FAQItem {
+  id: string;
+  categoryId: string;
+  question: string;
+  answer: string;
+  keywords: string[];
+}

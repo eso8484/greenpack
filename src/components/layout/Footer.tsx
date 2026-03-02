@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import { categories } from "@/lib/data/categories";
 
 export default function Footer() {
   return (

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import ContactForm from "@/components/checkout/ContactForm";
 import OrderReview from "@/components/checkout/OrderReview";
 import { useCart } from "@/hooks/useCart";
@@ -11,7 +10,6 @@ import type { CustomerInfo } from "@/types";
 
 export default function CheckoutPage() {
   const { items, clearCart } = useCart();
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 

@@ -18,16 +18,14 @@ export default function Header() {
           <div className="flex items-center justify-between h-20 gap-4">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-3 shrink-0">
-              <div className="bg-green-500 p-1.5 rounded-lg">
-                <Image
-                  src="/logo.png"
-                  alt="Green Pack Delight Logo"
-                  width={28}
-                  height={28}
-                  className="rounded"
-                  unoptimized
-                />
-              </div>
+              <Image
+                src="/logo.png"
+                alt="Green Pack Delight Logo"
+                width={28}
+                height={28}
+                className="rounded"
+                unoptimized
+              />
               <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
                 Green Pack Delight
               </span>
@@ -52,6 +50,12 @@ export default function Header() {
                 className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors"
               >
                 Shops
+              </Link>
+              <Link
+                href="/help"
+                className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              >
+                Help Center
               </Link>
               <Link
                 href="/sell"
