@@ -3,6 +3,7 @@
 import Link from "next/link";
 import SearchBar from "./SearchBar";
 import { categories } from "@/lib/data/categories";
+import { useAuth } from "@/hooks/useAuth";
 
 interface MobileNavProps {
   open: boolean;
@@ -10,6 +11,8 @@ interface MobileNavProps {
 }
 
 export default function MobileNav({ open, onClose }: MobileNavProps) {
+  const { user, profile, signOut } = useAuth();
+
   if (!open) return null;
 
   return (
@@ -47,23 +50,50 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
           </button>
         </div>
 
-        {/* Auth Buttons */}
-        <div className="p-4 flex gap-3 border-b border-gray-100 dark:border-gray-800">
-          <Link
-            href="/login"
-            onClick={onClose}
-            className="flex-1 text-center py-2.5 text-sm font-bold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-          >
-            Login
-          </Link>
-          <Link
-            href="/signup"
-            onClick={onClose}
-            className="flex-1 text-center py-2.5 text-sm font-bold rounded-lg bg-green-500 text-white shadow-sm hover:bg-green-600 transition-colors"
-          >
-            Sign Up
-          </Link>
-        </div>
+        {/* Auth Section */}
+        {user && profile ? (
+          <div className="p-4 border-b border-gray-100 dark:border-gray-800">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">
+                {profile.full_name?.charAt(0).toUpperCase() || "U"}
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900 dark:text-white">
+                  {profile.full_name || "User"}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  {profile.role}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                signOut();
+                onClose();
+              }}
+              className="w-full py-2.5 text-sm font-bold rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          <div className="p-4 flex gap-3 border-b border-gray-100 dark:border-gray-800">
+            <Link
+              href="/login"
+              onClick={onClose}
+              className="flex-1 text-center py-2.5 text-sm font-bold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Login
+            </Link>
+            <Link
+              href="/signup"
+              onClick={onClose}
+              className="flex-1 text-center py-2.5 text-sm font-bold rounded-lg bg-green-500 text-white shadow-sm hover:bg-green-600 transition-colors"
+            >
+              Sign Up
+            </Link>
+          </div>
+        )}
 
         {/* Search */}
         <div className="p-4">
@@ -94,15 +124,29 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
             Help Center
           </Link>
           <Link
+            href="/wishlist"
+            onClick={onClose}
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
+          >
+            Wishlist
+          </Link>
+          <Link
             href="/cart"
             onClick={onClose}
             className="block px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
           >
             Cart
           </Link>
+          <Link
+            href="/profile"
+            onClick={onClose}
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
+          >
+            My Profile
+          </Link>
         </nav>
 
-        {/* Sell on GreenPack CTA */}
+        {/* Become a Vendor CTA */}
         <div className="px-4 pb-4">
           <Link
             href="/sell"
@@ -112,7 +156,7 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
             <span className="material-symbols-outlined text-lg">
               storefront
             </span>
-            Sell on GreenPack
+            Become a Vendor
           </Link>
         </div>
 
