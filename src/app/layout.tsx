@@ -4,6 +4,8 @@ import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { CartProvider } from "@/context/CartContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { WishlistProvider } from "@/context/WishlistContext";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import Toaster from "@/components/ui/Toaster";
 
@@ -33,14 +35,18 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
-          <CartProvider>
-            <Header />
-            <main className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900">
-              {children}
-            </main>
-            <Footer />
-            <Toaster />
-          </CartProvider>
+          <AuthProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <Header />
+                <main className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900">
+                  {children}
+                </main>
+                <Footer />
+                <Toaster />
+              </CartProvider>
+            </WishlistProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
