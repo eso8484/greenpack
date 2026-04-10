@@ -97,24 +97,36 @@ export default function Footer() {
           </h3>
           <ul className="space-y-4 text-gray-500 dark:text-gray-400 text-sm">
             <li>
-              <span className="hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer">
+              <Link
+                href="/help"
+                className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              >
                 Help Center
-              </span>
+              </Link>
             </li>
             <li>
-              <span className="hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer">
+              <Link
+                href="/contact-support"
+                className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              >
                 Contact Support
-              </span>
+              </Link>
             </li>
             <li>
-              <span className="hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer">
+              <Link
+                href="/privacy"
+                className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              >
                 Privacy Policy
-              </span>
+              </Link>
             </li>
             <li>
-              <span className="hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer">
+              <Link
+                href="/terms"
+                className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              >
                 Terms of Service
-              </span>
+              </Link>
             </li>
           </ul>
         </div>

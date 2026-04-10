@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import CategoryCard from "@/components/help/CategoryCard";
@@ -190,8 +191,8 @@ export default function HelpCenterPage() {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               Our support team is ready to assist you
             </p>
-            <a
-              href="mailto:support@greenpackdelight.com"
+            <Link
+              href="/contact-support"
               className="inline-flex items-center gap-2 bg-green-500 text-white font-semibold px-8 py-3 rounded-lg shadow-lg shadow-green-500/20 hover:bg-green-600 transition-colors"
             >
               <svg
@@ -208,7 +209,7 @@ export default function HelpCenterPage() {
                 />
               </svg>
               Contact Support
-            </a>
+            </Link>
           </motion.div>
         </div>
       </div>

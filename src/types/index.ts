@@ -265,3 +265,35 @@ export interface FAQItem {
   answer: string;
   keywords: string[];
 }
+
+// === SUPPORT ===
+export type SupportTicketStatus = "open" | "queued" | "assigned" | "resolved" | "closed";
+export type SupportChannel = "web_chat" | "whatsapp" | "email" | "phone";
+export type SupportPriority = "low" | "normal" | "high" | "urgent";
+export type SupportMessageSender = "customer" | "assistant" | "agent" | "system";
+
+export interface SupportTicket {
+  id: string;
+  customer_id: string;
+  order_id?: string | null;
+  status: SupportTicketStatus;
+  channel: SupportChannel;
+  priority: SupportPriority;
+  issue_summary: string;
+  assigned_agent_name?: string | null;
+  metadata?: Record<string, unknown>;
+  assigned_at?: string | null;
+  resolved_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupportMessage {
+  id: string;
+  ticket_id: string;
+  sender_type: SupportMessageSender;
+  sender_id?: string | null;
+  message: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}

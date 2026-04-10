@@ -38,6 +38,7 @@ src/
 │   ├── cart/page.tsx               # Cart
 │   ├── checkout/page.tsx           # Checkout
 │   ├── help/page.tsx               # Help Center with FAQs
+│   ├── contact-support/page.tsx    # Floating support widget + assistant/live-agent handoff
 │   ├── search/page.tsx             # Search results
 │   ├── wishlist/page.tsx           # Saved/wishlisted shops
 │   ├── profile/page.tsx            # Customer profile (auth required)
@@ -65,6 +66,8 @@ src/
 │       ├── profile/                # GET/PATCH current user profile
 │       ├── reviews/                # Reviews CRUD
 │       ├── shops/                  # Shops CRUD
+│       ├── support/
+│       │   └── tickets/            # Support tickets + chat messages API
 │       └── verify/                 # OTP verification endpoint
 ├── components/
 │   ├── ui/           # Button, Card, Badge, Rating, PriceTag, Input, EmptyState, Skeleton, Toaster
@@ -97,6 +100,7 @@ supabase/
 └── migrations/
     ├── 001_initial_schema.sql                       # profiles, shops, services, products, orders, reviews, deliveries
     └── 002_verification_and_profile_update.sql      # verification_otps, profile fields (DOB, email/phone_verified, terms)
+  └── 003_support_tickets.sql                      # support_tickets, support_messages, RLS policies
 ```
 
 ## Routes
@@ -111,6 +115,7 @@ supabase/
 | `/checkout` | Client | — | Contact form + order review, success state clears cart |
 | `/wishlist` | Client | — | Saved/wishlisted shops |
 | `/help` | Client | — | Help Center — FAQ categories, search, accordion Q&A |
+| `/contact-support` | Client | — | Floating support chat widget with assistant triage and live-agent ticket handoff |
 | `/login` | Client | — | Supabase Auth login |
 | `/register` | Client | — | Customer registration |
 | `/signup` | Client | — | Vendor / courier signup onboarding |
@@ -195,6 +200,8 @@ Server Components by default. Only add `"use client"` when the component needs:
 | `orders` | Customer orders |
 | `deliveries` | Courier delivery jobs |
 | `verification_otps` | 6-digit OTP codes — identifier (email/phone), type, expires_at, used |
+| `support_tickets` | Customer support tickets (queued/assigned/resolved) |
+| `support_messages` | Support chat messages linked to tickets |
 
 ### Triggers
 - `on_auth_user_created` → auto-creates `profiles` row on signup with role from `raw_user_meta_data`
