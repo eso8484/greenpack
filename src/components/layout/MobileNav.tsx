@@ -4,6 +4,7 @@ import Link from "next/link";
 import SearchBar from "./SearchBar";
 import { categories } from "@/lib/data/categories";
 import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
 
 interface MobileNavProps {
   open: boolean;
@@ -11,6 +12,7 @@ interface MobileNavProps {
 }
 
 export default function MobileNav({ open, onClose }: MobileNavProps) {
+  const router = useRouter();
   const { user, profile, signOut } = useAuth();
   const displayName =
     profile?.full_name ||
@@ -20,6 +22,16 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
     user?.email ||
     "User";
   const roleLabel = profile?.role || "customer";
+
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    if (error) {
+      console.error("Logout failed:", error);
+    }
+    onClose();
+    router.push("/");
+    router.refresh();
+  };
 
   if (!open) return null;
 
@@ -75,10 +87,7 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
               </div>
             </div>
             <button
-              onClick={() => {
-                signOut();
-                onClose();
-              }}
+              onClick={handleLogout}
               className="w-full py-2.5 text-sm font-bold rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
               Logout

@@ -9,8 +9,10 @@ import { useCart } from "@/hooks/useCart";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
+  const router = useRouter();
   const { itemCount } = useCart();
   const { wishlistCount } = useWishlist();
   const { user, profile, signOut } = useAuth();
@@ -23,6 +25,16 @@ export default function Header() {
       : null) ||
     user?.email ||
     "User";
+
+  const handleLogout = async () => {
+    const { error } = await signOut();
+    setProfileMenuOpen(false);
+    if (error) {
+      console.error("Logout failed:", error);
+    }
+    router.push("/");
+    router.refresh();
+  };
 
   return (
     <>
@@ -216,10 +228,7 @@ export default function Header() {
                       )}
                       <hr className="my-2 border-gray-200 dark:border-gray-700" />
                       <button
-                        onClick={() => {
-                          signOut();
-                          setProfileMenuOpen(false);
-                        }}
+                        onClick={handleLogout}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <div className="flex items-center gap-2">

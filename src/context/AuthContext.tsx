@@ -28,7 +28,7 @@ interface AuthContextValue extends AuthState {
     fullName: string,
     role?: UserRole
   ) => Promise<{ error: string | null }>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<{ error: string | null }>;
   updateProfile: (data: Partial<Profile>) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
 }
@@ -136,7 +136,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Optimistically clear local auth state so UI updates immediately.
+    setState({ user: null, session: null, profile: null, role: null, isLoading: false });
+
+    const { error } = await supabase.auth.signOut({ scope: "global" });
+    if (!error) return { error: null };
+
+    // Fallback in case global scope fails due network/session edge-cases.
+    const { error: localError } = await supabase.auth.signOut({ scope: "local" });
+    return { error: localError?.message ?? error.message };
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
