@@ -69,6 +69,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.user, fetchProfile]);
 
   useEffect(() => {
+    const exchangeOAuthCodeIfPresent = async () => {
+      if (typeof window === "undefined") return;
+
+      const currentUrl = new URL(window.location.href);
+      const code = currentUrl.searchParams.get("code");
+      const nextPath = currentUrl.searchParams.get("next");
+
+      if (!code) return;
+
+      await supabase.auth.exchangeCodeForSession(code);
+
+      currentUrl.searchParams.delete("code");
+      currentUrl.searchParams.delete("next");
+      const cleaned = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+      window.history.replaceState({}, "", cleaned || "/");
+
+      if (nextPath && nextPath.startsWith("/")) {
+        window.location.replace(nextPath);
+      }
+    };
+
+    exchangeOAuthCodeIfPresent();
+
     // Initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
