@@ -80,17 +80,26 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setError("");
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/api/auth/callback?next=${redirect ?? "/browse"}`,
+        skipBrowserRedirect: true,
       },
     });
     if (error) {
       setError(error.message);
       setGoogleLoading(false);
+      return;
     }
-    // On success the browser redirects — no need to do anything else
+
+    if (!data?.url) {
+      setError("Google sign in is unavailable right now. Please sign in with email.");
+      setGoogleLoading(false);
+      return;
+    }
+
+    window.location.assign(data.url);
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
