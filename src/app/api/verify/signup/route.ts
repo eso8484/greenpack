@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     const { email, password, fullName, phone, dateOfBirth, role } =
       await request.json();
 
-    if (!email || !password || !fullName || !phone) {
+    if (!email || !password || !fullName) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
@@ -54,13 +54,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Normalize phone for storage
-    const cleaned = phone.replace(/\D/g, "");
-    let normalizedPhone = cleaned;
-    if (cleaned.startsWith("0") && cleaned.length === 11) {
-      normalizedPhone = "+234" + cleaned.slice(1);
-    } else if (cleaned.startsWith("234")) {
-      normalizedPhone = "+" + cleaned;
+    // Normalize phone for storage when provided.
+    let normalizedPhone: string | null = null;
+    if (typeof phone === "string" && phone.trim()) {
+      const cleaned = phone.replace(/\D/g, "");
+      if (cleaned.startsWith("0") && cleaned.length === 11) {
+        normalizedPhone = "+234" + cleaned.slice(1);
+      } else if (cleaned.startsWith("234")) {
+        normalizedPhone = "+" + cleaned;
+      } else {
+        normalizedPhone = cleaned;
+      }
     }
 
     // Update profile with additional fields
@@ -72,7 +76,7 @@ export async function POST(request: Request) {
         role: role || "customer",
         date_of_birth: dateOfBirth || null,
         email_verified: true,
-        phone_verified: true,
+        phone_verified: false,
         terms_accepted: true,
         terms_accepted_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

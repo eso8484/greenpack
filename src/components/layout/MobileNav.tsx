@@ -12,6 +12,14 @@ interface MobileNavProps {
 
 export default function MobileNav({ open, onClose }: MobileNavProps) {
   const { user, profile, signOut } = useAuth();
+  const displayName =
+    profile?.full_name ||
+    (typeof user?.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : null) ||
+    user?.email ||
+    "User";
+  const roleLabel = profile?.role || "customer";
 
   if (!open) return null;
 
@@ -51,18 +59,18 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
         </div>
 
         {/* Auth Section */}
-        {user && profile ? (
+        {user ? (
           <div className="p-4 border-b border-gray-100 dark:border-gray-800">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">
-                {profile.full_name?.charAt(0).toUpperCase() || "U"}
+                {displayName.charAt(0).toUpperCase()}
               </div>
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white">
-                  {profile.full_name || "User"}
+                  {displayName}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                  {profile.role}
+                  {roleLabel}
                 </p>
               </div>
             </div>

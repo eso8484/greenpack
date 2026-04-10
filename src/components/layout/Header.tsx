@@ -16,6 +16,13 @@ export default function Header() {
   const { user, profile, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const displayName =
+    profile?.full_name ||
+    (typeof user?.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : null) ||
+    user?.email ||
+    "User";
 
   return (
     <>
@@ -137,17 +144,17 @@ export default function Header() {
               </Link>
 
               {/* Auth Section */}
-              {user && profile ? (
+              {user ? (
                 <div className="relative hidden md:block">
                   <button
                     onClick={() => setProfileMenuOpen(!profileMenuOpen)}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
                   >
                     <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-sm">
-                      {profile.full_name?.charAt(0).toUpperCase() || "U"}
+                      {displayName.charAt(0).toUpperCase()}
                     </div>
                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      {profile.full_name || "User"}
+                      {displayName}
                     </span>
                     <svg
                       className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${
@@ -179,7 +186,7 @@ export default function Header() {
                           Profile
                         </div>
                       </Link>
-                      {profile.role === "vendor" && (
+                      {profile?.role === "vendor" && (
                         <Link
                           href="/vendor/dashboard"
                           className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -193,7 +200,7 @@ export default function Header() {
                           </div>
                         </Link>
                       )}
-                      {profile.role === "courier" && (
+                      {profile?.role === "courier" && (
                         <Link
                           href="/courier/dashboard"
                           className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"

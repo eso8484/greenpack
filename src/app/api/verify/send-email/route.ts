@@ -29,6 +29,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const smtpConfigured =
+      !!process.env.SMTP_HOST &&
+      !!process.env.SMTP_USER &&
+      !!process.env.SMTP_PASS;
+
+    // Fail loudly when email transport is not configured.
+    if (!smtpConfigured) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Email delivery is not configured yet. Set SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT, and SMTP_FROM in .env.local.",
+        },
+        { status: 503 }
+      );
+    }
+
     // Generate 6-digit OTP
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -39,10 +56,6 @@ export async function POST(request: Request) {
       type: "email",
       expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     });
-
-    // Send email via Supabase Edge Function or SMTP
-    // For now, we use Supabase admin API to send a custom email
-    const smtpConfigured = process.env.SMTP_HOST && process.env.SMTP_HOST !== "";
 
     if (smtpConfigured) {
       // Use Nodemailer if SMTP is configured
@@ -75,9 +88,6 @@ export async function POST(request: Request) {
           </div>
         `,
       });
-    } else {
-      // Dev mode: log OTP to console
-      console.log(`\n📧 EMAIL OTP for ${email}: ${code}\n`);
     }
 
     return NextResponse.json({ success: true });
