@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { faqItems } from "@/lib/data/faqs";
@@ -46,6 +46,16 @@ type AssistantReply = {
   selectedOrderId?: string | null;
 };
 
+type AssistantAiResponse = {
+  success?: boolean;
+  data?: {
+    reply?: string;
+    suggestEscalation?: boolean;
+  };
+};
+
+type WidgetTab = "home" | "messages" | "help";
+
 const QUICK_TOPICS = [
   "I can't log in",
   "My order is delayed",
@@ -69,6 +79,23 @@ const DEFAULT_MESSAGES: Message[] = [
     time: formatTime(new Date()),
   },
 ];
+
+function buildDefaultMessages(): Message[] {
+  return [
+    {
+      id: crypto.randomUUID(),
+      sender: "system",
+      text: "Free support mode is active. Start with assistant chat, then connect to a live agent at no cost.",
+      time: formatTime(new Date()),
+    },
+    {
+      id: crypto.randomUUID(),
+      sender: "assistant",
+      text: "Hi, I am GreenPack Assistant. Tell me your issue and I will try to resolve it quickly before escalation.",
+      time: formatTime(new Date()),
+    },
+  ];
+}
 
 function formatTime(date: Date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -271,28 +298,6 @@ function getAssistantReply(input: string, context: AssistantContext): AssistantR
   };
 }
 
-function getLiveAgentReply(text: string, selectedOrder: SupportOrder | null) {
-  const normalized = normalize(text);
-
-  if (normalized.includes("thank") || normalized.includes("ok") || normalized.includes("alright")) {
-    return "You are welcome. I am still here and monitoring this case for you.";
-  }
-
-  if ((normalized.includes("track") || normalized.includes("order")) && selectedOrder) {
-    return `I am reviewing order ${getOrderRef(selectedOrder.id)} now. Current status is ${selectedOrder.status}. I will push an update to the vendor and confirm back here.`;
-  }
-
-  if (normalized.includes("payment") || normalized.includes("charge") || normalized.includes("debit")) {
-    return "I have opened a billing review ticket and flagged this as payment-sensitive. Please allow a few minutes while I validate the transaction trail.";
-  }
-
-  if (normalized.includes("bug") || normalized.includes("error")) {
-    return "Thanks. I have sent this to our engineering queue with priority. I will follow up with a status update in this chat.";
-  }
-
-  return "I have noted that. I am checking this now and will provide a concrete update shortly.";
-}
-
 function mapApiMessage(message: ApiSupportMessage): Message {
   const senderMap: Record<ApiSupportMessage["sender_type"], Message["sender"]> = {
     customer: "user",
@@ -321,8 +326,15 @@ export default function ContactSupportPage() {
   const [greetingCount, setGreetingCount] = useState(0);
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>(DEFAULT_MESSAGES);
+  const [widgetTab, setWidgetTab] = useState<WidgetTab>("home");
 
   const timers = useRef<number[]>([]);
+
+  const resetToNewConversation = useCallback(() => {
+    setActiveTicketId(null);
+    setMode("assistant");
+    setMessages(buildDefaultMessages());
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -350,7 +362,7 @@ export default function ContactSupportPage() {
     loadOrders();
   }, []);
 
-  const fetchTicket = async (ticketId: string) => {
+  const fetchTicket = useCallback(async (ticketId: string) => {
     const response = await fetch(`/api/support/tickets/${ticketId}`, { credentials: "include" });
     const result = (await response.json()) as { success?: boolean; data?: ApiSupportTicket };
 
@@ -359,9 +371,9 @@ export default function ContactSupportPage() {
     }
 
     return result.data;
-  };
+  }, []);
 
-  const fetchTicketMessages = async (ticketId: string) => {
+  const fetchTicketMessages = useCallback(async (ticketId: string) => {
     const response = await fetch(`/api/support/tickets/${ticketId}/messages`, { credentials: "include" });
     const result = (await response.json()) as { success?: boolean; data?: ApiSupportMessage[] };
 
@@ -370,9 +382,9 @@ export default function ContactSupportPage() {
     }
 
     return result.data;
-  };
+  }, []);
 
-  const syncTicketState = async (ticketId: string) => {
+  const syncTicketState = useCallback(async (ticketId: string) => {
     const [ticket, ticketMessages] = await Promise.all([fetchTicket(ticketId), fetchTicketMessages(ticketId)]);
 
     if (!ticket) return;
@@ -388,44 +400,46 @@ export default function ContactSupportPage() {
     if (ticketMessages && ticketMessages.length > 0) {
       setMessages(ticketMessages.map(mapApiMessage));
     }
-  };
+  }, [fetchTicket, fetchTicketMessages]);
 
-  useEffect(() => {
+  const loadLatestTicket = useCallback(async () => {
     if (!user) return;
 
-    const loadLatestTicket = async () => {
-      try {
-        const response = await fetch("/api/support/tickets", { credentials: "include" });
-        const result = (await response.json()) as { success?: boolean; data?: ApiSupportTicket[] };
+    try {
+      const response = await fetch("/api/support/tickets", { credentials: "include" });
+      const result = (await response.json()) as { success?: boolean; data?: ApiSupportTicket[] };
 
-        if (!response.ok || !result.success || !Array.isArray(result.data) || result.data.length === 0) {
-          return;
-        }
-
-        const preferred = result.data.find((ticket) =>
-          ["open", "queued", "assigned"].includes(ticket.status)
-        );
-
-        const ticket = preferred ?? result.data[0];
-        setActiveTicketId(ticket.id);
-        await syncTicketState(ticket.id);
-      } catch {
-        // Ignore ticket loading failure.
+      if (!response.ok || !result.success || !Array.isArray(result.data) || result.data.length === 0) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            sender: "system",
+            text: "No previous support conversation was found for this account yet.",
+            time: formatTime(new Date()),
+          },
+        ]);
+        return;
       }
-    };
 
-    loadLatestTicket();
-  }, [user]);
+      const preferred = result.data.find((ticket) => ["open", "queued", "assigned"].includes(ticket.status));
+      const ticket = preferred ?? result.data[0];
+      setActiveTicketId(ticket.id);
+      await syncTicketState(ticket.id);
+    } catch {
+      // Ignore ticket loading failure.
+    }
+  }, [syncTicketState, user]);
 
   useEffect(() => {
-    if (!activeTicketId || mode !== "live-agent") return;
+    if (!activeTicketId || (mode !== "live-agent" && mode !== "queue")) return;
 
     const poll = window.setInterval(() => {
       syncTicketState(activeTicketId);
     }, 7000);
 
     return () => window.clearInterval(poll);
-  }, [activeTicketId, mode]);
+  }, [activeTicketId, mode, syncTicketState]);
 
   const persistMessage = async (
     ticketId: string,
@@ -499,40 +513,30 @@ export default function ContactSupportPage() {
 
     const ensured = await ensureTicket("Live-agent handoff requested from support widget.");
     if (!ensured.ticketId) {
-      const fallbackTimer = window.setTimeout(() => {
-        setMode("live-agent");
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            sender: "system",
-            text: "You are connected. Agent Amina joined the chat.",
-            time: formatTime(new Date()),
-          },
-          {
-            id: crypto.randomUUID(),
-            sender: "agent",
-            text: "Hi, I am Amina from GreenPack Support. I can help here while backend ticket sync is still being prepared.",
-            time: formatTime(new Date()),
-          },
-        ]);
-      }, 1200);
-
-      timers.current.push(fallbackTimer);
+      setMode("assistant");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          sender: "system",
+          text: "We could not create a support ticket right now. Please retry in a moment.",
+          time: formatTime(new Date()),
+        },
+      ]);
       return;
     }
 
-    const queueTimer = window.setTimeout(async () => {
-      await fetch(`/api/support/tickets/${ensured.ticketId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "assign_demo_agent" }),
-      });
-      await syncTicketState(ensured.ticketId);
-    }, 1200);
+    await syncTicketState(ensured.ticketId);
 
-    timers.current.push(queueTimer);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        sender: "system",
+        text: "Your ticket is queued. A live agent will join this conversation soon.",
+        time: formatTime(new Date()),
+      },
+    ]);
   };
 
   const sendMessage = async (text: string) => {
@@ -552,6 +556,7 @@ export default function ContactSupportPage() {
       time: formatTime(now),
     };
 
+    setWidgetTab("messages");
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
 
@@ -562,46 +567,43 @@ export default function ContactSupportPage() {
       await persistMessage(ticketId, trimmed, "customer");
     }
 
-    if (mode === "live-agent") {
-      setIsTyping(true);
-      const liveReplyTimer = window.setTimeout(async () => {
-        setIsTyping(false);
+    if (mode === "queue") {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          sender: "system",
+          text: "Your message was added to the ticket. Please wait while a live agent responds.",
+          time: formatTime(new Date()),
+        },
+      ]);
 
-        if (!ticketId) {
-          const selectedOrder = selectedOrderId
-            ? orders.find((order) => order.id === selectedOrderId) ?? null
-            : null;
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              sender: "agent",
-              text: getLiveAgentReply(trimmed, selectedOrder),
-              time: formatTime(new Date()),
-            },
-          ]);
-          return;
-        }
-
-        await fetch(`/api/support/tickets/${ticketId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ action: "agent_auto_reply", user_message: trimmed }),
-        });
-
+      if (ticketId) {
         await syncTicketState(ticketId);
-      }, 900);
+      }
 
-      timers.current.push(liveReplyTimer);
       return;
     }
 
-    const assistantReply = getAssistantReply(trimmed, {
-      orders,
-      selectedOrderId,
-      greetingCount,
-    });
+    if (mode === "live-agent") {
+      if (!ticketId) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            sender: "system",
+            text: "Message could not be synced to a support ticket. Please reconnect to live support.",
+            time: formatTime(new Date()),
+          },
+        ]);
+        return;
+      }
+
+      await syncTicketState(ticketId);
+      return;
+    }
+
+    const assistantReply = await getAssistantResponse(trimmed);
 
     if (assistantReply.selectedOrderId) {
       setSelectedOrderId(assistantReply.selectedOrderId);
@@ -637,6 +639,75 @@ export default function ContactSupportPage() {
     e.preventDefault();
     sendMessage(input);
   };
+
+  const helpCollections = [
+    {
+      id: "tracking",
+      title: "Order Tracking",
+      description: "Delivery updates, delays, and courier status.",
+      prompt: "My order is delayed",
+    },
+    {
+      id: "account",
+      title: "Account & Login",
+      description: "Password reset, sign-in issues, and profile access.",
+      prompt: "I can't log in",
+    },
+    {
+      id: "payment",
+      title: "Payments",
+      description: "Double charge, refunds, failed debit, and vouchers.",
+      prompt: "I was charged twice",
+    },
+    {
+      id: "vendor",
+      title: "Vendor Complaints",
+      description: "Service quality concerns and escalation support.",
+      prompt: "Vendor complaint",
+    },
+  ];
+
+  const unreadCount = mode === "live-agent" ? 1 : 0;
+
+  const getAssistantResponse = useCallback(
+    async (message: string): Promise<AssistantReply> => {
+      try {
+        const response = await fetch("/api/support/assistant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            message,
+            mode,
+            selectedOrderId,
+            orders,
+            history: messages.slice(-12).map((msg) => ({ sender: msg.sender, text: msg.text })),
+          }),
+        });
+
+        if (response.ok) {
+          const result = (await response.json()) as AssistantAiResponse;
+          const aiText = result.data?.reply?.trim();
+
+          if (aiText) {
+            return {
+              text: aiText,
+              suggestEscalation: Boolean(result.data?.suggestEscalation),
+            };
+          }
+        }
+      } catch {
+        // Fall back to deterministic assistant behavior.
+      }
+
+      return getAssistantReply(message, {
+        orders,
+        selectedOrderId,
+        greetingCount,
+      });
+    },
+    [greetingCount, messages, mode, orders, selectedOrderId]
+  );
 
   return (
     <div className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900 pb-28">
@@ -750,80 +821,195 @@ export default function ContactSupportPage() {
               </button>
             </div>
 
-            <div className="h-[360px] overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3 space-y-2.5">
-              {messages.map((message) => {
-                const isUser = message.sender === "user";
-                const isSystem = message.sender === "system";
-                const isAgent = message.sender === "agent";
-
-                return (
-                  <div
-                    key={message.id}
-                    className={`max-w-[86%] rounded-xl px-3 py-2.5 ${
-                      isSystem
-                        ? "mx-auto bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900 text-center"
-                        : isUser
-                        ? "ml-auto bg-green-600 text-white"
-                        : isAgent
-                        ? "bg-blue-50 text-blue-900 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-100 dark:border-blue-800"
-                        : "bg-white text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-                    }`}
+            {widgetTab === "home" && (
+              <div className="h-[360px] overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-4 py-4">
+                <div className="rounded-2xl bg-gradient-to-r from-green-600 to-emerald-500 text-white p-4">
+                  <p className="text-2xl font-bold leading-tight">Hi GreenPackdelight</p>
+                  <p className="text-2xl font-bold leading-tight">How can we help?</p>
+                  <button
+                    onClick={() => {
+                      resetToNewConversation();
+                      setWidgetTab("messages");
+                    }}
+                    className="mt-4 w-full rounded-xl bg-white text-gray-900 px-4 py-3 text-left font-semibold"
                   >
-                    <p className="text-sm leading-relaxed">{message.text}</p>
-                    <p className={`mt-1 text-[10px] ${isUser ? "text-green-100" : "text-gray-500 dark:text-gray-400"}`}>
-                      {message.time}
-                    </p>
-                  </div>
-                );
-              })}
+                    Send us a message
+                  </button>
 
-              {isTyping && (
-                <div className="max-w-[86%] rounded-xl px-3 py-2.5 bg-white text-gray-600 border border-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700">
-                  <div className="flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" />
-                    <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:120ms]" />
-                    <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:240ms]" />
+                  <button
+                    onClick={async () => {
+                      setWidgetTab("messages");
+                      await loadLatestTicket();
+                    }}
+                    className="mt-2 w-full rounded-xl border border-white/60 bg-transparent text-white px-4 py-2.5 text-left text-sm font-semibold"
+                  >
+                    Continue previous conversation
+                  </button>
+                </div>
+
+                <div className="mt-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Search for help</p>
+                  <div className="mt-2 space-y-1">
+                    {helpCollections.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setWidgetTab("messages");
+                          sendMessage(item.prompt);
+                        }}
+                        className="w-full rounded-lg px-2 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{item.title}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
-            </div>
-
-            <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {QUICK_TOPICS.map((topic) => (
-                  <button
-                    key={topic}
-                    onClick={() => sendMessage(topic)}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-green-500 hover:text-green-700 dark:hover:text-green-300"
-                  >
-                    {topic}
-                  </button>
-                ))}
               </div>
+            )}
 
-              <form onSubmit={onSubmit} className="flex gap-2">
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your message..."
-                  className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-green-600 hover:bg-green-700 text-white px-3.5 py-2 text-sm font-semibold"
-                >
-                  Send
-                </button>
-              </form>
+            {widgetTab === "messages" && (
+              <>
+                <div className="h-[300px] overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3 space-y-2.5">
+                  {messages.map((message) => {
+                    const isUser = message.sender === "user";
+                    const isSystem = message.sender === "system";
+                    const isAgent = message.sender === "agent";
 
-              {mode !== "live-agent" && (
-                <button
-                  onClick={queueForLiveAgent}
-                  className="mt-2 text-xs font-semibold text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
-                >
-                  Connect Live Agent
-                </button>
-              )}
+                    return (
+                      <div
+                        key={message.id}
+                        className={`max-w-[86%] rounded-xl px-3 py-2.5 ${
+                          isSystem
+                            ? "mx-auto bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900 text-center"
+                            : isUser
+                            ? "ml-auto bg-green-600 text-white"
+                            : isAgent
+                            ? "bg-blue-50 text-blue-900 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-100 dark:border-blue-800"
+                            : "bg-white text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+                        }`}
+                      >
+                        <p className="text-sm leading-relaxed">{message.text}</p>
+                        <p className={`mt-1 text-[10px] ${isUser ? "text-green-100" : "text-gray-500 dark:text-gray-400"}`}>
+                          {message.time}
+                        </p>
+                      </div>
+                    );
+                  })}
+
+                  {isTyping && (
+                    <div className="max-w-[86%] rounded-xl px-3 py-2.5 bg-white text-gray-600 border border-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700">
+                      <div className="flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" />
+                        <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:120ms]" />
+                        <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:240ms]" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">Current conversation</p>
+                    <button
+                      onClick={resetToNewConversation}
+                      className="text-[11px] font-semibold text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
+                    >
+                      Start New Chat
+                    </button>
+                  </div>
+
+                  {mode === "assistant" && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {QUICK_TOPICS.slice(0, 4).map((topic) => (
+                        <button
+                          key={topic}
+                          onClick={() => sendMessage(topic)}
+                          className="px-2.5 py-1 rounded-full text-[11px] font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-green-500 hover:text-green-700 dark:hover:text-green-300"
+                        >
+                          {topic}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <form onSubmit={onSubmit} className="flex gap-2">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Message..."
+                      className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-green-600 hover:bg-green-700 text-white px-3.5 py-2 text-sm font-semibold"
+                    >
+                      Send
+                    </button>
+                  </form>
+
+                  <button
+                    onClick={queueForLiveAgent}
+                    disabled={mode === "live-agent" || mode === "queue"}
+                    className="mt-2 text-xs font-semibold text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {mode === "live-agent"
+                      ? "Live Agent Connected"
+                      : mode === "queue"
+                      ? "Waiting for live agent..."
+                      : "Connect Live Agent"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {widgetTab === "help" && (
+              <div className="h-[360px] overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3">
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 mb-3">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Help collections</p>
+                </div>
+                <div className="space-y-2">
+                  {helpCollections.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setWidgetTab("messages");
+                        sendMessage(item.prompt);
+                      }}
+                      className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-3 text-left"
+                    >
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{item.title}</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 grid grid-cols-3">
+              <button
+                onClick={() => setWidgetTab("home")}
+                className={`py-2 text-xs font-semibold ${widgetTab === "home" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
+              >
+                Home
+              </button>
+              <button
+                onClick={() => setWidgetTab("messages")}
+                className={`relative py-2 text-xs font-semibold ${widgetTab === "messages" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
+              >
+                Messages
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-[28%] inline-flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-red-500 text-white text-[10px]">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setWidgetTab("help")}
+                className={`py-2 text-xs font-semibold ${widgetTab === "help" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
+              >
+                Help
+              </button>
             </div>
 
             <button

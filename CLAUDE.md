@@ -67,7 +67,10 @@ src/
 │       ├── reviews/                # Reviews CRUD
 │       ├── shops/                  # Shops CRUD
 │       ├── support/
-│       │   └── tickets/            # Support tickets + chat messages API
+│       │   ├── tickets/            # Customer support tickets + chat messages API
+│       │   └── agent/
+│       │       ├── events/         # Agent webhook-style events (assign/reply/resolve/reopen)
+│       │       └── tickets/        # Admin agent console APIs (list/manage tickets/messages)
 │       └── verify/                 # OTP verification endpoint
 ├── components/
 │   ├── ui/           # Button, Card, Badge, Rating, PriceTag, Input, EmptyState, Skeleton, Toaster
@@ -125,6 +128,7 @@ supabase/
 | `/vendor/dashboard` | Client | ✅ vendor/admin | Vendor dashboard — orders, revenue, listings |
 | `/seller` | Client | ✅ vendor/admin | Seller management pages |
 | `/courier/dashboard` | Client | ✅ courier/admin | Courier dashboard — available jobs, delivery tracking |
+| `/admin/support` | Client | ✅ admin | Internal support agent console — queue, assignment, replies, resolution |
 | `/terms` | Server | — | Terms of service |
 | `/privacy` | Server | — | Privacy policy |
 
@@ -247,6 +251,7 @@ NEXT_PUBLIC_SUPABASE_URL=          # Supabase project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=     # Supabase anon/public key
 SUPABASE_SERVICE_ROLE_KEY=         # Supabase service role (server-only, never expose)
 TERMII_API_KEY=                    # Termii SMS API key
+SUPPORT_AGENT_API_KEY=             # Shared secret for backend agent event ingestion
 ```
 
 ## Key Files Reference
