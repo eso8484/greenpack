@@ -36,20 +36,65 @@ function buildSystemPrompt() {
   return [
     "You are GreenPack Support Assistant for a Nigerian marketplace.",
     "Goal: solve user issue quickly before human handoff.",
+    "Scope: customer support only (orders, delivery, payments, account access, vendor complaints, bug reports).",
     "Style: concise, practical, human, no fluff.",
     "Rules:",
+    "- Never provide content outside support scope (no coding help, no random knowledge dumps).",
+    "- Never invent order data, policy, timelines, or refunds not present in context.",
     "- Do not pretend a live agent has replied.",
-    "- If mode is queue/live-agent, do not answer as agent; only acknowledge waiting status.",
+    "- If mode is queue/live-agent, do not solve; only acknowledge queue status and request patience.",
     "- If user asks for human, set suggestEscalation true.",
     "- Mention order refs only if supplied in context.",
+    "- Keep reply below 90 words unless user explicitly requests detailed steps.",
     "Output strictly JSON: {\"reply\": string, \"suggestEscalation\": boolean}",
   ].join("\n");
 }
 
+function parseAiResponse(content: string): AiResponse {
+  let parsed: Partial<AiResponse> | null = null;
+
+  try {
+    parsed = JSON.parse(content) as Partial<AiResponse>;
+  } catch {
+    const fenced = content.match(/\{[\s\S]*\}/);
+    if (fenced) {
+      try {
+        parsed = JSON.parse(fenced[0]) as Partial<AiResponse>;
+      } catch {
+        parsed = null;
+      }
+    }
+  }
+
+  if (!parsed) {
+    return {
+      reply: content.trim(),
+      suggestEscalation: false,
+    };
+  }
+
+  const reply = String(parsed.reply ?? "").trim();
+  if (!reply) {
+    throw new Error("AI provider returned invalid reply payload");
+  }
+
+  return {
+    reply,
+    suggestEscalation: Boolean(parsed.suggestEscalation),
+  };
+}
+
 async function runAi(requestBody: z.infer<typeof SupportAssistantRequestSchema>): Promise<AiResponse> {
   const apiKey = process.env.SUPPORT_AI_API_KEY;
-  const model = process.env.SUPPORT_AI_MODEL ?? "gpt-4o-mini";
-  const baseUrl = process.env.SUPPORT_AI_BASE_URL ?? "https://api.openai.com/v1";
+  const provider = (process.env.SUPPORT_AI_PROVIDER ?? "openrouter").toLowerCase();
+  const model =
+    process.env.SUPPORT_AI_MODEL ??
+    (provider === "openrouter" ? "meta-llama/llama-3.1-8b-instruct:free" : "gpt-4o-mini");
+  const baseUrl =
+    process.env.SUPPORT_AI_BASE_URL ??
+    (provider === "openrouter" ? "https://openrouter.ai/api/v1" : "https://api.openai.com/v1");
+  const appUrl = process.env.SUPPORT_AI_APP_URL ?? "http://localhost:3000";
+  const appName = process.env.SUPPORT_AI_APP_NAME ?? "GreenPack Support";
 
   if (!apiKey) {
     throw new Error("SUPPORT_AI_API_KEY is not configured");
@@ -67,16 +112,22 @@ async function runAi(requestBody: z.infer<typeof SupportAssistantRequestSchema>)
     history: requestBody.history?.slice(-10) ?? [],
   };
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  // OpenRouter recommends attribution headers; harmless for OpenAI-compatible providers.
+  headers["HTTP-Referer"] = appUrl;
+  headers["X-Title"] = appName;
+
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
       model,
       temperature: 0.3,
-      response_format: { type: "json_object" },
+      max_tokens: 220,
       messages: [
         { role: "system", content: buildSystemPrompt() },
         {
@@ -101,17 +152,7 @@ async function runAi(requestBody: z.infer<typeof SupportAssistantRequestSchema>)
     throw new Error("AI provider returned empty response");
   }
 
-  const parsed = JSON.parse(content) as AiResponse;
-  const reply = String(parsed.reply ?? "").trim();
-
-  if (!reply) {
-    throw new Error("AI provider returned invalid reply payload");
-  }
-
-  return {
-    reply,
-    suggestEscalation: Boolean(parsed.suggestEscalation),
-  };
+  return parseAiResponse(content);
 }
 
 export async function POST(request: Request) {
