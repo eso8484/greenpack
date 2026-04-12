@@ -59,11 +59,14 @@ export default function AdminSupportPage() {
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [ticketFilter, setTicketFilter] = useState<"all" | SupportStatus>("all");
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [newQueuedCount, setNewQueuedCount] = useState(0);
+  const [newQueuedPreview, setNewQueuedPreview] = useState<string[]>([]);
 
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [knownTicketIds, setKnownTicketIds] = useState<Set<string>>(new Set());
 
   const selectedTicket = useMemo(
     () => tickets.find((ticket) => ticket.id === selectedTicketId) ?? null,
@@ -82,17 +85,33 @@ export default function AdminSupportPage() {
         return;
       }
 
-      setTickets(result.data);
+      const ticketData = result.data;
+
+      setKnownTicketIds((prev) => {
+        if (prev.size > 0) {
+          const newlyQueued = ticketData.filter((ticket) => ticket.status === "queued" && !prev.has(ticket.id));
+          if (newlyQueued.length > 0) {
+            setNewQueuedCount((count) => count + newlyQueued.length);
+            setNewQueuedPreview(newlyQueued.slice(0, 3).map((ticket) => ticket.id.slice(0, 8).toUpperCase()));
+          }
+        }
+
+        const next = new Set(prev);
+        ticketData.forEach((ticket) => next.add(ticket.id));
+        return next;
+      });
+
+      setTickets(ticketData);
 
       if (!keepSelection) {
-        setSelectedTicketId(result.data[0]?.id ?? null);
+        setSelectedTicketId(ticketData[0]?.id ?? null);
         return;
       }
 
       if (!selectedTicketId) {
-        setSelectedTicketId(result.data[0]?.id ?? null);
-      } else if (!result.data.some((ticket) => ticket.id === selectedTicketId)) {
-        setSelectedTicketId(result.data[0]?.id ?? null);
+        setSelectedTicketId(ticketData[0]?.id ?? null);
+      } else if (!ticketData.some((ticket) => ticket.id === selectedTicketId)) {
+        setSelectedTicketId(ticketData[0]?.id ?? null);
       }
     } finally {
       setLoadingTickets(false);
@@ -203,6 +222,26 @@ export default function AdminSupportPage() {
               Manage live support queue, assign tickets, and reply to customers from one place.
             </p>
           </div>
+
+          {newQueuedCount > 0 && (
+            <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  New queued ticket{newQueuedCount > 1 ? "s" : ""}: {newQueuedPreview.join(", ")}
+                </p>
+                <button
+                  onClick={() => {
+                    setTicketFilter("queued");
+                    setNewQueuedCount(0);
+                    setNewQueuedPreview([]);
+                  }}
+                  className="rounded-lg bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 text-xs font-semibold"
+                >
+                  View Queue
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="mb-5 flex flex-wrap items-center gap-2">
             {(["all", "queued", "assigned", "resolved"] as const).map((status) => (

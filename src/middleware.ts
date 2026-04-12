@@ -55,7 +55,16 @@ export async function middleware(request: NextRequest) {
   );
 
   if (matchedRoleRoute) {
+    const roleRoute = matchedRoleRoute[0];
+    const hideIfUnauthorized = roleRoute.startsWith("/admin");
+
     if (!user) {
+      if (hideIfUnauthorized) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/not-found";
+        return NextResponse.rewrite(url, { status: 404 });
+      }
+
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("redirect", pathname);
@@ -71,6 +80,12 @@ export async function middleware(request: NextRequest) {
 
     const allowedRoles = matchedRoleRoute[1];
     if (!profile || !allowedRoles.includes(profile.role)) {
+      if (hideIfUnauthorized) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/not-found";
+        return NextResponse.rewrite(url, { status: 404 });
+      }
+
       return NextResponse.redirect(new URL("/", request.url));
     }
   }

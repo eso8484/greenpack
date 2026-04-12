@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  lookupUserEmailById,
+  notifyCustomerAgentJoined,
+} from "@/lib/support-notifications";
 
 const AgentTicketActionSchema = z.object({
   action: z.enum(["assign", "resolve", "reopen"]),
@@ -83,7 +87,7 @@ export async function PATCH(
 
     const { data: ticket, error: ticketError } = await admin
       .from("support_tickets")
-      .select("id, status")
+      .select("id, status, customer_id")
       .eq("id", ticketId)
       .single();
 
@@ -121,6 +125,20 @@ export async function PATCH(
             `Hi, I am ${assignedName}. I have reviewed your case and I am taking over this conversation now.`,
         },
       ]);
+
+      const openingReply =
+        parsed.data.message ??
+        `Hi, I am ${assignedName}. I have reviewed your case and I am taking over this conversation now.`;
+
+      const customerEmail = await lookupUserEmailById(admin, ticket.customer_id);
+      if (customerEmail) {
+        await notifyCustomerAgentJoined({
+          to: customerEmail,
+          ticketId,
+          agentName: assignedName,
+          openingReply,
+        });
+      }
 
       return NextResponse.json({ success: true, data });
     }

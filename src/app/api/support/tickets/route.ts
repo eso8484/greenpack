@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyAgentsOfQueuedTicket } from "@/lib/support-notifications";
 
 const CreateSupportTicketSchema = z.object({
   issue_summary: z.string().min(3).max(1000),
@@ -51,6 +53,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
+    const admin = createAdminClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -101,6 +104,30 @@ export async function POST(request: Request) {
     });
 
     if (systemMessageError) throw systemMessageError;
+
+    const thresholdRaw = Number(process.env.SUPPORT_QUEUE_DELAY_THRESHOLD ?? "5");
+    const queueDelayThreshold = Number.isNaN(thresholdRaw) ? 5 : Math.max(1, thresholdRaw);
+
+    const { count: queuedCount } = await admin
+      .from("support_tickets")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["queued", "open"]);
+
+    const currentQueued = queuedCount ?? 0;
+
+    if (currentQueued >= queueDelayThreshold) {
+      await supabase.from("support_messages").insert({
+        ticket_id: ticket.id,
+        sender_type: "system",
+        message: `High support demand right now. There are currently ${currentQueued} active queued tickets, so response time may be delayed. A live agent will reply as soon as available.`,
+      });
+    }
+
+    await notifyAgentsOfQueuedTicket({
+      ticketId: ticket.id,
+      issueSummary: ticket.issue_summary,
+      queuedCount: currentQueued,
+    });
 
     return NextResponse.json({ success: true, data: ticket }, { status: 201 });
   } catch (err) {

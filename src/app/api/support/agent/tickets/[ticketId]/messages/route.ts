@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  lookupUserEmailById,
+  notifyCustomerAgentReply,
+} from "@/lib/support-notifications";
 
 const CreateAgentMessageSchema = z.object({
   message: z.string().min(1).max(4000),
@@ -44,7 +48,7 @@ export async function GET(
 
     const { data: ticket, error: ticketError } = await admin
       .from("support_tickets")
-      .select("id")
+      .select("id, customer_id")
       .eq("id", ticketId)
       .single();
 
@@ -90,7 +94,7 @@ export async function POST(
 
     const { data: ticket, error: ticketError } = await admin
       .from("support_tickets")
-      .select("id")
+      .select("id, customer_id")
       .eq("id", ticketId)
       .single();
 
@@ -114,6 +118,17 @@ export async function POST(
       .from("support_tickets")
       .update({ updated_at: new Date().toISOString() })
       .eq("id", ticketId);
+
+    if (parsed.data.sender_type === "agent") {
+      const customerEmail = await lookupUserEmailById(admin, ticket.customer_id);
+      if (customerEmail) {
+        await notifyCustomerAgentReply({
+          to: customerEmail,
+          ticketId,
+          replyText: parsed.data.message,
+        });
+      }
+    }
 
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (err) {

@@ -44,6 +44,7 @@ function buildSystemPrompt() {
     "- Never invent order data, policy, timelines, or refunds not present in context.",
     "- Do not pretend a live agent has replied.",
     "- If mode is queue/live-agent, do not solve; only acknowledge queue status and request patience.",
+    "- Never say live agents are offline; if demand is high, mention possible delay and keep user in queue.",
     "- If user asks for human, set suggestEscalation true.",
     "- Mention order refs only if supplied in context.",
     "- Keep reply below 90 words unless user explicitly requests detailed steps.",

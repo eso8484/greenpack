@@ -348,11 +348,18 @@ export default function ContactSupportPage() {
 
   const timers = useRef<number[]>([]);
 
+  const clearPendingAssistantReplies = useCallback(() => {
+    timers.current.forEach((timer) => window.clearTimeout(timer));
+    timers.current = [];
+    setIsTyping(false);
+  }, []);
+
   const resetToNewConversation = useCallback(() => {
+    clearPendingAssistantReplies();
     setActiveTicketId(null);
     setMode("assistant");
     setMessages(user ? buildDefaultMessages() : buildLoginRequiredMessages());
-  }, []);
+  }, [clearPendingAssistantReplies, user]);
 
   useEffect(() => {
     if (!user) {
@@ -530,6 +537,7 @@ export default function ContactSupportPage() {
       return;
     }
 
+    clearPendingAssistantReplies();
     setMode("queue");
     setMessages((prev) => [
       ...prev,
@@ -604,6 +612,7 @@ export default function ContactSupportPage() {
     }
 
     if (mode === "queue") {
+      clearPendingAssistantReplies();
       setMessages((prev) => [
         ...prev,
         {
@@ -622,6 +631,7 @@ export default function ContactSupportPage() {
     }
 
     if (mode === "live-agent") {
+      clearPendingAssistantReplies();
       if (!ticketId) {
         setMessages((prev) => [
           ...prev,
