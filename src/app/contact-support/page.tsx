@@ -648,6 +648,7 @@ export default function ContactSupportPage() {
     setIsTyping(true);
     const replyTimer = window.setTimeout(async () => {
       setIsTyping(false);
+      setWidgetTab("messages");
 
       const assistantText = assistantReply.suggestEscalation
         ? `${assistantReply.text} If you want, tap Connect Live Agent.`
@@ -1068,15 +1069,6 @@ export default function ContactSupportPage() {
               </button>
             </div>
 
-            <button
-              onClick={() => setIsWidgetOpen(false)}
-              className="absolute -bottom-5 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow flex items-center justify-center"
-              aria-label="Collapse chat widget"
-            >
-              <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7-7-7" />
-              </svg>
-            </button>
           </motion.div>
         )}
 
