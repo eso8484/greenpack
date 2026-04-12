@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
 
 const SupportAssistantRequestSchema = z.object({
   message: z.string().min(1).max(4000),
@@ -157,6 +158,15 @@ async function runAi(requestBody: z.infer<typeof SupportAssistantRequestSchema>)
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const parsed = SupportAssistantRequestSchema.safeParse(body);
 

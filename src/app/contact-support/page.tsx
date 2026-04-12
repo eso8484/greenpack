@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
@@ -92,6 +93,23 @@ function buildDefaultMessages(): Message[] {
       id: crypto.randomUUID(),
       sender: "assistant",
       text: "Hi, I am GreenPack Assistant. Tell me your issue and I will try to resolve it quickly before escalation.",
+      time: formatTime(new Date()),
+    },
+  ];
+}
+
+function buildLoginRequiredMessages(): Message[] {
+  return [
+    {
+      id: crypto.randomUUID(),
+      sender: "system",
+      text: "Please log in to use GreenPack Support chat and connect with live agents.",
+      time: formatTime(new Date()),
+    },
+    {
+      id: crypto.randomUUID(),
+      sender: "assistant",
+      text: "After login, I can help with account access, payments, delivery tracking, and escalation to a live agent.",
       time: formatTime(new Date()),
     },
   ];
@@ -333,8 +351,23 @@ export default function ContactSupportPage() {
   const resetToNewConversation = useCallback(() => {
     setActiveTicketId(null);
     setMode("assistant");
-    setMessages(buildDefaultMessages());
+    setMessages(user ? buildDefaultMessages() : buildLoginRequiredMessages());
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setActiveTicketId(null);
+      setMode("assistant");
+      setMessages(buildLoginRequiredMessages());
+      return;
+    }
+
+    setMessages((prev) => {
+      const hasLoginPrompt = prev.some((msg) => msg.text.includes("Please log in to use GreenPack Support"));
+      if (hasLoginPrompt) return buildDefaultMessages();
+      return prev;
+    });
+  }, [user]);
 
   useEffect(() => {
     return () => {
@@ -456,11 +489,11 @@ export default function ContactSupportPage() {
 
   const ensureTicket = async (initialMessage: string) => {
     if (activeTicketId) {
-      return { ticketId: activeTicketId, createdWithFirstMessage: false };
+      return { ticketId: activeTicketId, createdWithFirstMessage: false, error: null as string | null };
     }
 
     if (!user) {
-      return { ticketId: null, createdWithFirstMessage: false };
+      return { ticketId: null, createdWithFirstMessage: false, error: "Please log in first." };
     }
 
     const response = await fetch("/api/support/tickets", {
@@ -475,28 +508,25 @@ export default function ContactSupportPage() {
       }),
     });
 
-    const result = (await response.json()) as { success?: boolean; data?: ApiSupportTicket };
+    const result = (await response.json()) as { success?: boolean; data?: ApiSupportTicket; error?: string };
     if (!response.ok || !result.success || !result.data) {
-      return { ticketId: null, createdWithFirstMessage: false };
+      return {
+        ticketId: null,
+        createdWithFirstMessage: false,
+        error: result.error ?? "Support ticket creation failed.",
+      };
     }
 
     setActiveTicketId(result.data.id);
-    return { ticketId: result.data.id, createdWithFirstMessage: true };
+    return { ticketId: result.data.id, createdWithFirstMessage: true, error: null as string | null };
   };
 
   const queueForLiveAgent = async () => {
     if (mode !== "assistant" && mode !== "queue") return;
 
     if (!user) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          sender: "system",
-          text: "Please log in first so we can create and track your live support ticket.",
-          time: formatTime(new Date()),
-        },
-      ]);
+      setWidgetTab("messages");
+      setMessages(buildLoginRequiredMessages());
       return;
     }
 
@@ -519,7 +549,7 @@ export default function ContactSupportPage() {
         {
           id: crypto.randomUUID(),
           sender: "system",
-          text: "We could not create a support ticket right now. Please retry in a moment.",
+          text: `Live-agent handoff failed: ${ensured.error ?? "Please try again in a moment."}`,
           time: formatTime(new Date()),
         },
       ]);
@@ -542,6 +572,12 @@ export default function ContactSupportPage() {
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+
+    if (!user) {
+      setWidgetTab("messages");
+      setMessages(buildLoginRequiredMessages());
+      return;
+    }
 
     const now = new Date();
     const intent = getIntent(trimmed);
@@ -792,23 +828,33 @@ export default function ContactSupportPage() {
         </div>
       </section>
 
-      <div className="fixed right-3 bottom-3 md:right-5 md:bottom-5 z-50 w-[calc(100vw-1.5rem)] md:w-[380px]">
+      <div className="fixed right-3 bottom-3 md:right-5 md:bottom-5 z-50 w-[calc(100vw-1.5rem)] md:w-[360px]">
         {isWidgetOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="relative rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-[0_20px_55px_rgba(0,0,0,0.22)]"
+            className="relative h-[540px] md:h-[610px] flex flex-col rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-[0_20px_55px_rgba(0,0,0,0.22)]"
           >
-            <div className="bg-gradient-to-r from-green-600 to-emerald-500 text-white px-4 py-3 flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wide opacity-90">GreenPack Support</p>
-                <p className="text-sm font-semibold">
-                  {mode === "live-agent"
-                    ? "Live Agent Connected"
-                    : mode === "queue"
-                    ? "Finding an Agent"
-                    : "Assistant Online"}
-                </p>
+            <div className="bg-gradient-to-r from-green-600 to-emerald-500 text-white px-4 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Image
+                  src="/logo.png"
+                  alt="GreenPack logo"
+                  width={28}
+                  height={28}
+                  className="rounded-md bg-white/95 p-0.5"
+                  unoptimized
+                />
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] opacity-90">GreenPack</p>
+                  <p className="text-sm font-semibold leading-tight">
+                    {mode === "live-agent"
+                      ? "Live Agent Connected"
+                      : mode === "queue"
+                      ? "Finding an Agent"
+                      : "Assistant Online"}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setIsWidgetOpen(false)}
@@ -822,35 +868,41 @@ export default function ContactSupportPage() {
             </div>
 
             {widgetTab === "home" && (
-              <div className="h-[360px] overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-4 py-4">
+              <div className="flex-1 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-4 py-4">
                 <div className="rounded-2xl bg-gradient-to-r from-green-600 to-emerald-500 text-white p-4">
-                  <p className="text-2xl font-bold leading-tight">Hi GreenPackdelight</p>
-                  <p className="text-2xl font-bold leading-tight">How can we help?</p>
+                  <p className="text-2xl font-bold leading-tight">Welcome!</p>
+                  <p className="mt-1 text-sm opacity-95">Start a new chat or continue your last support conversation.</p>
                   <button
                     onClick={() => {
                       resetToNewConversation();
                       setWidgetTab("messages");
                     }}
-                    className="mt-4 w-full rounded-xl bg-white text-gray-900 px-4 py-3 text-left font-semibold"
+                    className="mt-4 w-full rounded-xl bg-white text-gray-900 px-4 py-3 text-center font-semibold"
                   >
-                    Send us a message
+                    New Conversation
                   </button>
 
                   <button
                     onClick={async () => {
+                      if (!user) {
+                        setWidgetTab("messages");
+                        setMessages(buildLoginRequiredMessages());
+                        return;
+                      }
+
                       setWidgetTab("messages");
                       await loadLatestTicket();
                     }}
-                    className="mt-2 w-full rounded-xl border border-white/60 bg-transparent text-white px-4 py-2.5 text-left text-sm font-semibold"
+                    className="mt-2 w-full rounded-xl border border-white/60 bg-transparent text-white px-4 py-2.5 text-center text-sm font-semibold"
                   >
-                    Continue previous conversation
+                    Continue Conversation
                   </button>
                 </div>
 
                 <div className="mt-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Search for help</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Quick topics</p>
                   <div className="mt-2 space-y-1">
-                    {helpCollections.map((item) => (
+                    {helpCollections.slice(0, 2).map((item) => (
                       <button
                         key={item.id}
                         onClick={() => {
@@ -869,8 +921,8 @@ export default function ContactSupportPage() {
             )}
 
             {widgetTab === "messages" && (
-              <>
-                <div className="h-[300px] overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3 space-y-2.5">
+              <div className="flex flex-1 flex-col">
+                <div className="flex-1 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3 space-y-2.5">
                   {messages.map((message) => {
                     const isUser = message.sender === "user";
                     const isSystem = message.sender === "system";
@@ -937,11 +989,13 @@ export default function ContactSupportPage() {
                     <input
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="Message..."
+                      placeholder={user ? "Message..." : "Log in to start support chat"}
+                      disabled={!user}
                       className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
                     />
                     <button
                       type="submit"
+                      disabled={!user}
                       className="rounded-lg bg-green-600 hover:bg-green-700 text-white px-3.5 py-2 text-sm font-semibold"
                     >
                       Send
@@ -950,21 +1004,23 @@ export default function ContactSupportPage() {
 
                   <button
                     onClick={queueForLiveAgent}
-                    disabled={mode === "live-agent" || mode === "queue"}
+                    disabled={!user || mode === "live-agent" || mode === "queue"}
                     className="mt-2 text-xs font-semibold text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    {mode === "live-agent"
+                    {!user
+                      ? "Log in to connect with live agent"
+                      : mode === "live-agent"
                       ? "Live Agent Connected"
                       : mode === "queue"
                       ? "Waiting for live agent..."
                       : "Connect Live Agent"}
                   </button>
                 </div>
-              </>
+              </div>
             )}
 
             {widgetTab === "help" && (
-              <div className="h-[360px] overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3">
+              <div className="flex-1 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3">
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 mb-3">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Help collections</p>
                 </div>
@@ -989,13 +1045,13 @@ export default function ContactSupportPage() {
             <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 grid grid-cols-3">
               <button
                 onClick={() => setWidgetTab("home")}
-                className={`py-2 text-xs font-semibold ${widgetTab === "home" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
+                className={`py-2.5 text-xs font-semibold ${widgetTab === "home" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
               >
                 Home
               </button>
               <button
                 onClick={() => setWidgetTab("messages")}
-                className={`relative py-2 text-xs font-semibold ${widgetTab === "messages" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
+                className={`relative py-2.5 text-xs font-semibold ${widgetTab === "messages" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
               >
                 Messages
                 {unreadCount > 0 && (
@@ -1006,7 +1062,7 @@ export default function ContactSupportPage() {
               </button>
               <button
                 onClick={() => setWidgetTab("help")}
-                className={`py-2 text-xs font-semibold ${widgetTab === "help" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
+                className={`py-2.5 text-xs font-semibold ${widgetTab === "help" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
               >
                 Help
               </button>
