@@ -834,7 +834,7 @@ export default function ContactSupportPage() {
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="relative h-[540px] md:h-[610px] flex flex-col rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-[0_20px_55px_rgba(0,0,0,0.22)]"
+            className="relative h-[min(610px,calc(100dvh-1.5rem))] md:h-[610px] min-h-0 flex flex-col rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-[0_20px_55px_rgba(0,0,0,0.22)]"
           >
             <div className="bg-gradient-to-r from-green-600 to-emerald-500 text-white px-4 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -869,7 +869,7 @@ export default function ContactSupportPage() {
             </div>
 
             {widgetTab === "home" && (
-              <div className="flex-1 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-4 py-4">
+              <div className="flex-1 min-h-0 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-4 py-4">
                 <div className="rounded-2xl bg-gradient-to-r from-green-600 to-emerald-500 text-white p-4">
                   <p className="text-2xl font-bold leading-tight">Welcome!</p>
                   <p className="mt-1 text-sm opacity-95">Start a new chat or continue your last support conversation.</p>
@@ -922,8 +922,8 @@ export default function ContactSupportPage() {
             )}
 
             {widgetTab === "messages" && (
-              <div className="flex flex-1 flex-col">
-                <div className="flex-1 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3 space-y-2.5">
+              <div className="flex flex-1 min-h-0 flex-col">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3 space-y-2.5">
                   {messages.map((message) => {
                     const isUser = message.sender === "user";
                     const isSystem = message.sender === "system";
@@ -1021,7 +1021,7 @@ export default function ContactSupportPage() {
             )}
 
             {widgetTab === "help" && (
-              <div className="flex-1 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3">
+              <div className="flex-1 min-h-0 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3">
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 mb-3">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Help collections</p>
                 </div>
