@@ -72,6 +72,45 @@ export async function POST(request: Request) {
       );
     }
 
+    // Backfill missing profile rows so support ticket FK does not fail for legacy accounts.
+    const { data: existingProfile, error: profileLookupError } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileLookupError) {
+      console.error("POST /api/support/tickets profile lookup failed", profileLookupError);
+      return NextResponse.json(
+        { success: false, error: "Failed to initialize support profile" },
+        { status: 500 }
+      );
+    }
+
+    if (!existingProfile) {
+      const profileName =
+        (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name.trim()) ||
+        (typeof user.user_metadata?.name === "string" && user.user_metadata.name.trim()) ||
+        "";
+
+      const { error: profileInsertError } = await admin.from("profiles").insert({
+        id: user.id,
+        role: "customer",
+        full_name: profileName,
+      });
+
+      if (profileInsertError) {
+        console.error("POST /api/support/tickets profile insert failed", profileInsertError);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Unable to create support profile. Please sign out and sign in again, then retry.",
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     const { first_message, ...ticketInput } = parsed.data;
 
     const { data: ticket, error: ticketError } = await supabase
@@ -105,29 +144,34 @@ export async function POST(request: Request) {
 
     if (systemMessageError) throw systemMessageError;
 
-    const thresholdRaw = Number(process.env.SUPPORT_QUEUE_DELAY_THRESHOLD ?? "5");
-    const queueDelayThreshold = Number.isNaN(thresholdRaw) ? 5 : Math.max(1, thresholdRaw);
+    try {
+      const thresholdRaw = Number(process.env.SUPPORT_QUEUE_DELAY_THRESHOLD ?? "5");
+      const queueDelayThreshold = Number.isNaN(thresholdRaw) ? 5 : Math.max(1, thresholdRaw);
 
-    const { count: queuedCount } = await admin
-      .from("support_tickets")
-      .select("id", { count: "exact", head: true })
-      .in("status", ["queued", "open"]);
+      const { count: queuedCount } = await admin
+        .from("support_tickets")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["queued", "open"]);
 
-    const currentQueued = queuedCount ?? 0;
+      const currentQueued = queuedCount ?? 0;
 
-    if (currentQueued >= queueDelayThreshold) {
-      await supabase.from("support_messages").insert({
-        ticket_id: ticket.id,
-        sender_type: "system",
-        message: `High support demand right now. There are currently ${currentQueued} active queued tickets, so response time may be delayed. A live agent will reply as soon as available.`,
+      if (currentQueued >= queueDelayThreshold) {
+        await supabase.from("support_messages").insert({
+          ticket_id: ticket.id,
+          sender_type: "system",
+          message: `High support demand right now. There are currently ${currentQueued} active queued tickets, so response time may be delayed. A live agent will reply as soon as available.`,
+        });
+      }
+
+      await notifyAgentsOfQueuedTicket({
+        ticketId: ticket.id,
+        issueSummary: ticket.issue_summary,
+        queuedCount: currentQueued,
       });
+    } catch (sideEffectError) {
+      // Do not fail ticket creation because of queue counting or email side effects.
+      console.error("POST /api/support/tickets side-effect error", sideEffectError);
     }
-
-    await notifyAgentsOfQueuedTicket({
-      ticketId: ticket.id,
-      issueSummary: ticket.issue_summary,
-      queuedCount: currentQueued,
-    });
 
     return NextResponse.json({ success: true, data: ticket }, { status: 201 });
   } catch (err) {

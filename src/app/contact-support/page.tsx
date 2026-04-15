@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { faqItems } from "@/lib/data/faqs";
@@ -13,6 +13,8 @@ type Message = {
   sender: "user" | "assistant" | "agent" | "system";
   text: string;
   time: string;
+  imageUrl?: string;
+  imageAlt?: string;
 };
 
 type SupportOrder = {
@@ -68,27 +70,15 @@ const QUICK_TOPICS = [
 
 const DEFAULT_MESSAGES: Message[] = [
   {
-    id: "m1",
-    sender: "system",
-    text: "Free support mode is active. Start with assistant chat, then connect to a live agent at no cost.",
-    time: formatTime(new Date()),
-  },
-  {
     id: "m2",
     sender: "assistant",
     text: "Hi, I am GreenPack Assistant. Tell me your issue and I will try to resolve it quickly before escalation.",
-    time: formatTime(new Date()),
+    time: "",
   },
 ];
 
 function buildDefaultMessages(): Message[] {
   return [
-    {
-      id: crypto.randomUUID(),
-      sender: "system",
-      text: "Free support mode is active. Start with assistant chat, then connect to a live agent at no cost.",
-      time: formatTime(new Date()),
-    },
     {
       id: crypto.randomUUID(),
       sender: "assistant",
@@ -102,14 +92,8 @@ function buildLoginRequiredMessages(): Message[] {
   return [
     {
       id: crypto.randomUUID(),
-      sender: "system",
-      text: "Please log in to use GreenPack Support chat and connect with live agents.",
-      time: formatTime(new Date()),
-    },
-    {
-      id: crypto.randomUUID(),
       sender: "assistant",
-      text: "After login, I can help with account access, payments, delivery tracking, and escalation to a live agent.",
+      text: "Hi, I am GreenPack Assistant. I can help with account access, payments, delivery tracking, and escalation to a live agent.",
       time: formatTime(new Date()),
     },
   ];
@@ -146,7 +130,13 @@ function getIntent(input: string) {
     return "payment" as const;
   }
 
-  if (text.includes("login") || text.includes("sign in") || text.includes("password") || text.includes("account")) {
+  if (
+    text.includes("login") ||
+    text.includes("log in") ||
+    text.includes("sign in") ||
+    text.includes("password") ||
+    text.includes("account")
+  ) {
     return "account" as const;
   }
 
@@ -347,6 +337,7 @@ export default function ContactSupportPage() {
   const [widgetTab, setWidgetTab] = useState<WidgetTab>("home");
 
   const timers = useRef<number[]>([]);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
 
   const clearPendingAssistantReplies = useCallback(() => {
     timers.current.forEach((timer) => window.clearTimeout(timer));
@@ -370,8 +361,9 @@ export default function ContactSupportPage() {
     }
 
     setMessages((prev) => {
-      const hasLoginPrompt = prev.some((msg) => msg.text.includes("Please log in to use GreenPack Support"));
-      if (hasLoginPrompt) return buildDefaultMessages();
+      const hasLegacyLoginPrompt = prev.some((msg) => msg.text.includes("Please log in to use GreenPack Support"));
+      const hasLegacyFreeModePrompt = prev.some((msg) => msg.text.includes("Free support mode is active"));
+      if (hasLegacyLoginPrompt || hasLegacyFreeModePrompt) return buildDefaultMessages();
       return prev;
     });
   }, [user]);
@@ -687,6 +679,49 @@ export default function ContactSupportPage() {
     sendMessage(input);
   };
 
+  const onAttachmentSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!selectedFile) return;
+
+    if (!user) {
+      setWidgetTab("messages");
+      setMessages(buildLoginRequiredMessages());
+      return;
+    }
+
+    const imageDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Image upload failed"));
+      reader.readAsDataURL(selectedFile);
+    }).catch(() => "");
+
+    if (!imageDataUrl) return;
+
+    const attachedMessage = `Screenshot uploaded: ${selectedFile.name}`;
+    const now = new Date();
+
+    setWidgetTab("messages");
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        sender: "user",
+        text: "",
+        time: formatTime(now),
+        imageUrl: imageDataUrl,
+        imageAlt: selectedFile.name,
+      },
+    ]);
+
+    const ensured = await ensureTicket(attachedMessage);
+    if (ensured.ticketId && !ensured.createdWithFirstMessage) {
+      await persistMessage(ensured.ticketId, attachedMessage, "customer");
+    }
+  };
+
   const helpCollections = [
     {
       id: "tracking",
@@ -715,6 +750,13 @@ export default function ContactSupportPage() {
   ];
 
   const unreadCount = mode === "live-agent" ? 1 : 0;
+  const headerName = mode === "live-agent" ? "Raul" : "GreenPack";
+  const headerSubtitle =
+    mode === "live-agent"
+      ? "Customer Care Supervisor"
+      : mode === "queue"
+      ? "Finding an available support agent"
+      : "Support Assistant";
 
   const getAssistantResponse = useCallback(
     async (message: string): Promise<AssistantReply> => {
@@ -839,56 +881,81 @@ export default function ContactSupportPage() {
         </div>
       </section>
 
-      <div className="fixed right-3 bottom-3 md:right-5 md:bottom-5 z-50 w-[calc(100vw-1.5rem)] md:w-[360px]">
+      <div className="fixed right-3 bottom-3 md:right-5 md:bottom-5 z-50 w-[calc(100vw-1.5rem)] md:w-[420px]">
         {isWidgetOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="relative h-[min(610px,calc(100dvh-1.5rem))] md:h-[610px] min-h-0 flex flex-col rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-[0_20px_55px_rgba(0,0,0,0.22)]"
+            className="relative h-[min(650px,calc(100dvh-1.5rem))] md:h-[620px] min-h-0 flex flex-col overflow-hidden rounded-[28px] border border-green-200/80 dark:border-gray-700 bg-[#f4f8f5] dark:bg-gray-900 shadow-[0_24px_64px_rgba(0,0,0,0.16)]"
           >
-            <div className="bg-gradient-to-r from-green-600 to-emerald-500 text-white px-4 py-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Image
-                  src="/logo.png"
-                  alt="GreenPack logo"
-                  width={28}
-                  height={28}
-                  className="rounded-md bg-white/95 p-0.5"
-                  unoptimized
-                />
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] opacity-90">GreenPack</p>
-                  <p className="text-sm font-semibold leading-tight">
-                    {mode === "live-agent"
-                      ? "Live Agent Connected"
-                      : mode === "queue"
-                      ? "Finding an Agent"
-                      : "Assistant Online"}
-                  </p>
+            <div className="px-5 pt-4 pb-3 bg-[#f4f8f5] dark:bg-gray-900">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Image
+                    src="/logo.png"
+                    alt="GreenPack logo"
+                    width={28}
+                    height={28}
+                    className="rounded-md shrink-0"
+                    unoptimized
+                  />
+                  <div className="leading-tight">
+                    <p className="text-2xl md:text-[28px] font-semibold text-gray-900 dark:text-white">{headerName}</p>
+                    <p className="text-[15px] text-gray-500 dark:text-gray-400">{headerSubtitle}</p>
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={() => setIsWidgetOpen(false)}
-                aria-label="Minimize support chat"
-                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
 
-            {widgetTab === "home" && (
-              <div className="flex-1 min-h-0 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-4 py-4">
-                <div className="rounded-2xl bg-gradient-to-r from-green-600 to-emerald-500 text-white p-4">
-                  <p className="text-2xl font-bold leading-tight">Welcome!</p>
-                  <p className="mt-1 text-sm opacity-95">Start a new chat or continue your last support conversation.</p>
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => {
                       resetToNewConversation();
                       setWidgetTab("messages");
                     }}
-                    className="mt-4 w-full rounded-xl bg-white text-gray-900 px-4 py-3 text-center font-semibold"
+                    aria-label="Start a new support chat"
+                    className="h-10 w-10 rounded-full text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
+                  >
+                    <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setIsWidgetOpen(false)}
+                    aria-label="Close support chat"
+                    className="h-10 w-10 rounded-full text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
+                  >
+                    <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="h-px w-full bg-green-200/70 dark:bg-gray-700" />
+
+            {widgetTab === "messages" && (
+              <div className="px-5 py-3 bg-[#f4f8f5] dark:bg-gray-900 border-b border-green-100 dark:border-gray-800">
+                <p className="text-sm leading-relaxed italic text-gray-900 dark:text-gray-100">
+                  We may monitor and record your chat sessions. See our{" "}
+                  <Link href="/privacy" className="text-green-700 hover:underline dark:text-green-300">
+                    privacy notice
+                  </Link>
+                </p>
+              </div>
+            )}
+
+            {widgetTab === "home" && (
+              <div className="flex-1 min-h-0 overflow-y-auto bg-[#eef5f1] dark:bg-gray-900/70 px-4 py-4">
+                <div className="rounded-[16px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+                  <p className="text-2xl font-semibold leading-tight text-gray-900 dark:text-white">Welcome</p>
+                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    Start a new chat or continue your last support conversation.
+                  </p>
+                  <button
+                    onClick={() => {
+                      resetToNewConversation();
+                      setWidgetTab("messages");
+                    }}
+                    className="mt-4 w-full rounded-[12px] bg-green-600 text-white px-4 py-3 text-center font-semibold hover:bg-green-700"
                   >
                     New Conversation
                   </button>
@@ -904,13 +971,13 @@ export default function ContactSupportPage() {
                       setWidgetTab("messages");
                       await loadLatestTicket();
                     }}
-                    className="mt-2 w-full rounded-xl border border-white/60 bg-transparent text-white px-4 py-2.5 text-center text-sm font-semibold"
+                    className="mt-2 w-full rounded-[12px] border border-gray-300 dark:border-gray-600 bg-transparent text-gray-900 dark:text-gray-100 px-4 py-2.5 text-center text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
                     Continue Conversation
                   </button>
                 </div>
 
-                <div className="mt-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3">
+                <div className="mt-3 rounded-[16px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Quick topics</p>
                   <div className="mt-2 space-y-1">
                     {helpCollections.slice(0, 2).map((item) => (
@@ -920,7 +987,7 @@ export default function ContactSupportPage() {
                           setWidgetTab("messages");
                           sendMessage(item.prompt);
                         }}
-                        className="w-full rounded-lg px-2 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+                        className="w-full rounded-[12px] px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
                       >
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{item.title}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
@@ -933,35 +1000,63 @@ export default function ContactSupportPage() {
 
             {widgetTab === "messages" && (
               <div className="flex flex-1 min-h-0 flex-col">
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3 space-y-2.5">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-[#eef5f1] dark:bg-gray-900/70 px-4 py-4 space-y-3">
                   {messages.map((message) => {
                     const isUser = message.sender === "user";
                     const isSystem = message.sender === "system";
                     const isAgent = message.sender === "agent";
+                    const systemText = message.text.toLowerCase();
+                    const isSystemError =
+                      isSystem &&
+                      (systemText.includes("failed") ||
+                        systemText.includes("error") ||
+                        systemText.includes("could not"));
+                    const isSystemQueue =
+                      isSystem &&
+                      !isSystemError &&
+                      (systemText.includes("queue") ||
+                        systemText.includes("looking for") ||
+                        systemText.includes("waiting"));
 
                     return (
                       <div
                         key={message.id}
-                        className={`max-w-[86%] rounded-xl px-3 py-2.5 ${
-                          isSystem
-                            ? "mx-auto bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900 text-center"
+                        className={`max-w-[86%] rounded-[12px] px-4 py-3 ${
+                          isSystemError
+                            ? "mx-auto bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/35 dark:text-rose-200 dark:border-rose-900/60 text-center"
+                            : isSystemQueue
+                            ? "mx-auto bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800/70 dark:text-slate-200 dark:border-slate-700 text-center"
+                            : isSystem
+                            ? "mx-auto bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800/70 dark:text-slate-200 dark:border-slate-700 text-center"
                             : isUser
-                            ? "ml-auto bg-green-600 text-white"
+                            ? "ml-auto rounded-bl-[12px] rounded-tl-[12px] rounded-tr-[12px] bg-green-600 text-white"
                             : isAgent
                             ? "bg-blue-50 text-blue-900 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-100 dark:border-blue-800"
-                            : "bg-white text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+                            : "rounded-br-[12px] rounded-tl-[12px] rounded-tr-[12px] bg-[#e6ece8] text-gray-900 dark:bg-gray-800 dark:text-gray-100"
                         }`}
                       >
-                        <p className="text-sm leading-relaxed">{message.text}</p>
-                        <p className={`mt-1 text-[10px] ${isUser ? "text-green-100" : "text-gray-500 dark:text-gray-400"}`}>
-                          {message.time}
-                        </p>
+                        {message.imageUrl ? (
+                          <a href={message.imageUrl} target="_blank" rel="noreferrer" className="block">
+                            <img
+                              src={message.imageUrl}
+                              alt={message.imageAlt ?? "Uploaded screenshot"}
+                              className="h-auto max-h-56 w-full max-w-[240px] rounded-[10px] object-cover"
+                            />
+                          </a>
+                        ) : (
+                          <p className="text-[16px] leading-relaxed">{message.text}</p>
+                        )}
+                        {message.time && (
+                          <p className={`mt-1 text-[10px] ${isUser ? "text-green-100" : "text-gray-500 dark:text-gray-400"}`}>
+                            {message.time}
+                          </p>
+                        )}
                       </div>
                     );
                   })}
 
                   {isTyping && (
-                    <div className="max-w-[86%] rounded-xl px-3 py-2.5 bg-white text-gray-600 border border-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700">
+                    <div className="max-w-[86%] rounded-[12px] rounded-br-[12px] rounded-tl-[12px] rounded-tr-[12px] px-4 py-3 bg-[#e6ece8] text-gray-600 dark:bg-gray-800 dark:text-gray-100">
                       <div className="flex items-center gap-1">
                         <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" />
                         <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:120ms]" />
@@ -971,7 +1066,7 @@ export default function ContactSupportPage() {
                   )}
                 </div>
 
-                <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                <div className="px-4 pt-3 pb-4 border-t border-green-200/80 dark:border-gray-700 bg-[#f4f8f5] dark:bg-gray-900">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">Current conversation</p>
                     <button
@@ -983,8 +1078,8 @@ export default function ContactSupportPage() {
                   </div>
 
                   {mode === "assistant" && (
-                    <div className="mb-2 flex flex-wrap gap-1.5">
-                      {QUICK_TOPICS.slice(0, 4).map((topic) => (
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {QUICK_TOPICS.slice(0, 3).map((topic) => (
                         <button
                           key={topic}
                           onClick={() => sendMessage(topic)}
@@ -996,20 +1091,44 @@ export default function ContactSupportPage() {
                     </div>
                   )}
 
-                  <form onSubmit={onSubmit} className="flex gap-2">
-                    <input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder={user ? "Message..." : "Log in to start support chat"}
-                      disabled={!user}
-                      className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
-                    />
+                  <form onSubmit={onSubmit} className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0 rounded-[16px] border border-green-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 flex items-center gap-2">
+                      <input
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder={user ? "Type Message..." : "Log in to start support chat"}
+                        disabled={!user}
+                        className="flex-1 bg-transparent text-[16px] text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Upload screenshot"
+                        disabled={!user}
+                        onClick={() => attachmentInputRef.current?.click()}
+                        className="h-8 w-8 shrink-0 text-gray-900 dark:text-gray-100 hover:text-green-700 dark:hover:text-green-300 disabled:opacity-60"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+                          <rect x="3" y="5" width="18" height="14" rx="2" />
+                          <circle cx="9" cy="10" r="1.4" fill="currentColor" stroke="none" />
+                          <path d="M4.5 16.5l4.5-4.2 3.2 2.8 2.3-2.1 5 4" />
+                        </svg>
+                      </button>
+                      <input
+                        ref={attachmentInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={onAttachmentSelected}
+                      />
+                    </div>
                     <button
                       type="submit"
                       disabled={!user}
-                      className="rounded-lg bg-green-600 hover:bg-green-700 text-white px-3.5 py-2 text-sm font-semibold"
+                      className="h-14 w-16 shrink-0 rounded-[16px] bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 flex items-center justify-center"
                     >
-                      Send
+                      <svg className="h-7 w-7" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M4 20l17-8L4 4v6l11 2-11 2z" />
+                      </svg>
                     </button>
                   </form>
 
@@ -1031,8 +1150,8 @@ export default function ContactSupportPage() {
             )}
 
             {widgetTab === "help" && (
-              <div className="flex-1 min-h-0 overflow-y-auto bg-[#f7faf8] dark:bg-gray-900/70 px-3 py-3">
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 mb-3">
+              <div className="flex-1 min-h-0 overflow-y-auto bg-[#eef5f1] dark:bg-gray-900/70 px-4 py-4">
+                <div className="rounded-[12px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 mb-3">
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Help collections</p>
                 </div>
                 <div className="space-y-2">
@@ -1043,7 +1162,7 @@ export default function ContactSupportPage() {
                         setWidgetTab("messages");
                         sendMessage(item.prompt);
                       }}
-                      className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-3 text-left"
+                      className="w-full rounded-[12px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">{item.title}</p>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
