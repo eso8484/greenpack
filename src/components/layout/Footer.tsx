@@ -106,7 +106,7 @@ export default function Footer() {
             </li>
             <li>
               <Link
-                href="/contact-support"
+                href="/help?chat=1"
                 className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
               >
                 Contact Support

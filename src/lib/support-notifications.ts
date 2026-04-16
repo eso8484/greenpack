@@ -122,7 +122,7 @@ export async function notifyAgentsOfQueuedTicket(input: QueueAlertInput) {
 }
 
 export async function notifyCustomerAgentJoined(input: AgentJoinedInput) {
-  const chatLink = `${supportAppUrl().replace(/\/$/, "")}/contact-support`;
+  const chatLink = `${supportAppUrl().replace(/\/$/, "")}/help?chat=1`;
   const shortId = input.ticketId.slice(0, 8).toUpperCase();
 
   return sendSupportEmail({
@@ -138,7 +138,7 @@ export async function notifyCustomerAgentJoined(input: AgentJoinedInput) {
 }
 
 export async function notifyCustomerAgentReply(input: AgentReplyInput) {
-  const chatLink = `${supportAppUrl().replace(/\/$/, "")}/contact-support`;
+  const chatLink = `${supportAppUrl().replace(/\/$/, "")}/help?chat=1`;
   const shortId = input.ticketId.slice(0, 8).toUpperCase();
 
   return sendSupportEmail({
