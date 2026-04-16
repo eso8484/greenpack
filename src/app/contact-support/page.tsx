@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { faqItems } from "@/lib/data/faqs";
 import { formatPrice } from "@/lib/utils";
@@ -59,30 +60,65 @@ type AssistantAiResponse = {
 
 type WidgetTab = "home" | "messages" | "help";
 
-const QUICK_TOPICS = [
-  "I can't log in",
-  "My order is delayed",
-  "I was charged twice",
-  "Vendor complaint",
-  "Report a bug",
-  "Track my last order",
-];
+const ASSISTANT_INTRO_TEXT =
+  "Hi, I am GreenPack Assistant. Tell me your issue and I will try to resolve it quickly before escalation.";
+const LOGIN_INTRO_TEXT =
+  "Hi, I am GreenPack Assistant. I can help with account access, payments, delivery tracking, and escalation to a live agent.";
 
 const DEFAULT_MESSAGES: Message[] = [
   {
     id: "m2",
     sender: "assistant",
-    text: "Hi, I am GreenPack Assistant. Tell me your issue and I will try to resolve it quickly before escalation.",
+    text: ASSISTANT_INTRO_TEXT,
     time: "",
   },
 ];
+
+function getContextualQuickReplies(text: string, hasOrders: boolean) {
+  const value = text.toLowerCase();
+
+  if (value.includes("login") || value.includes("account") || value.includes("password")) {
+    return ["I can't log in", "Reset my password", "Google sign-in failed", "Connect Live Agent"];
+  }
+
+  if (
+    value.includes("order") ||
+    value.includes("delivery") ||
+    value.includes("tracking") ||
+    value.includes("courier")
+  ) {
+    const orderReplies = ["Track my last order", "My order is delayed", "Courier has not arrived", "Connect Live Agent"];
+    if (!hasOrders) {
+      return ["Track my order", "I don't have my order reference", "Delivery issue", "Connect Live Agent"];
+    }
+    return orderReplies;
+  }
+
+  if (value.includes("payment") || value.includes("charged") || value.includes("refund") || value.includes("debit")) {
+    return ["I was charged twice", "Where is my refund?", "Payment failed", "Connect Live Agent"];
+  }
+
+  if (value.includes("vendor") || value.includes("complaint") || value.includes("service")) {
+    return ["Vendor complaint", "Bad service quality", "Request escalation", "Connect Live Agent"];
+  }
+
+  if (value.includes("bug") || value.includes("error") || value.includes("not working")) {
+    return ["Report a bug", "Page not loading", "App is slow", "Connect Live Agent"];
+  }
+
+  if (value.includes("queue") || value.includes("agent") || value.includes("escalat")) {
+    return ["Connect Live Agent", "Still waiting", "I need urgent help", "Start new chat"];
+  }
+
+  return ["Track my last order", "I can't log in", "I was charged twice", "Vendor complaint"];
+}
 
 function buildDefaultMessages(): Message[] {
   return [
     {
       id: crypto.randomUUID(),
       sender: "assistant",
-      text: "Hi, I am GreenPack Assistant. Tell me your issue and I will try to resolve it quickly before escalation.",
+      text: ASSISTANT_INTRO_TEXT,
       time: formatTime(new Date()),
     },
   ];
@@ -93,7 +129,7 @@ function buildLoginRequiredMessages(): Message[] {
     {
       id: crypto.randomUUID(),
       sender: "assistant",
-      text: "Hi, I am GreenPack Assistant. I can help with account access, payments, delivery tracking, and escalation to a live agent.",
+      text: LOGIN_INTRO_TEXT,
       time: formatTime(new Date()),
     },
   ];
@@ -103,85 +139,54 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function normalize(text: string) {
-  return text.toLowerCase().trim();
-}
-
 function getOrderRef(orderId: string) {
-  return orderId.slice(0, 8).toUpperCase();
+  return `#${orderId.slice(0, 8).toUpperCase()}`;
 }
 
 function getIntent(input: string) {
-  const text = input.toLowerCase();
+  const value = input.toLowerCase();
 
-  if (/\b(hi|hello|hey|good morning|good afternoon|good evening)\b/.test(text)) {
+  if (/^(hi|hello|hey|good\s+(morning|afternoon|evening))\b/.test(value)) {
     return "greeting" as const;
   }
 
-  if (text.includes("last order") || text.includes("recent order") || text.includes("previous order")) {
+  if (/(human|agent|representative|real person|escalat|live support)/.test(value)) {
+    return "escalate" as const;
+  }
+
+  if (/(recent order|last order|latest order|track my last)/.test(value)) {
     return "recent-order" as const;
   }
 
-  if (text.includes("track") || text.includes("delivery") || text.includes("where is") || text.includes("order")) {
+  if (/(order|delivery|tracking|courier|dispatch|rider|package)/.test(value)) {
     return "order" as const;
   }
 
-  if (text.includes("payment") || text.includes("charge") || text.includes("debit") || text.includes("twice")) {
-    return "payment" as const;
-  }
-
-  if (
-    text.includes("login") ||
-    text.includes("log in") ||
-    text.includes("sign in") ||
-    text.includes("password") ||
-    text.includes("account")
-  ) {
+  if (/(login|log in|password|account|sign in|signin|otp|verification)/.test(value)) {
     return "account" as const;
   }
 
-  if (text.includes("bug") || text.includes("error") || text.includes("crash") || text.includes("broken")) {
-    return "bug" as const;
+  if (/(payment|charged|charge|refund|debit|card|billing)/.test(value)) {
+    return "payment" as const;
   }
 
-  if (text.includes("agent") || text.includes("human") || text.includes("person")) {
-    return "escalate" as const;
+  if (/(bug|error|broken|not working|issue on page|crash)/.test(value)) {
+    return "bug" as const;
   }
 
   return "general" as const;
 }
 
 function matchFaq(input: string) {
-  const text = normalize(input);
-  let bestScore = 0;
-  let best: (typeof faqItems)[number] | null = null;
-
-  for (const item of faqItems) {
-    let score = 0;
-
-    if (text.includes(item.question.toLowerCase())) {
-      score += 5;
-    }
-
-    for (const keyword of item.keywords) {
-      if (text.includes(keyword.toLowerCase())) {
-        score += 2;
-      }
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = item;
-    }
-  }
-
-  if (!best || bestScore < 3) return null;
-  return best;
+  const value = input.toLowerCase();
+  return faqItems.find((faq) => {
+    const questionMatch = faq.question.toLowerCase().includes(value);
+    const keywordMatch = faq.keywords.some((keyword) => value.includes(keyword.toLowerCase()));
+    return questionMatch || keywordMatch;
+  });
 }
 
-function findOrderFromMessage(input: string, orders: SupportOrder[]) {
-  const text = normalize(input);
-
+function findOrderFromMessage(text: string, orders: SupportOrder[]) {
   for (const order of orders) {
     const shortRef = getOrderRef(order.id).toLowerCase();
     if (text.includes(order.id.toLowerCase()) || text.includes(shortRef)) {
@@ -324,6 +329,9 @@ function mapApiMessage(message: ApiSupportMessage): Message {
 
 export default function ContactSupportPage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const chatOnly = searchParams.get("chatOnly") === "1";
 
   const [isWidgetOpen, setIsWidgetOpen] = useState(true);
   const [input, setInput] = useState("");
@@ -334,7 +342,11 @@ export default function ContactSupportPage() {
   const [greetingCount, setGreetingCount] = useState(0);
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>(DEFAULT_MESSAGES);
-  const [widgetTab, setWidgetTab] = useState<WidgetTab>("home");
+  const [widgetTab, setWidgetTab] = useState<WidgetTab>("messages");
+  const [isWideWidget, setIsWideWidget] = useState(false);
+  const [quickReplyOptions, setQuickReplyOptions] = useState<string[]>(
+    getContextualQuickReplies(ASSISTANT_INTRO_TEXT, false)
+  );
 
   const timers = useRef<number[]>([]);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
@@ -350,13 +362,17 @@ export default function ContactSupportPage() {
     setActiveTicketId(null);
     setMode("assistant");
     setMessages(user ? buildDefaultMessages() : buildLoginRequiredMessages());
-  }, [clearPendingAssistantReplies, user]);
+    setQuickReplyOptions(
+      getContextualQuickReplies(user ? ASSISTANT_INTRO_TEXT : LOGIN_INTRO_TEXT, orders.length > 0)
+    );
+  }, [clearPendingAssistantReplies, orders.length, user]);
 
   useEffect(() => {
     if (!user) {
       setActiveTicketId(null);
       setMode("assistant");
       setMessages(buildLoginRequiredMessages());
+      setQuickReplyOptions(getContextualQuickReplies(LOGIN_INTRO_TEXT, false));
       return;
     }
 
@@ -366,7 +382,8 @@ export default function ContactSupportPage() {
       if (hasLegacyLoginPrompt || hasLegacyFreeModePrompt) return buildDefaultMessages();
       return prev;
     });
-  }, [user]);
+    setQuickReplyOptions(getContextualQuickReplies(ASSISTANT_INTRO_TEXT, orders.length > 0));
+  }, [orders.length, user]);
 
   useEffect(() => {
     return () => {
@@ -473,6 +490,17 @@ export default function ContactSupportPage() {
     return () => window.clearInterval(poll);
   }, [activeTicketId, mode, syncTicketState]);
 
+  useEffect(() => {
+    if (!chatOnly) return;
+    setIsWidgetOpen(true);
+    setWidgetTab("messages");
+  }, [chatOnly]);
+
+  useEffect(() => {
+    if (chatOnly) return;
+    router.replace("/help?chat=1");
+  }, [chatOnly, router]);
+
   const persistMessage = async (
     ticketId: string,
     message: string,
@@ -530,6 +558,7 @@ export default function ContactSupportPage() {
     }
 
     clearPendingAssistantReplies();
+    setQuickReplyOptions([]);
     setMode("queue");
     setMessages((prev) => [
       ...prev,
@@ -593,6 +622,7 @@ export default function ContactSupportPage() {
     };
 
     setWidgetTab("messages");
+    setQuickReplyOptions([]);
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
 
@@ -656,6 +686,8 @@ export default function ContactSupportPage() {
         ? `${assistantReply.text} If you want, tap Connect Live Agent.`
         : assistantReply.text;
 
+      const nextQuickReplies = getContextualQuickReplies(assistantText, orders.length > 0);
+
       setMessages((prev) => [
         ...prev,
         {
@@ -665,6 +697,7 @@ export default function ContactSupportPage() {
           time: formatTime(new Date(now.getTime() + 1000)),
         },
       ]);
+      setQuickReplyOptions(nextQuickReplies);
 
       if (ticketId) {
         await persistMessage(ticketId, assistantText, "assistant");
@@ -677,6 +710,19 @@ export default function ContactSupportPage() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     sendMessage(input);
+  };
+
+  const onQuickReplyClick = (option: string) => {
+    setQuickReplyOptions([]);
+    if (option === "Start new chat") {
+      resetToNewConversation();
+      return;
+    }
+    if (option === "Connect Live Agent") {
+      queueForLiveAgent();
+      return;
+    }
+    sendMessage(option);
   };
 
   const onAttachmentSelected = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -749,7 +795,6 @@ export default function ContactSupportPage() {
     },
   ];
 
-  const unreadCount = mode === "live-agent" ? 1 : 0;
   const headerName = mode === "live-agent" ? "Raul" : "GreenPack";
   const headerSubtitle =
     mode === "live-agent"
@@ -757,6 +802,45 @@ export default function ContactSupportPage() {
       : mode === "queue"
       ? "Finding an available support agent"
       : "Support Assistant";
+
+  const notifyParentWidgetAction = useCallback((type: "GREENPACK_CLOSE_SUPPORT_CHAT" | "GREENPACK_TOGGLE_SUPPORT_CHAT_SIZE") => {
+    if (typeof window === "undefined" || window.parent === window) return;
+    window.parent.postMessage({ type }, window.location.origin);
+  }, []);
+
+  const onBackClick = useCallback(() => {
+    if (chatOnly) {
+      notifyParentWidgetAction("GREENPACK_CLOSE_SUPPORT_CHAT");
+      setIsWidgetOpen(false);
+      return;
+    }
+
+    if (widgetTab !== "messages") {
+      setWidgetTab("messages");
+      return;
+    }
+
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    setIsWidgetOpen(false);
+  }, [chatOnly, notifyParentWidgetAction, router, widgetTab]);
+
+  const onToggleExpandClick = useCallback(() => {
+    setIsWideWidget((prev) => !prev);
+    if (chatOnly) {
+      notifyParentWidgetAction("GREENPACK_TOGGLE_SUPPORT_CHAT_SIZE");
+    }
+  }, [chatOnly, notifyParentWidgetAction]);
+
+  const onCloseClick = useCallback(() => {
+    if (chatOnly) {
+      notifyParentWidgetAction("GREENPACK_CLOSE_SUPPORT_CHAT");
+    }
+    setIsWidgetOpen(false);
+  }, [chatOnly, notifyParentWidgetAction]);
 
   const getAssistantResponse = useCallback(
     async (message: string): Promise<AssistantReply> => {
@@ -798,8 +882,13 @@ export default function ContactSupportPage() {
     [greetingCount, messages, mode, orders, selectedOrderId]
   );
 
+  if (!chatOnly) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900 pb-28">
+    <div className={chatOnly ? "min-h-screen bg-transparent" : "min-h-screen bg-[#f6f8f7] dark:bg-gray-900 pb-28"}>
+      {!chatOnly && (
       <section className="relative overflow-hidden border-b border-green-200/60 dark:border-green-900/50 bg-[radial-gradient(circle_at_15%_20%,rgba(34,197,94,0.18),transparent_38%),radial-gradient(circle_at_85%_10%,rgba(21,128,61,0.22),transparent_36%),linear-gradient(180deg,#f0fdf4_0%,#f8fafc_100%)] dark:bg-[radial-gradient(circle_at_10%_15%,rgba(34,197,94,0.22),transparent_35%),radial-gradient(circle_at_85%_5%,rgba(22,101,52,0.3),transparent_35%),linear-gradient(180deg,#0b1220_0%,#0f172a_100%)]">
         <div className="max-w-6xl mx-auto px-4 py-10 md:py-14">
           <motion.div
@@ -853,7 +942,9 @@ export default function ContactSupportPage() {
           </div>
         </div>
       </section>
+      )}
 
+      {!chatOnly && (
       <section className="max-w-6xl mx-auto px-4 py-8 md:py-10">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
@@ -880,17 +971,27 @@ export default function ContactSupportPage() {
           </div>
         </div>
       </section>
+      )}
 
-      <div className="fixed right-3 bottom-3 md:right-5 md:bottom-5 z-50 w-[calc(100vw-1.5rem)] md:w-[420px]">
+      <div className={chatOnly ? "fixed inset-0 z-[70]" : "fixed right-3 bottom-3 md:right-5 md:bottom-5 z-[70] w-[calc(100vw-1.5rem)]"}>
         {isWidgetOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="relative h-[min(650px,calc(100dvh-1.5rem))] md:h-[620px] min-h-0 flex flex-col overflow-hidden rounded-[28px] border border-green-200/80 dark:border-gray-700 bg-[#f4f8f5] dark:bg-gray-900 shadow-[0_24px_64px_rgba(0,0,0,0.16)]"
+            className={chatOnly ? "relative h-full min-h-0 flex flex-col overflow-hidden border-0 bg-[#f4f8f5] dark:bg-gray-900" : `relative ml-auto min-h-0 flex flex-col overflow-hidden rounded-[28px] border border-green-200/80 dark:border-gray-700 bg-[#f4f8f5] dark:bg-gray-900 shadow-[0_24px_64px_rgba(0,0,0,0.16)] transition-[width,height] duration-300 ${isWideWidget ? "h-[min(460px,calc(100dvh-7rem))] w-[min(760px,calc(100vw-1.5rem))]" : "h-[min(650px,calc(100dvh-7rem))] w-[min(420px,calc(100vw-1.5rem))]"}`}
           >
             <div className="px-5 pt-4 pb-3 bg-[#f4f8f5] dark:bg-gray-900">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
+                  <button
+                    onClick={onBackClick}
+                    aria-label="Go back"
+                    className="h-10 w-10 rounded-full text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
+                  >
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 6l-6 6 6 6" />
+                    </svg>
+                  </button>
                   <Image
                     src="/logo.png"
                     alt="GreenPack logo"
@@ -907,19 +1008,15 @@ export default function ContactSupportPage() {
 
                 <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => {
-                      resetToNewConversation();
-                      setWidgetTab("messages");
-                    }}
-                    aria-label="Start a new support chat"
-                    className="h-10 w-10 rounded-full text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
+                    onClick={onToggleExpandClick}
+                    aria-label={isWideWidget ? "Return to standard chat size" : "Expand chat to wide layout"}
+                    title={isWideWidget ? "Compact" : "Expand"}
+                    className="h-10 rounded-full px-3 text-xs font-semibold text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
-                    <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
-                    </svg>
+                    {isWideWidget ? "Compact" : "Expand"}
                   </button>
                   <button
-                    onClick={() => setIsWidgetOpen(false)}
+                    onClick={onCloseClick}
                     aria-label="Close support chat"
                     className="h-10 w-10 rounded-full text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
                   >
@@ -1064,6 +1161,21 @@ export default function ContactSupportPage() {
                       </div>
                     </div>
                   )}
+
+                  {mode === "assistant" && !isTyping && quickReplyOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pr-10">
+                      {quickReplyOptions.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => onQuickReplyClick(option)}
+                          className="rounded-full border border-gray-300 dark:border-gray-600 bg-white/90 dark:bg-gray-800 px-4 py-2 text-sm text-gray-800 dark:text-gray-100 hover:border-green-500 hover:text-green-700 dark:hover:text-green-300"
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="px-4 pt-3 pb-4 border-t border-green-200/80 dark:border-gray-700 bg-[#f4f8f5] dark:bg-gray-900">
@@ -1076,20 +1188,6 @@ export default function ContactSupportPage() {
                       Start New Chat
                     </button>
                   </div>
-
-                  {mode === "assistant" && (
-                    <div className="mb-3 flex flex-wrap gap-1.5">
-                      {QUICK_TOPICS.slice(0, 3).map((topic) => (
-                        <button
-                          key={topic}
-                          onClick={() => sendMessage(topic)}
-                          className="px-2.5 py-1 rounded-full text-[11px] font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-green-500 hover:text-green-700 dark:hover:text-green-300"
-                        >
-                          {topic}
-                        </button>
-                      ))}
-                    </div>
-                  )}
 
                   <form onSubmit={onSubmit} className="flex items-center gap-3">
                     <div className="flex-1 min-w-0 rounded-[16px] border border-green-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2.5 flex items-center gap-2">
@@ -1131,20 +1229,6 @@ export default function ContactSupportPage() {
                       </svg>
                     </button>
                   </form>
-
-                  <button
-                    onClick={queueForLiveAgent}
-                    disabled={!user || mode === "live-agent" || mode === "queue"}
-                    className="mt-2 text-xs font-semibold text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {!user
-                      ? "Log in to connect with live agent"
-                      : mode === "live-agent"
-                      ? "Live Agent Connected"
-                      : mode === "queue"
-                      ? "Waiting for live agent..."
-                      : "Connect Live Agent"}
-                  </button>
                 </div>
               </div>
             )}
@@ -1172,36 +1256,10 @@ export default function ContactSupportPage() {
               </div>
             )}
 
-            <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 grid grid-cols-3">
-              <button
-                onClick={() => setWidgetTab("home")}
-                className={`py-2.5 text-xs font-semibold ${widgetTab === "home" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
-              >
-                Home
-              </button>
-              <button
-                onClick={() => setWidgetTab("messages")}
-                className={`relative py-2.5 text-xs font-semibold ${widgetTab === "messages" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
-              >
-                Messages
-                {unreadCount > 0 && (
-                  <span className="absolute top-1 right-[28%] inline-flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-red-500 text-white text-[10px]">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => setWidgetTab("help")}
-                className={`py-2.5 text-xs font-semibold ${widgetTab === "help" ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}`}
-              >
-                Help
-              </button>
-            </div>
-
           </motion.div>
         )}
 
-        {!isWidgetOpen && (
+        {!isWidgetOpen && !chatOnly && (
           <button
             onClick={() => setIsWidgetOpen(true)}
             className="ml-auto flex items-center gap-2 rounded-full bg-green-600 text-white px-4 py-3 shadow-lg shadow-green-700/30 hover:bg-green-700"
