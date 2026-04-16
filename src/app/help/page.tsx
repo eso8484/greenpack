@@ -42,12 +42,19 @@ export default function HelpCenterPage() {
   );
   const [chatOpen, setChatOpen] = useState(false);
   const [chatExpanded, setChatExpanded] = useState(false);
+  const [chatFrameReady, setChatFrameReady] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("chat") === "1") {
       setChatOpen(true);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (chatOpen) {
+      setChatFrameReady(false);
+    }
+  }, [chatOpen]);
 
   useEffect(() => {
     const onSupportWidgetMessage = (event: MessageEvent) => {
@@ -314,25 +321,38 @@ export default function HelpCenterPage() {
       </div>
 
       <div className="fixed right-4 bottom-4 z-[70] flex flex-col items-end gap-2">
-        <button
-          onClick={() => setChatOpen((prev) => !prev)}
-          className="rounded-full border border-green-200 dark:border-green-800 bg-white/95 dark:bg-gray-800/95 px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100 shadow-lg"
-        >
-          We get it. We are here.
-        </button>
+        {!chatOpen && (
+          <button
+            onClick={() => setChatOpen(true)}
+            aria-label="Open support chat"
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-green-600 text-white shadow-lg shadow-green-700/30 hover:bg-green-700"
+          >
+            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5m-9 7l1.405-1.405A2.032 2.032 0 017.158 19H19a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h2.159c.538 0 1.055.214 1.436.595L10 21z" />
+            </svg>
+          </button>
+        )}
 
         {chatOpen && (
           <div
-            className={`relative overflow-hidden rounded-3xl border border-green-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl transition-[width,height] duration-300 ${
+            className={`relative overflow-hidden rounded-3xl border border-green-200 dark:border-gray-700 bg-[#0f172a] dark:bg-gray-900 shadow-2xl transition-[width,height] duration-300 ${
               chatExpanded
-                ? "h-[min(440px,calc(100dvh-7rem))] w-[min(740px,calc(100vw-1.5rem))]"
+                ? "h-[min(540px,calc(100dvh-7rem))] w-[min(740px,calc(100vw-1.5rem))]"
                 : "h-[min(650px,calc(100dvh-7rem))] w-[min(420px,calc(100vw-1.5rem))]"
             }`}
           >
+            {!chatFrameReady && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0f172a] dark:bg-gray-900">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
+              </div>
+            )}
             <iframe
               title="GreenPack support chat"
               src="/contact-support?chatOnly=1"
-              className="h-full w-full border-0"
+              onLoad={() => setChatFrameReady(true)}
+              className={`h-full w-full border-0 transition-opacity duration-200 ${
+                chatFrameReady ? "opacity-100" : "opacity-0"
+              }`}
             />
           </div>
         )}
