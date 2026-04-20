@@ -151,7 +151,7 @@ We need a logo that represents:
 ## 8. UI Component Styles
 
 ### Buttons
-- **Primary:** Green (#22C55E) background, white text, rounded-lg (8px)
+- **Primary:** Green (#22C55E) background, white text, rounded-lg (8px)cd /mnt/c/Users/enejo/Desktop/GreenPack
 - **Secondary:** Light gray background, dark text
 - **Outline:** Green border, green text, transparent background
 - All buttons have slight scale animation on hover

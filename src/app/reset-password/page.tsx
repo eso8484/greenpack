@@ -181,7 +181,7 @@ export default function ResetPasswordPage() {
 
           <div className="mt-4 text-center">
             <Link href="/login" className="text-sm text-green-600 dark:text-green-400 hover:underline">
-              <- Back to sign in
+              {"<- Back to sign in"}
             </Link>
           </div>
         </div>
