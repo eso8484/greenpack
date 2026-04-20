@@ -31,6 +31,24 @@ function isRecoveryType(value: string | null): value is "recovery" {
   return value === "recovery";
 }
 
+function getRecoveryErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+
+  if (message.includes("expired") || message.includes("invalid")) {
+    return "This reset link is invalid or expired. Please request a new one.";
+  }
+
+  if (message.includes("code verifier") || message.includes("pkce") || message.includes("both auth code and code verifier")) {
+    return "This reset link must be opened from the same browser where you requested it. Please request a new link and open it in this browser.";
+  }
+
+  if (message.includes("timed out") || message.includes("timeout")) {
+    return "Validation timed out. Please request a new reset link and try again.";
+  }
+
+  return "This reset link is invalid, expired, or timed out. Please request a new one.";
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -88,15 +106,18 @@ export default function ResetPasswordPage() {
         const refreshToken = hashParams.get("refresh_token");
         const hashType = hashParams.get("type");
 
+        const hasActiveSession = async () => {
+          const { data } = await withTimeout(
+            supabase.auth.getSession(),
+            RECOVERY_TIMEOUT_MS,
+            "Session check timed out"
+          );
+          return Boolean(data.session?.user);
+        };
+
         let recovered = false;
 
-        const { data: existingSession } = await withTimeout(
-          supabase.auth.getSession(),
-          RECOVERY_TIMEOUT_MS,
-          "Session check timed out"
-        );
-
-        if (existingSession.session?.user) {
+        if (await hasActiveSession()) {
           recovered = true;
         }
 
@@ -106,7 +127,13 @@ export default function ResetPasswordPage() {
             RECOVERY_TIMEOUT_MS,
             "Recovery link validation timed out"
           );
-          if (error) throw error;
+          if (error) {
+            // If another listener already exchanged this single-use code,
+            // continue as long as recovery session is active.
+            if (!(await hasActiveSession())) {
+              throw error;
+            }
+          }
           recovered = true;
         } else if (!recovered && accessToken && refreshToken && isRecoveryType(hashType)) {
           const { error } = await withTimeout(
@@ -117,7 +144,7 @@ export default function ResetPasswordPage() {
             RECOVERY_TIMEOUT_MS,
             "Recovery session setup timed out"
           );
-          if (error) throw error;
+          if (error && !(await hasActiveSession())) throw error;
           recovered = true;
         } else if (!recovered && tokenHash && isRecoveryType(queryType)) {
           const { error } = await withTimeout(
@@ -128,7 +155,7 @@ export default function ResetPasswordPage() {
             RECOVERY_TIMEOUT_MS,
             "Recovery OTP validation timed out"
           );
-          if (error) throw error;
+          if (error && !(await hasActiveSession())) throw error;
           recovered = true;
         }
 
@@ -143,8 +170,8 @@ export default function ResetPasswordPage() {
         window.history.replaceState({}, "", currentUrl.pathname);
 
         resolveReady();
-      } catch {
-        resolveError("This reset link is invalid, expired, or timed out. Please request a new one.");
+      } catch (error) {
+        resolveError(getRecoveryErrorMessage(error));
       } finally {
         subscription.unsubscribe();
       }
