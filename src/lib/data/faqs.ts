@@ -230,7 +230,7 @@ export const faqItems: FAQItem[] = [
     categoryId: "account",
     question: "I forgot my password. How do I reset it?",
     answer:
-      'Click "Login" then select "Forgot Password". Enter your email address and we\'ll send you a password reset link. Follow the link to create a new password for your account.',
+      'Click "Login" then select "Forgot Password". Enter your email address and we\'ll send you a password reset link. Open the most recent email and tap the reset link to set a new password. If the link opens the wrong page, request a fresh reset email and use the latest link only. Reset links can expire quickly and only the newest link should be used. You can start on one device and finish on another as long as the link is still valid.',
     keywords: ["password", "forgot", "reset", "login", "access"],
   },
   {
