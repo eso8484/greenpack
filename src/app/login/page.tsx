@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,6 +11,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 
 type LoginMethod = "email" | "phone";
+
+const RESET_EMAIL_COOLDOWN_MS = 60000;
+
+function getFriendlyResetError(message: string): string {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("rate limit") || normalized.includes("too many")) {
+    return "Too many reset requests. Please wait about 60 seconds before trying again.";
+  }
+  return message;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,8 +36,34 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [forgotCooldownUntil, setForgotCooldownUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
 
   const redirect = searchParams.get("redirect");
+  const forgotMode = searchParams.get("forgot") === "1";
+  const forgotEmailFromQuery = searchParams.get("email") ?? "";
+
+  const forgotSecondsLeft = forgotCooldownUntil
+    ? Math.max(0, Math.ceil((forgotCooldownUntil - now) / 1000))
+    : 0;
+
+  useEffect(() => {
+    if (!forgotMode) return;
+    setShowForgot(true);
+    if (forgotEmailFromQuery) {
+      setForgotEmail(forgotEmailFromQuery);
+    }
+  }, [forgotMode, forgotEmailFromQuery]);
+
+  useEffect(() => {
+    if (!forgotCooldownUntil) return;
+
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [forgotCooldownUntil]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,17 +140,22 @@ export default function LoginPage() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotEmail.trim()) return;
+    if (!forgotEmail.trim() || forgotSecondsLeft > 0) return;
     setForgotLoading(true);
+    setError("");
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     setForgotLoading(false);
     if (error) {
-      setError(error.message);
+      setError(getFriendlyResetError(error.message));
+      if (error.message.toLowerCase().includes("rate limit") || error.message.toLowerCase().includes("too many")) {
+        setForgotCooldownUntil(Date.now() + RESET_EMAIL_COOLDOWN_MS);
+      }
     } else {
       setForgotSent(true);
+      setForgotCooldownUntil(Date.now() + RESET_EMAIL_COOLDOWN_MS);
     }
   };
 
@@ -168,7 +209,11 @@ export default function LoginPage() {
                   </div>
                 )}
                 <Button type="submit" size="lg" className="w-full" disabled={forgotLoading}>
-                  {forgotLoading ? "Sending..." : "Send Reset Link"}
+                  {forgotLoading
+                    ? "Sending..."
+                    : forgotSecondsLeft > 0
+                      ? `Try again in ${forgotSecondsLeft}s`
+                      : "Send Reset Link"}
                 </Button>
                 <button
                   type="button"
