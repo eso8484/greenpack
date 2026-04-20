@@ -73,8 +73,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (typeof window === "undefined") return;
 
       const currentUrl = new URL(window.location.href);
+      const isResetPasswordRoute = currentUrl.pathname === "/reset-password";
       const code = currentUrl.searchParams.get("code");
       const nextPath = currentUrl.searchParams.get("next");
+
+      // Let the dedicated reset-password page handle recovery links to avoid
+      // double code exchanges and race conditions.
+      if (isResetPasswordRoute) return;
 
       if (!code) return;
 

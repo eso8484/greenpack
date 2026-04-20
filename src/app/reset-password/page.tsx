@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const resolvedRef = useRef(false);
 
   useEffect(() => {
     if (status !== "verifying") return;
@@ -55,6 +56,28 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     const activateRecoverySession = async () => {
+      const resolveReady = () => {
+        if (resolvedRef.current) return;
+        resolvedRef.current = true;
+        setStatus("ready");
+        setStatusMessage("Set a new password for your account.");
+      };
+
+      const resolveError = (message: string) => {
+        if (resolvedRef.current) return;
+        resolvedRef.current = true;
+        setStatus("error");
+        setStatusMessage(message);
+      };
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!session?.user) return;
+
+        if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+          resolveReady();
+        }
+      });
+
       try {
         const currentUrl = new URL(window.location.href);
         const code = currentUrl.searchParams.get("code");
@@ -67,7 +90,17 @@ export default function ResetPasswordPage() {
 
         let recovered = false;
 
-        if (code) {
+        const { data: existingSession } = await withTimeout(
+          supabase.auth.getSession(),
+          RECOVERY_TIMEOUT_MS,
+          "Session check timed out"
+        );
+
+        if (existingSession.session?.user) {
+          recovered = true;
+        }
+
+        if (!recovered && code) {
           const { error } = await withTimeout(
             supabase.auth.exchangeCodeForSession(code),
             RECOVERY_TIMEOUT_MS,
@@ -75,7 +108,7 @@ export default function ResetPasswordPage() {
           );
           if (error) throw error;
           recovered = true;
-        } else if (accessToken && refreshToken && isRecoveryType(hashType)) {
+        } else if (!recovered && accessToken && refreshToken && isRecoveryType(hashType)) {
           const { error } = await withTimeout(
             supabase.auth.setSession({
               access_token: accessToken,
@@ -86,7 +119,7 @@ export default function ResetPasswordPage() {
           );
           if (error) throw error;
           recovered = true;
-        } else if (tokenHash && isRecoveryType(queryType)) {
+        } else if (!recovered && tokenHash && isRecoveryType(queryType)) {
           const { error } = await withTimeout(
             supabase.auth.verifyOtp({
               token_hash: tokenHash,
@@ -100,8 +133,7 @@ export default function ResetPasswordPage() {
         }
 
         if (!recovered) {
-          setStatus("error");
-          setStatusMessage("This reset link is invalid or expired. Please request a new one.");
+          resolveError("This reset link is invalid or expired. Please request a new one.");
           return;
         }
 
@@ -110,11 +142,11 @@ export default function ResetPasswordPage() {
         currentUrl.searchParams.delete("token_hash");
         window.history.replaceState({}, "", currentUrl.pathname);
 
-        setStatus("ready");
-        setStatusMessage("Set a new password for your account.");
+        resolveReady();
       } catch {
-        setStatus("error");
-        setStatusMessage("This reset link is invalid, expired, or timed out. Please request a new one.");
+        resolveError("This reset link is invalid, expired, or timed out. Please request a new one.");
+      } finally {
+        subscription.unsubscribe();
       }
     };
 
