@@ -111,7 +111,7 @@ export default function ContactForm({
         className="w-full"
         disabled={isSubmitting}
       >
-        {isSubmitting ? "Submitting..." : "Submit Order"}
+        {isSubmitting ? "Redirecting to Paystack..." : "Proceed to Secure Payment"}
       </Button>
     </form>
   );

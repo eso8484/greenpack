@@ -1,8 +1,4 @@
-"use client";
-
-import { shops } from "@/lib/data/shops";
-
-const videoShops = shops.filter((s) => s.video?.url).slice(0, 4);
+import { dbGetShops } from "@/lib/db";
 
 // Generate stable stats based on shop ID (consistent across renders)
 const getShopStats = (shopId: string) => {
@@ -13,7 +9,10 @@ const getShopStats = (shopId: string) => {
     };
 };
 
-export default function VideoHighlights() {
+export default async function VideoHighlights() {
+    const shops = await dbGetShops({ sortBy: "rating", limit: 16 });
+    const videoShops = shops.filter((s) => Boolean(s.video?.url)).slice(0, 4);
+
     if (videoShops.length === 0) return null;
 
     return (

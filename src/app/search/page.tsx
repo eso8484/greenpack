@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -10,9 +10,6 @@ import PriceTag from "@/components/ui/PriceTag";
 import EmptyState from "@/components/ui/EmptyState";
 import Badge from "@/components/ui/Badge";
 import WishlistButton from "@/components/ui/WishlistButton";
-import { shops } from "@/lib/data/shops";
-import { services } from "@/lib/data/services";
-import { products } from "@/lib/data/products";
 import { BLUR_PLACEHOLDER } from "@/lib/utils";
 import { Shop, Service, Product } from "@/types";
 import { motion } from "framer-motion";
@@ -24,85 +21,65 @@ interface SearchResult {
   type: SearchResultType;
   data: Shop | Service | Product;
   relevance: number;
+  shopName?: string;
 }
 
 export default function SearchPage() {
   const searchParams = useSearchParams();
-  const queryParam = searchParams.get("q") || "";
-  const [query, setQuery] = useState(queryParam);
+  const query = searchParams.get("q") || "";
   const [activeTab, setActiveTab] = useState<"all" | SearchResultType>("all");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setQuery(queryParam);
-  }, [queryParam]);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
-  const searchResults = useMemo(() => {
-    if (!query.trim()) return [];
+    let isCancelled = false;
 
-    const q = query.toLowerCase().trim();
-    const results: SearchResult[] = [];
+    const loadResults = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const payload = (await response.json()) as {
+          success?: boolean;
+          data?: SearchResult[];
+        };
 
-    // Search shops
-    shops.forEach((shop) => {
-      let relevance = 0;
-      if (shop.name.toLowerCase().includes(q)) relevance += 10;
-      if (shop.description.toLowerCase().includes(q)) relevance += 5;
-      if (shop.shortDescription.toLowerCase().includes(q)) relevance += 5;
-      if (shop.categoryName.toLowerCase().includes(q)) relevance += 3;
-      if (shop.tags.some((t) => t.toLowerCase().includes(q))) relevance += 7;
-      if (shop.location.address.toLowerCase().includes(q)) relevance += 2;
-
-      if (relevance > 0) {
-        results.push({ id: shop.id, type: "shop", data: shop, relevance });
+        if (!isCancelled && response.ok && payload.success && Array.isArray(payload.data)) {
+          setSearchResults(payload.data);
+        } else if (!isCancelled) {
+          setSearchResults([]);
+        }
+      } catch {
+        if (!isCancelled) setSearchResults([]);
+      } finally {
+        if (!isCancelled) setLoading(false);
       }
-    });
+    };
 
-    // Search services
-    services.forEach((service) => {
-      let relevance = 0;
-      if (service.name.toLowerCase().includes(q)) relevance += 10;
-      if (service.description.toLowerCase().includes(q)) relevance += 5;
-
-      if (relevance > 0) {
-        results.push({
-          id: service.id,
-          type: "service",
-          data: service,
-          relevance,
-        });
-      }
-    });
-
-    // Search products
-    products.forEach((product) => {
-      let relevance = 0;
-      if (product.name.toLowerCase().includes(q)) relevance += 10;
-      if (product.description?.toLowerCase().includes(q)) relevance += 5;
-
-      if (relevance > 0) {
-        results.push({
-          id: product.id,
-          type: "product",
-          data: product,
-          relevance,
-        });
-      }
-    });
-
-    return results.sort((a, b) => b.relevance - a.relevance);
+    loadResults();
+    return () => {
+      isCancelled = true;
+    };
   }, [query]);
 
   const filteredResults =
     activeTab === "all"
       ? searchResults
-      : searchResults.filter((r) => r.type === activeTab);
+      : searchResults.filter((result) => result.type === activeTab);
 
-  const counts = {
-    all: searchResults.length,
-    shop: searchResults.filter((r) => r.type === "shop").length,
-    service: searchResults.filter((r) => r.type === "service").length,
-    product: searchResults.filter((r) => r.type === "product").length,
-  };
+  const counts = useMemo(
+    () => ({
+      all: searchResults.length,
+      shop: searchResults.filter((result) => result.type === "shop").length,
+      service: searchResults.filter((result) => result.type === "service").length,
+      product: searchResults.filter((result) => result.type === "product").length,
+    }),
+    [searchResults]
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -170,10 +147,14 @@ export default function SearchPage() {
               title="Start searching"
               description="Enter a keyword to search shops, services, and products"
             />
+          ) : loading ? (
+            <div className="py-10 text-center text-gray-500 dark:text-gray-400">
+              Loading results...
+            </div>
           ) : filteredResults.length === 0 ? (
             <EmptyState
               title="No results found"
-              description={`Try different keywords or browse all shops`}
+              description="Try different keywords or browse all shops"
               actionLabel="Browse All"
               actionHref="/browse"
             />
@@ -250,7 +231,6 @@ function ResultCard({ result }: { result: SearchResult }) {
 
   if (result.type === "service") {
     const service = result.data as Service;
-    const shop = shops.find((s) => s.id === service.shopId);
     return (
       <Link href={`/shop/${service.shopId}`}>
         <Card className="p-6 hover:shadow-xl transition-all">
@@ -263,8 +243,8 @@ function ResultCard({ result }: { result: SearchResult }) {
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-3 line-clamp-2">
             {service.description}
           </p>
-          {shop && (
-            <p className="text-xs text-gray-400 mb-3">from {shop.name}</p>
+          {result.shopName && (
+            <p className="text-xs text-gray-400 mb-3">from {result.shopName}</p>
           )}
           <PriceTag price={service.price} priceType={service.priceType} />
         </Card>
@@ -274,7 +254,6 @@ function ResultCard({ result }: { result: SearchResult }) {
 
   if (result.type === "product") {
     const product = result.data as Product;
-    const shop = shops.find((s) => s.id === product.shopId);
     return (
       <Link href={`/shop/${product.shopId}`}>
         <Card className="overflow-hidden hover:shadow-xl transition-all">
@@ -304,8 +283,8 @@ function ResultCard({ result }: { result: SearchResult }) {
             <h3 className="font-medium text-gray-900 dark:text-white text-sm mb-2 line-clamp-2">
               {product.name}
             </h3>
-            {shop && (
-              <p className="text-xs text-gray-400 mb-2">from {shop.name}</p>
+            {result.shopName && (
+              <p className="text-xs text-gray-400 mb-2">from {result.shopName}</p>
             )}
             <PriceTag
               price={product.price}

@@ -3,15 +3,15 @@ import CategorySidebar from "@/components/browse/CategorySidebar";
 import FilterBar from "@/components/browse/FilterBar";
 import ShopGrid from "@/components/browse/ShopGrid";
 import SearchBar from "@/components/layout/SearchBar";
-import { shops } from "@/lib/data/shops";
 import { categories } from "@/lib/data/categories";
-import { filterShops } from "@/lib/utils";
+import { dbGetShops } from "@/lib/db";
 
 interface BrowsePageProps {
   searchParams: Promise<{
     q?: string;
     category?: string;
     sort?: string;
+    verified?: string;
   }>;
 }
 
@@ -20,14 +20,16 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
   const query = params.q || "";
   const categorySlug = params.category || "";
   const sortBy = params.sort || "relevance";
+  const verifiedOnly = params.verified === "true";
 
   const category = categories.find((c) => c.slug === categorySlug);
   const categoryId = category?.id || null;
 
-  const filteredShops = filterShops(shops, {
+  const filteredShops = await dbGetShops({
     query,
     categoryId,
     sortBy,
+    verifiedOnly,
   });
 
   const pageTitle = query

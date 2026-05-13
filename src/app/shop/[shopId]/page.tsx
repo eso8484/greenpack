@@ -6,12 +6,11 @@ import ProductGrid from "@/components/shop/ProductGrid";
 import ShopContactInfo from "@/components/shop/ShopContactInfo";
 import ReviewSection from "@/components/shop/ReviewSection";
 import {
-  getShopById,
-  getServicesByShopId,
-  getProductsByShopId,
-  getReviewsByShopId,
-} from "@/lib/utils";
-import { shops } from "@/lib/data/shops";
+  dbGetShopById,
+  dbGetServicesByShopId,
+  dbGetProductsByShopId,
+  dbGetReviewsByShopId,
+} from "@/lib/db";
 import type { Metadata } from "next";
 
 interface ShopPageProps {
@@ -19,14 +18,14 @@ interface ShopPageProps {
 }
 
 export async function generateStaticParams() {
-  return shops.map((shop) => ({ shopId: shop.id }));
+  return [];
 }
 
 export async function generateMetadata({
   params,
 }: ShopPageProps): Promise<Metadata> {
   const { shopId } = await params;
-  const shop = getShopById(shopId);
+  const shop = await dbGetShopById(shopId);
   if (!shop) return { title: "Shop Not Found" };
   return {
     title: `${shop.name} - GreenPack`,
@@ -36,13 +35,15 @@ export async function generateMetadata({
 
 export default async function ShopPage({ params }: ShopPageProps) {
   const { shopId } = await params;
-  const shop = getShopById(shopId);
+  const shop = await dbGetShopById(shopId);
 
   if (!shop) notFound();
 
-  const shopServices = getServicesByShopId(shopId);
-  const shopProducts = getProductsByShopId(shopId);
-  const shopReviews = getReviewsByShopId(shopId);
+  const [shopServices, shopProducts, shopReviews] = await Promise.all([
+    dbGetServicesByShopId(shop.id),
+    dbGetProductsByShopId(shop.id),
+    dbGetReviewsByShopId(shop.id),
+  ]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

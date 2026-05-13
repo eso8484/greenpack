@@ -159,6 +159,7 @@ export interface Profile {
 // === ORDER ===
 export type OrderStatus = "pending" | "confirmed" | "processing" | "ready" | "completed" | "cancelled";
 export type PaymentStatus = "unpaid" | "paid" | "refunded";
+export type PaymentProvider = "paystack" | "flutterwave";
 
 export interface Order {
   id: string;
@@ -168,6 +169,11 @@ export interface Order {
   customer_info: CustomerInfo;
   needs_delivery: boolean;
   payment_status: PaymentStatus;
+  payment_provider?: PaymentProvider | null;
+  payment_reference?: string | null;
+  payment_currency?: string;
+  payment_verified_at?: string | null;
+  payment_metadata?: Record<string, unknown>;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -194,6 +200,7 @@ export type DeliveryStatus = "pending" | "assigned" | "picking_up" | "at_shop" |
 export interface Courier {
   id: string;
   vehicle_type: VehicleType;
+  application_status?: "pending" | "approved" | "rejected";
   is_verified: boolean;
   is_available: boolean;
   rating: number;
@@ -205,6 +212,9 @@ export interface Courier {
   guarantor_phone?: string;
   area_of_operation?: string;
   availability_hours?: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  review_note?: string | null;
 }
 
 export interface Delivery {

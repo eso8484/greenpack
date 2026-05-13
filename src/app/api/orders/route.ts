@@ -5,7 +5,7 @@ import { z } from "zod";
 const OrderItemSchema = z.object({
   shop_id: z.string().uuid(),
   item_type: z.enum(["product", "service"]),
-  item_id: z.string().uuid().optional(),
+  item_id: z.string().uuid().nullable().optional(),
   name: z.string(),
   price: z.number().positive(),
   quantity: z.number().int().positive(),
@@ -23,6 +23,9 @@ const CreateOrderSchema = z.object({
     message: z.string().optional(),
   }),
   needs_delivery: z.boolean().optional(),
+  payment_provider: z.enum(["paystack", "flutterwave"]).optional(),
+  payment_reference: z.string().max(120).optional(),
+  payment_currency: z.string().max(3).optional(),
   notes: z.string().optional(),
   items: z.array(OrderItemSchema).min(1),
   delivery: z
@@ -40,6 +43,9 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
 
     const body = await request.json();
     const parsed = CreateOrderSchema.safeParse(body);
@@ -57,7 +63,7 @@ export async function POST(request: Request) {
       .from("orders")
       .insert({
         ...orderData,
-        customer_id: user?.id ?? null,
+        customer_id: user.id,
       })
       .select()
       .single();
@@ -69,16 +75,14 @@ export async function POST(request: Request) {
       items.map((item) => ({ ...item, order_id: order.id }))
     );
 
-    if (itemsError) throw itemsError;
-
-    // Create delivery record if needed
-    if (orderData.needs_delivery && delivery) {
-      await supabase.from("deliveries").insert({
-        order_id: order.id,
-        ...delivery,
-        status: "pending",
-      });
+    if (itemsError) {
+      // Best-effort cleanup so failed item writes do not leave orphan orders.
+      await supabase.from("orders").delete().eq("id", order.id).eq("customer_id", user.id);
+      throw itemsError;
     }
+
+    // Note: Delivery creation moved to payment verification step
+    // (only create delivery AFTER payment is confirmed)
 
     // Return order with items
     const { data: fullOrder } = await supabase
@@ -105,6 +109,11 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const shopId = searchParams.get("shopId");
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
     let query = supabase
       .from("orders")
@@ -112,7 +121,23 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
 
     if (shopId) {
-      // Vendor viewing their shop orders
+      const role = profile?.role;
+      if (!role || !["vendor", "admin"].includes(role)) {
+        return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+      }
+
+      if (role !== "admin") {
+        const { data: shop, error: shopError } = await supabase
+          .from("shops")
+          .select("owner_id")
+          .eq("id", shopId)
+          .single();
+
+        if (shopError || !shop || shop.owner_id !== user.id) {
+          return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+        }
+      }
+
       query = supabase
         .from("orders")
         .select("*, order_items!inner(*)")

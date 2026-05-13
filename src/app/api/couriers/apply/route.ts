@@ -32,23 +32,52 @@ export async function POST(request: Request) {
     // Check if already applied
     const { data: existing } = await supabase
       .from("couriers")
-      .select("id")
+      .select("id, application_status")
       .eq("id", user.id)
       .maybeSingle();
 
     if (existing) {
-      return NextResponse.json(
-        { success: false, error: "You have already applied to be a courier" },
-        { status: 409 }
-      );
+      if (existing.application_status === "approved") {
+        return NextResponse.json(
+          { success: false, error: "Your courier account is already approved" },
+          { status: 409 }
+        );
+      }
+
+      if (existing.application_status === "pending") {
+        return NextResponse.json(
+          { success: false, error: "Your courier application is still under review" },
+          { status: 409 }
+        );
+      }
+
+      // Re-open rejected applications as pending when applicant re-submits.
+      const { data, error } = await supabase
+        .from("couriers")
+        .update({
+          ...parsed.data,
+          application_status: "pending",
+          review_note: null,
+          reviewed_at: null,
+          reviewed_by: null,
+          is_available: false,
+        })
+        .eq("id", user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return NextResponse.json({ success: true, data }, { status: 202 });
     }
 
-    // Create courier record (pending verification)
+    // Create courier record (pending admin approval)
     const { data, error } = await supabase
       .from("couriers")
       .insert({
         id: user.id,
         ...parsed.data,
+        application_status: "pending",
         is_verified: false,
         is_available: false,
       })
@@ -56,12 +85,6 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw error;
-
-    // Update profile role to courier (pending)
-    await supabase
-      .from("profiles")
-      .update({ role: "courier" })
-      .eq("id", user.id);
 
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (err) {

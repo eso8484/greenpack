@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const VALID_STATUSES = [
+  "pending",
+  "assigned",
+  "picking_up",
+  "at_shop",
+  "returning",
+  "delivered",
+  "cancelled",
+] as const;
+
 // GET /api/deliveries — courier's own jobs
 export async function GET(request: Request) {
   try {
@@ -11,8 +21,39 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || !["courier", "admin"].includes(profile.role)) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    if (profile.role === "courier") {
+      const { data: courier } = await supabase
+        .from("couriers")
+        .select("application_status")
+        .eq("id", user.id)
+        .single();
+
+      if (!courier || courier.application_status !== "approved") {
+        return NextResponse.json(
+          { success: false, error: "Courier profile is not approved yet" },
+          { status: 403 }
+        );
+      }
+    }
+
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
+    const status = searchParams.get("status") ?? "";
+    const statusList = status
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value): value is (typeof VALID_STATUSES)[number] =>
+        (VALID_STATUSES as readonly string[]).includes(value)
+      );
 
     let query = supabase
       .from("deliveries")
@@ -28,7 +69,11 @@ export async function GET(request: Request) {
       .eq("courier_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (status) query = query.eq("status", status);
+    if (statusList.length === 1) {
+      query = query.eq("status", statusList[0]);
+    } else if (statusList.length > 1) {
+      query = query.in("status", statusList);
+    }
 
     const { data, error } = await query;
     if (error) throw error;

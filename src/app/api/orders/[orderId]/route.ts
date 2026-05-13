@@ -25,6 +25,11 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
     }
 
+    // Verify ownership: user must be the customer who placed the order
+    if (data.customer_id !== user.id) {
+      return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+    }
+
     return NextResponse.json({ success: true, data });
   } catch (err) {
     console.error("GET /api/orders/[orderId]", err);

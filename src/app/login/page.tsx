@@ -16,8 +16,16 @@ const RESET_EMAIL_COOLDOWN_MS = 60000;
 
 function getFriendlyResetError(message: string): string {
   const normalized = message.toLowerCase();
+  if (normalized.includes("email rate limit exceeded") || normalized.includes("over_email_send_rate_limit")) {
+    return "Supabase email sending limit has been reached for this project. This limit applies project-wide (not per email). Please wait and try again later, or configure custom SMTP and increase Auth rate limits.";
+  }
+
+  if (normalized.includes("security purposes") && normalized.includes("60")) {
+    return "Please wait about 60 seconds before requesting another reset link for this account.";
+  }
+
   if (normalized.includes("rate limit") || normalized.includes("too many")) {
-    return "Too many reset requests. Please wait about 60 seconds before trying again.";
+    return "Password reset is currently rate-limited by Supabase. This can be per-user, per-IP, or project-wide depending on your Auth setup.";
   }
   return message;
 }

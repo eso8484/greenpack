@@ -21,6 +21,21 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
+    if (profile.role === "courier") {
+      const { data: courier } = await supabase
+        .from("couriers")
+        .select("application_status")
+        .eq("id", user.id)
+        .single();
+
+      if (!courier || courier.application_status !== "approved") {
+        return NextResponse.json(
+          { success: false, error: "Courier profile is not approved yet" },
+          { status: 403 }
+        );
+      }
+    }
+
     // Get pending deliveries not yet assigned
     const { data, error } = await supabase
       .from("deliveries")

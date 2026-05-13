@@ -1,8 +1,8 @@
 import ShopCard from "@/components/browse/ShopCard";
-import { getFeaturedShops } from "@/lib/utils";
+import { dbGetFeaturedShops } from "@/lib/db";
 
-export default function FeaturedShops() {
-  const featured = getFeaturedShops();
+export default async function FeaturedShops() {
+  const featured = await dbGetFeaturedShops();
 
   return (
     <section className="bg-white dark:bg-gray-900/50 py-24 px-6">
