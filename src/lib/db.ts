@@ -28,7 +28,13 @@ function mapShop(row: any): Shop {
       address: row.location?.address ?? "",
       city: row.location?.city ?? "",
       state: row.location?.state ?? "",
+      lat: row.lat != null ? Number(row.lat) : undefined,
+      lng: row.lng != null ? Number(row.lng) : undefined,
     },
+    paystack_subaccount_code: row.paystack_subaccount_code ?? null,
+    settlement_bank_code: row.settlement_bank_code ?? null,
+    settlement_account_number: row.settlement_account_number ?? null,
+    settlement_account_name: row.settlement_account_name ?? null,
     contact: {
       phone: row.contact?.phone ?? "",
       email: row.contact?.email ?? "",
@@ -72,6 +78,7 @@ function mapService(row: any): Service {
     categoryId: row.category_id ?? "",
     image: row.image,
     isAvailable: row.is_available ?? true,
+    service_type: row.service_type ?? "in_store",
   };
 }
 

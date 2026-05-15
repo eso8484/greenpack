@@ -124,40 +124,65 @@ export default function ShopEditorPage() {
       return;
     }
 
+    // Client-side validation so users get a clear toast instead of a silent
+    // failure when the server rejects the update.
+    const trimmedName = form.name.trim();
+    const trimmedSlug = form.slug.trim();
+    if (!trimmedName) {
+      toast.error("Shop name is required");
+      return;
+    }
+    if (!trimmedSlug || !/^[a-z0-9-]+$/.test(trimmedSlug)) {
+      toast.error("Slug must use lowercase letters, numbers, and dashes only");
+      return;
+    }
+
     setSaving(true);
     try {
+      // Only include category fields when set so we don't wipe existing values.
+      const trimmedCategoryId = form.categoryId.trim();
+      const trimmedCategoryName = form.categoryName.trim();
+
+      const body: Record<string, unknown> = {
+        name: trimmedName,
+        slug: trimmedSlug,
+        description: form.description.trim(),
+        short_description: form.shortDescription.trim(),
+        location: {
+          address: form.address.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
+        },
+        contact: {
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          whatsapp: form.whatsapp.trim(),
+        },
+        hours: {
+          open: form.openTime.trim(),
+          close: form.closeTime.trim(),
+          days: form.days.trim(),
+        },
+      };
+      if (trimmedCategoryId) body.category_id = trimmedCategoryId;
+      if (trimmedCategoryName) body.category_name = trimmedCategoryName;
+
       const response = await fetch(`/api/shops/${shopId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          name: form.name.trim(),
-          slug: form.slug.trim(),
-          description: form.description.trim(),
-          short_description: form.shortDescription.trim(),
-          category_id: form.categoryId.trim() || null,
-          category_name: form.categoryName.trim() || null,
-          location: {
-            address: form.address.trim(),
-            city: form.city.trim(),
-            state: form.state.trim(),
-          },
-          contact: {
-            phone: form.phone.trim(),
-            email: form.email.trim(),
-            whatsapp: form.whatsapp.trim(),
-          },
-          hours: {
-            open: form.openTime.trim(),
-            close: form.closeTime.trim(),
-            days: form.days.trim(),
-          },
-        }),
+        body: JSON.stringify(body),
       });
 
-      const payload = await response.json();
+      let payload: { success?: boolean; error?: unknown } = {};
+      try {
+        payload = await response.json();
+      } catch {
+        // Non-JSON response (e.g. HTML error page) — fall through to status-based error.
+      }
+
       if (!response.ok || !payload.success) {
-        console.error("Shop update failed:", payload);
+        console.error("Shop update failed:", { status: response.status, payload });
         const errMsg =
           typeof payload.error === "string"
             ? payload.error

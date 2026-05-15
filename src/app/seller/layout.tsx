@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 const sidebarLinks = [
     {
@@ -42,10 +43,30 @@ const sidebarLinks = [
             </svg>
         ),
     },
+    {
+        label: "Payout Account",
+        href: "/seller/payout",
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm11 8h2" />
+            </svg>
+        ),
+    },
 ];
 
 export default function SellerLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const router = useRouter();
+    const handleLogout = async () => {
+        try {
+            const supabase = createClient();
+            await supabase.auth.signOut();
+        } catch (err) {
+            console.error("Logout failed:", err);
+        }
+        router.push("/login");
+        router.refresh();
+    };
 
     return (
         <div className="min-h-screen bg-[#eef1f5] dark:bg-gray-900">
@@ -108,15 +129,16 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
                         })}
                     </nav>
                     <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                        <Link
-                            href="/login"
+                        <button
+                            type="button"
+                            onClick={handleLogout}
                             className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 dark:text-red-400 font-medium transition-colors"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>
                             Logout
-                        </Link>
+                        </button>
                     </div>
                 </aside>
 

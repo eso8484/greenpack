@@ -15,6 +15,9 @@ const OrderItemSchema = z.object({
 
 const CreateOrderSchema = z.object({
   total_amount: z.number().positive(),
+  subtotal: z.number().nonnegative().optional(),
+  delivery_fee: z.number().nonnegative().optional(),
+  delivery_distance_km: z.number().nonnegative().nullable().optional(),
   customer_info: z.object({
     fullName: z.string(),
     email: z.string().email(),

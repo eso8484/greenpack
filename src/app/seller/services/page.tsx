@@ -134,24 +134,34 @@ export default function ServicesPage() {
         : `/api/shops/${shopId}/services`;
       const method = editingServiceId ? "PUT" : "POST";
 
+      // Build request body — omit empty optional fields so Zod `.optional()` schemas accept them
+      // (sending `null` breaks `z.string().optional()` which expects `string | undefined`).
+      const trimmedDescription = form.description.trim();
+      const trimmedDuration = form.duration.trim();
+      const body: Record<string, unknown> = {
+        name: form.name.trim(),
+        price,
+        price_type: form.priceType,
+        is_available: true,
+      };
+      if (trimmedDescription) body.description = trimmedDescription;
+      if (trimmedDuration) body.duration = trimmedDuration;
+
       const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          name: form.name.trim(),
-          description: form.description.trim(),
-          price,
-          price_type: form.priceType,
-          duration: form.duration.trim() || null,
-          is_available: true,
-        }),
+        body: JSON.stringify(body),
       });
 
       const payload = await response.json();
       if (!response.ok || !payload.success) {
         throw new Error(
-          typeof payload.error === "string" ? payload.error : "Failed to save service"
+          typeof payload.error === "string"
+            ? payload.error
+            : payload.error
+              ? JSON.stringify(payload.error)
+              : "Failed to save service"
         );
       }
 

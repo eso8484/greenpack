@@ -7,7 +7,7 @@ const CreateShopSchema = z.object({
   slug: z.string().min(1).max(255).regex(/^[a-z0-9-]+$/),
   description: z.string().max(2000).optional(),
   short_description: z.string().max(500).optional(),
-  category_id: z.string().uuid(),
+  category_id: z.string().min(1),
   category_name: z.string(),
   location: z.record(z.string(), z.unknown()).optional(),
   contact: z.record(z.string(), z.unknown()).optional(),

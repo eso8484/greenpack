@@ -125,9 +125,74 @@ export function filterShops(
 
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import {
+  DELIVERY_BASE_FEE,
+  DELIVERY_MAX_FEE,
+  DELIVERY_MIN_FEE,
+  DELIVERY_RATE_PER_KM,
+  PLATFORM_FEE_PERCENT,
+  VENDOR_PAYOUT_PERCENT,
+} from "./constants";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+// === GEO / DISTANCE ===
+// Haversine: great-circle distance between two lat/lng points (kilometres).
+export function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371; // Earth radius in km
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// === FEE CALCULATIONS ===
+export function calculateDeliveryFee(distanceKm: number): number {
+  const raw = DELIVERY_BASE_FEE + distanceKm * DELIVERY_RATE_PER_KM;
+  const clamped = Math.max(DELIVERY_MIN_FEE, Math.min(DELIVERY_MAX_FEE, raw));
+  return Math.round(clamped);
+}
+
+export interface FeeBreakdown {
+  subtotal: number;
+  deliveryFee: number;
+  platformFee: number;
+  vendorPayout: number;
+  courierPayout: number;
+  total: number;
+}
+
+export function calculateFeeBreakdown(
+  subtotal: number,
+  deliveryFee = 0
+): FeeBreakdown {
+  const platformFee = Math.round((subtotal * PLATFORM_FEE_PERCENT) / 100);
+  const vendorPayout = Math.round((subtotal * VENDOR_PAYOUT_PERCENT) / 100);
+  const courierPayout = deliveryFee;
+  return {
+    subtotal,
+    deliveryFee,
+    platformFee,
+    vendorPayout,
+    courierPayout,
+    total: subtotal + deliveryFee,
+  };
+}
+
+// Paystack works in kobo (1 NGN = 100 kobo)
+export function nairaToKobo(naira: number): number {
+  return Math.round(naira * 100);
 }
 
 // Tiny green-tinted SVG blur placeholder for Next.js Image blurDataURL

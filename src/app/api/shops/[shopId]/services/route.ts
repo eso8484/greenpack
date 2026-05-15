@@ -4,12 +4,12 @@ import { z } from "zod";
 
 const ServiceSchema = z.object({
   name: z.string().min(1),
-  description: z.string().optional(),
+  description: z.string().nullish(),
   price: z.number().positive(),
   price_type: z.enum(["fixed", "starting_from", "per_hour", "negotiable"]).optional(),
-  duration: z.string().optional(),
-  category_id: z.string().optional(),
-  image: z.string().optional(),
+  duration: z.string().nullish(),
+  category_id: z.string().nullish(),
+  image: z.string().nullish(),
   is_available: z.boolean().optional(),
 });
 

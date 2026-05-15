@@ -24,7 +24,13 @@ export interface Shop {
     address: string;
     city: string;
     state: string;
+    lat?: number;
+    lng?: number;
   };
+  paystack_subaccount_code?: string | null;
+  settlement_bank_code?: string | null;
+  settlement_account_number?: string | null;
+  settlement_account_name?: string | null;
   contact: {
     phone: string;
     email: string;
@@ -51,6 +57,8 @@ export interface Shop {
 }
 
 // === SERVICE ===
+export type ServiceType = "in_home" | "pickup_return" | "in_store";
+
 export interface Service {
   id: string;
   shopId: string;
@@ -62,6 +70,7 @@ export interface Service {
   categoryId: string;
   image?: string;
   isAvailable: boolean;
+  service_type?: ServiceType;
 }
 
 // === PRODUCT ===
@@ -166,6 +175,13 @@ export interface Order {
   customer_id: string | null;
   status: OrderStatus;
   total_amount: number;
+  subtotal?: number;
+  delivery_fee?: number;
+  platform_fee?: number;
+  vendor_payout?: number;
+  courier_payout?: number;
+  courier_paid_at?: string | null;
+  delivery_distance_km?: number | null;
   customer_info: CustomerInfo;
   needs_delivery: boolean;
   payment_status: PaymentStatus;

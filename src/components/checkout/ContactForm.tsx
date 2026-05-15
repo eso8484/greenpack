@@ -8,11 +8,15 @@ import type { CustomerInfo } from "@/types";
 interface ContactFormProps {
   onSubmit: (info: CustomerInfo) => void;
   isSubmitting: boolean;
+  disabled?: boolean;
+  disabledReason?: string | null;
 }
 
 export default function ContactForm({
   onSubmit,
   isSubmitting,
+  disabled = false,
+  disabledReason = null,
 }: ContactFormProps) {
   const [form, setForm] = useState<CustomerInfo>({
     fullName: "",
@@ -105,11 +109,16 @@ export default function ContactForm({
           className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 transition-colors resize-none"
         />
       </div>
+      {disabled && disabledReason && (
+        <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          {disabledReason}
+        </div>
+      )}
       <Button
         type="submit"
         size="lg"
         className="w-full"
-        disabled={isSubmitting}
+        disabled={isSubmitting || disabled}
       >
         {isSubmitting ? "Redirecting to Paystack..." : "Proceed to Secure Payment"}
       </Button>

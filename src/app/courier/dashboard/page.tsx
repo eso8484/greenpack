@@ -286,22 +286,26 @@ export default function CourierDashboardPage() {
 
           {/* Profile tab */}
           {activeTab === "profile" && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-              <h3 className="font-bold text-gray-900 dark:text-white mb-4">Your Profile</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Name</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{profile?.full_name ?? "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Phone</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{profile?.phone ?? "—"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Completed Jobs</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{completedJobs.length}</span>
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-4">Your Profile</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Name</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{profile?.full_name ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Phone</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{profile?.phone ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">Completed Jobs</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{completedJobs.length}</span>
+                  </div>
                 </div>
               </div>
+
+              <CourierPayoutCard />
             </div>
           )}
         </>
@@ -371,6 +375,283 @@ function JobCard({ job, actionLoading, showStatus, primaryAction }: JobCardProps
         >
           {actionLoading === job.id ? "Processing..." : primaryAction.label}
         </button>
+      )}
+    </div>
+  );
+}
+
+// ─── CourierPayoutCard sub-component ──────────────────────────────────────────
+
+interface CourierBank {
+  code: string;
+  name: string;
+}
+
+interface CourierPayout {
+  bank_name: string | null;
+  bank_code: string | null;
+  account_number: string | null;
+  account_name: string | null;
+  paystack_recipient_code: string | null;
+}
+
+function CourierPayoutCard() {
+  const [banks, setBanks] = useState<CourierBank[]>([]);
+  const [existing, setExisting] = useState<CourierPayout | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [bankCode, setBankCode] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [resolving, setResolving] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [banksRes, payoutRes] = await Promise.all([
+          fetch("/api/banks"),
+          fetch("/api/courier/payout"),
+        ]);
+
+        const banksJson = await banksRes.json();
+        if (banksRes.ok && banksJson.success && Array.isArray(banksJson.data) && !cancelled) {
+          setBanks(
+            (banksJson.data as CourierBank[])
+              .map((b) => ({ code: b.code, name: b.name }))
+              .sort((a, b) => a.name.localeCompare(b.name))
+          );
+        }
+
+        const payoutJson = await payoutRes.json();
+        if (payoutRes.ok && payoutJson.success && payoutJson.data && !cancelled) {
+          const data = payoutJson.data as CourierPayout;
+          setExisting(data);
+          if (!data.paystack_recipient_code) setEditMode(true);
+        } else if (!cancelled) {
+          setEditMode(true);
+        }
+      } catch {
+        if (!cancelled) toast.error("Failed to load payout details");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const resolveAccount = async () => {
+    if (!bankCode || !/^\d{10}$/.test(accountNumber)) {
+      setAccountName("");
+      return;
+    }
+    setResolving(true);
+    setAccountName("");
+    try {
+      const res = await fetch("/api/banks/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountNumber, bankCode }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error(typeof json.error === "string" ? json.error : "Could not verify account");
+        return;
+      }
+      setAccountName(json.data.account_name);
+    } catch {
+      toast.error("Network error verifying account");
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!bankCode || !accountNumber || !accountName) {
+      toast.error("Select a bank and verify your account number first");
+      return;
+    }
+    const bank = banks.find((b) => b.code === bankCode);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/courier/payout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bankCode,
+          bankName: bank?.name ?? "",
+          accountNumber,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        const msg =
+          typeof json.error === "string" ? json.error : "Failed to save payout details";
+        throw new Error(msg);
+      }
+      toast.success("Payout account saved");
+      setExisting(json.data as CourierPayout);
+      setEditMode(false);
+      setBankCode("");
+      setAccountNumber("");
+      setAccountName("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save payout details");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 text-sm text-gray-500 dark:text-gray-400">
+        Loading payout details...
+      </div>
+    );
+  }
+
+  const hasExisting = existing?.paystack_recipient_code;
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="font-bold text-gray-900 dark:text-white">Payout Account</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Where Green Pack settles your delivery earnings
+          </p>
+        </div>
+        {hasExisting && !editMode && (
+          <button
+            onClick={() => setEditMode(true)}
+            className="text-xs font-semibold text-green-600 dark:text-green-400 hover:underline"
+          >
+            Update
+          </button>
+        )}
+      </div>
+
+      {hasExisting && !editMode ? (
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-500 dark:text-gray-400">Bank</span>
+            <span className="font-medium text-gray-900 dark:text-white">
+              {existing?.bank_name ?? "—"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500 dark:text-gray-400">Account Number</span>
+            <span className="font-medium text-gray-900 dark:text-white">
+              {existing?.account_number ?? "—"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500 dark:text-gray-400">Account Name</span>
+            <span className="font-medium text-gray-900 dark:text-white">
+              {existing?.account_name ?? "—"}
+            </span>
+          </div>
+          <span className="inline-block text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
+            Verified
+          </span>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label
+              htmlFor="courierBank"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Bank
+            </label>
+            <select
+              id="courierBank"
+              value={bankCode}
+              onChange={(event) => {
+                setBankCode(event.target.value);
+                setAccountName("");
+              }}
+              onBlur={resolveAccount}
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white transition-colors focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
+            >
+              <option value="">Select your bank</option>
+              {banks.map((bank) => (
+                <option key={bank.code} value={bank.code}>
+                  {bank.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label
+              htmlFor="courierAccountNumber"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Account Number
+            </label>
+            <input
+              id="courierAccountNumber"
+              inputMode="numeric"
+              maxLength={10}
+              value={accountNumber}
+              onChange={(event) => {
+                const digits = event.target.value.replace(/\D/g, "").slice(0, 10);
+                setAccountNumber(digits);
+                setAccountName("");
+              }}
+              onBlur={resolveAccount}
+              placeholder="10-digit account number"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 transition-colors focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Account Name
+            </label>
+            <div
+              className={`w-full rounded-lg border px-4 py-2.5 text-sm transition-colors ${
+                accountName
+                  ? "border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20 text-green-800 dark:text-green-300 font-medium"
+                  : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50 text-gray-400"
+              }`}
+            >
+              {resolving
+                ? "Verifying..."
+                : accountName || "Auto-filled after we verify your account"}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            {hasExisting && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditMode(false);
+                  setBankCode("");
+                  setAccountNumber("");
+                  setAccountName("");
+                }}
+                className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !accountName}
+              className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving..." : hasExisting ? "Update Account" : "Save Payout Account"}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
