@@ -73,9 +73,7 @@ export default function ShopEditorPage() {
         };
 
         if (!response.ok || !payload.success || !payload.data?.id) {
-          throw new Error(
-            payload.error || "Create your seller shop profile before editing this page"
-          );
+          return;
         }
 
         if (cancelled) return;
@@ -98,10 +96,8 @@ export default function ShopEditorPage() {
           closeTime: payload.data.hours?.close ?? "",
           days: payload.data.hours?.days ?? "",
         });
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load shop profile");
-        }
+      } catch {
+        // silent — form stays empty if shop can't be loaded
       } finally {
         if (!cancelled) setLoading(false);
       }
