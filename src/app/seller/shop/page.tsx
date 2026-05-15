@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import { categories } from "@/lib/data/categories";
 
 interface ShopFormState {
   name: string;
@@ -217,19 +218,30 @@ export default function ShopEditorPage() {
               value={form.shortDescription}
               onChange={(event) => updateField("shortDescription", event.target.value)}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                id="categoryId"
-                label="Category ID"
+            <div className="space-y-1">
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Category
+              </label>
+              <select
+                id="category"
                 value={form.categoryId}
-                onChange={(event) => updateField("categoryId", event.target.value)}
-              />
-              <Input
-                id="categoryName"
-                label="Category Name"
-                value={form.categoryName}
-                onChange={(event) => updateField("categoryName", event.target.value)}
-              />
+                onChange={(event) => {
+                  const cat = categories.find((c) => c.id === event.target.value);
+                  setForm((prev) => ({
+                    ...prev,
+                    categoryId: cat?.id ?? "",
+                    categoryName: cat?.name ?? "",
+                  }));
+                }}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white transition-colors focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
+              >
+                <option value="">Select a category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
