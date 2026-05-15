@@ -4,6 +4,9 @@ import { NextResponse, type NextRequest } from "next/server";
 // Routes that require authentication (any role)
 const AUTH_REQUIRED = ["/profile", "/checkout"];
 
+// Routes that should redirect away when user is already signed in
+const AUTH_ONLY_GUEST = ["/login", "/register", "/signup"];
+
 // Routes that require specific roles
 const ROLE_REQUIRED: Record<string, string[]> = {
   "/vendor/dashboard": ["vendor", "admin"],
@@ -39,6 +42,24 @@ export async function middleware(request: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
+
+  // Redirect signed-in users away from guest-only auth pages
+  const isGuestOnlyPath = AUTH_ONLY_GUEST.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  if (isGuestOnlyPath && user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const url = request.nextUrl.clone();
+    if (profile?.role === "vendor") url.pathname = "/seller/dashboard";
+    else if (profile?.role === "courier") url.pathname = "/courier/dashboard";
+    else if (profile?.role === "admin") url.pathname = "/admin";
+    else url.pathname = "/browse";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
 
   // Check auth-required routes
   const needsAuth = AUTH_REQUIRED.some((route) => pathname.startsWith(route));

@@ -90,12 +90,23 @@ export default function Header() {
                   </svg>
                   Help
                 </Link>
-                <Link
-                  href="/sell"
-                  className="text-sm font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors whitespace-nowrap"
-                >
-                  Become a Vendor
-                </Link>
+                {profile?.role === "vendor" || profile?.role === "admin" ? (
+                  <Link
+                    href="/seller/dashboard"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors whitespace-nowrap"
+                  >
+                    Seller Dashboard ↗
+                  </Link>
+                ) : (
+                  <Link
+                    href="/sell"
+                    className="text-sm font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors whitespace-nowrap"
+                  >
+                    Become a Vendor
+                  </Link>
+                )}
               </nav>
               <SearchBar className="flex-1" placeholder="Search shops, services, products..." />
             </div>
@@ -200,7 +211,9 @@ export default function Header() {
                       </Link>
                       {profile?.role === "vendor" && (
                         <Link
-                          href="/vendor/dashboard"
+                          href="/seller/dashboard"
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                           onClick={() => setProfileMenuOpen(false)}
                         >
@@ -208,7 +221,7 @@ export default function Header() {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                             </svg>
-                            Vendor Dashboard
+                            Seller Dashboard ↗
                           </div>
                         </Link>
                       )}

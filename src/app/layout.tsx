@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import AppChrome from "@/components/layout/AppChrome";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { WishlistProvider } from "@/context/WishlistContext";
@@ -38,11 +37,7 @@ export default function RootLayout({
           <AuthProvider>
             <WishlistProvider>
               <CartProvider>
-                <Header />
-                <main className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900">
-                  {children}
-                </main>
-                <Footer />
+                <AppChrome>{children}</AppChrome>
                 <Toaster />
               </CartProvider>
             </WishlistProvider>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -31,7 +31,6 @@ function getFriendlyResetError(message: string): string {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { signIn } = useAuth();
   const [method, setMethod] = useState<LoginMethod>("email");
@@ -110,14 +109,14 @@ export default function LoginPage() {
 
     toast.success("Welcome back!");
 
-    if (redirect) {
-      router.push(redirect);
-    } else {
-      if (role === "vendor") router.push("/vendor/dashboard");
-      else if (role === "courier") router.push("/courier/dashboard");
-      else if (role === "admin") router.push("/admin");
-      else router.push("/browse");
-    }
+    let target = "/browse";
+    if (redirect) target = redirect;
+    else if (role === "vendor") target = "/seller/dashboard";
+    else if (role === "courier") target = "/courier/dashboard";
+    else if (role === "admin") target = "/admin";
+
+    // Hard redirect ensures session cookies are loaded on the next page
+    window.location.assign(target);
   };
 
   const handleGoogleSignIn = async () => {

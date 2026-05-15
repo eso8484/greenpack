@@ -119,7 +119,10 @@ export default function ShopEditorPage() {
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
-    if (!shopId) return;
+    if (!shopId) {
+      toast.error("Shop not loaded yet — refresh the page and try again");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -154,13 +157,19 @@ export default function ShopEditorPage() {
 
       const payload = await response.json();
       if (!response.ok || !payload.success) {
-        throw new Error(
-          typeof payload.error === "string" ? payload.error : "Failed to update shop"
-        );
+        console.error("Shop update failed:", payload);
+        const errMsg =
+          typeof payload.error === "string"
+            ? payload.error
+            : payload.error
+              ? JSON.stringify(payload.error)
+              : `Failed to update shop (status ${response.status})`;
+        throw new Error(errMsg);
       }
 
       toast.success("Shop profile updated");
     } catch (error) {
+      console.error("Save shop error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update shop");
     } finally {
       setSaving(false);

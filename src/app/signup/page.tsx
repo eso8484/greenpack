@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
@@ -14,7 +13,6 @@ import OTPInput from "@/components/auth/OTPInput";
 type Step = "form" | "verify-email" | "complete";
 
 export default function SignUpPage() {
-  const router = useRouter();
   const { signIn } = useAuth();
 
   const [step, setStep] = useState<Step>("form");
@@ -147,9 +145,9 @@ export default function SignUpPage() {
 
       const { error: signInError } = await signIn(form.email, form.password);
       if (signInError) {
-        router.push("/login");
+        window.location.assign("/login");
       } else {
-        router.push("/browse");
+        window.location.assign("/browse");
       }
     } catch {
       setError("Network error. Please try again.");

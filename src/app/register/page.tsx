@@ -3,7 +3,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import PasswordStrength, {
@@ -14,7 +13,6 @@ import OTPInput from "@/components/auth/OTPInput";
 type Step = "form" | "verify-email" | "complete";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const { signIn } = useAuth();
 
   const [step, setStep] = useState<Step>("form");
@@ -129,7 +127,7 @@ export default function RegisterPage() {
           password: form.password,
           fullName: form.fullName,
           dateOfBirth: form.dateOfBirth,
-          role: "vendor",
+          role: "customer",
         }),
       });
       const signupData = await signupRes.json();
@@ -141,12 +139,12 @@ export default function RegisterPage() {
       }
 
       setStep("complete");
-      toast.success("Vendor account created successfully!");
+      toast.success("Account created successfully!");
       const { error: signInError } = await signIn(form.email, form.password);
       if (signInError) {
-        router.push("/login");
+        window.location.assign("/login");
       } else {
-        router.push("/vendor/dashboard");
+        window.location.assign("/browse");
       }
     } catch {
       setError("Network error. Please try again.");
@@ -204,10 +202,10 @@ export default function RegisterPage() {
           {step === "form" && (
             <>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Register your shop
+                Create your account
               </h1>
               <p className="mt-2 text-gray-500 dark:text-gray-400">
-                Create a vendor account to get your business discovered
+                Sign up to discover shops, services, and shop on GreenPack
               </p>
             </>
           )}
@@ -319,7 +317,7 @@ export default function RegisterPage() {
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition text-sm"
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  You must be at least 18 years old to register as a vendor
+                  You must be at least 18 years old
                 </p>
               </div>
               <div>
@@ -395,7 +393,6 @@ export default function RegisterPage() {
                     >
                       Privacy Policy
                     </Link>
-                    , and Vendor Agreement
                   </span>
                 </label>
               </div>
@@ -505,10 +502,10 @@ export default function RegisterPage() {
                 </svg>
               </div>
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                Vendor Account Created!
+                Account Created!
               </h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Signing you in and heading to your dashboard...
+                Signing you in and redirecting...
               </p>
             </div>
           )}
