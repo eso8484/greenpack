@@ -74,20 +74,16 @@ export default function ProductsPage() {
         };
 
         if (!shopResponse.ok || !shopPayload.success || !shopPayload.data?.id) {
-          throw new Error(
-            shopPayload.error || "Create your seller shop profile before adding products"
-          );
+          if (!cancelled) setProducts([]);
+          return;
         }
 
         if (cancelled) return;
 
         setShopId(shopPayload.data.id);
         await loadProducts(shopPayload.data.id);
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load seller products");
-          setProducts([]);
-        }
+      } catch {
+        if (!cancelled) setProducts([]);
       } finally {
         if (!cancelled) setLoading(false);
       }

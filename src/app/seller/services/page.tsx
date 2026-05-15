@@ -74,20 +74,16 @@ export default function ServicesPage() {
         };
 
         if (!shopResponse.ok || !shopPayload.success || !shopPayload.data?.id) {
-          throw new Error(
-            shopPayload.error || "Create your seller shop profile before adding services"
-          );
+          if (!cancelled) setServices([]);
+          return;
         }
 
         if (cancelled) return;
 
         setShopId(shopPayload.data.id);
         await loadServices(shopPayload.data.id);
-      } catch (error) {
-        if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load services");
-          setServices([]);
-        }
+      } catch {
+        if (!cancelled) setServices([]);
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -115,15 +115,12 @@ export default function ShopEditorPage() {
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
-    if (!shopId) {
-      toast.error("Shop not loaded yet — refresh the page and try again");
-      return;
-    }
 
-    // Client-side validation so users get a clear toast instead of a silent
-    // failure when the server rejects the update.
     const trimmedName = form.name.trim();
     const trimmedSlug = form.slug.trim();
+    const trimmedCategoryId = form.categoryId.trim();
+    const trimmedCategoryName = form.categoryName.trim();
+
     if (!trimmedName) {
       toast.error("Shop name is required");
       return;
@@ -132,13 +129,15 @@ export default function ShopEditorPage() {
       toast.error("Slug must use lowercase letters, numbers, and dashes only");
       return;
     }
+    // Category required only when creating a new shop (POST). For updates, missing
+    // category just means we leave the existing one untouched.
+    if (!shopId && (!trimmedCategoryId || !trimmedCategoryName)) {
+      toast.error("Pick a category before saving your shop");
+      return;
+    }
 
     setSaving(true);
     try {
-      // Only include category fields when set so we don't wipe existing values.
-      const trimmedCategoryId = form.categoryId.trim();
-      const trimmedCategoryName = form.categoryName.trim();
-
       const body: Record<string, unknown> = {
         name: trimmedName,
         slug: trimmedSlug,
@@ -163,14 +162,18 @@ export default function ShopEditorPage() {
       if (trimmedCategoryId) body.category_id = trimmedCategoryId;
       if (trimmedCategoryName) body.category_name = trimmedCategoryName;
 
-      const response = await fetch(`/api/shops/${shopId}`, {
-        method: "PUT",
+      const isCreate = !shopId;
+      const endpoint = isCreate ? "/api/seller/shop" : `/api/shops/${shopId}`;
+      const method = isCreate ? "POST" : "PUT";
+
+      const response = await fetch(endpoint, {
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify(body),
       });
 
-      let payload: { success?: boolean; error?: unknown } = {};
+      let payload: { success?: boolean; data?: { id?: string }; error?: unknown } = {};
       try {
         payload = await response.json();
       } catch {
@@ -178,20 +181,25 @@ export default function ShopEditorPage() {
       }
 
       if (!response.ok || !payload.success) {
-        console.error("Shop update failed:", { status: response.status, payload });
+        console.error("Shop save failed:", { status: response.status, payload });
         const errMsg =
           typeof payload.error === "string"
             ? payload.error
             : payload.error
               ? JSON.stringify(payload.error)
-              : `Failed to update shop (status ${response.status})`;
+              : `Failed to save shop (status ${response.status})`;
         throw new Error(errMsg);
       }
 
-      toast.success("Shop profile updated");
+      // POST returns the created shop id — store it so subsequent saves update.
+      if (isCreate && payload.data?.id) {
+        setShopId(payload.data.id);
+      }
+
+      toast.success(isCreate ? "Shop profile created" : "Shop profile updated");
     } catch (error) {
       console.error("Save shop error:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to update shop");
+      toast.error(error instanceof Error ? error.message : "Failed to save shop");
     } finally {
       setSaving(false);
     }

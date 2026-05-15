@@ -66,7 +66,12 @@ export default function SellerDashboard() {
         };
 
         if (!shopRes.ok || !shopPayload.success || !shopPayload.data?.id) {
-          throw new Error(shopPayload.error || "No seller shop profile found");
+          if (!cancelled) {
+            setOrders([]);
+            setProducts([]);
+            setServices([]);
+          }
+          return;
         }
 
         if (cancelled) return;
@@ -115,9 +120,8 @@ export default function SellerDashboard() {
           setProducts(productsPayload.data);
           setServices(servicesPayload.data);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          toast.error(error instanceof Error ? error.message : "Failed to load seller dashboard");
           setOrders([]);
           setProducts([]);
           setServices([]);

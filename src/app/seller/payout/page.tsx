@@ -49,10 +49,6 @@ export default function SellerPayoutPage() {
                 .sort((a, b) => a.name.localeCompare(b.name))
             );
           }
-        } else {
-          toast.error(
-            typeof banksJson.error === "string" ? banksJson.error : "Failed to load banks"
-          );
         }
 
         const payoutJson = await payoutRes.json();
@@ -68,10 +64,8 @@ export default function SellerPayoutPage() {
         } else if (payoutRes.status === 404) {
           if (!cancelled) setEditMode(true);
         }
-      } catch (err) {
-        if (!cancelled) {
-          toast.error(err instanceof Error ? err.message : "Failed to load payout details");
-        }
+      } catch {
+        // silent — load failure leaves blank form
       } finally {
         if (!cancelled) setLoading(false);
       }
