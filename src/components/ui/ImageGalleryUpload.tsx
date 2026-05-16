@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
 import { BLUR_PLACEHOLDER } from "@/lib/utils";
 
 interface ImageGalleryUploadProps {
@@ -15,36 +14,44 @@ interface ImageGalleryUploadProps {
 }
 
 const MAX_SIZE_MB = 5;
-const UPLOAD_TIMEOUT_MS = 45_000;
+const UPLOAD_TIMEOUT_MS = 60_000;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 async function uploadOne(file: File, folder: string): Promise<string> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("You must be logged in to upload images");
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("folder", folder);
 
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `${user.id}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
 
-  const uploadPromise = supabase.storage
-    .from("shop-assets")
-    .upload(path, file, { upsert: true, cacheControl: "3600" });
+  let response: Response;
+  try {
+    response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") {
+      throw new Error("timed out after 60s");
+    }
+    throw new Error("network error");
+  } finally {
+    clearTimeout(timer);
+  }
 
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(
-      () => reject(new Error("Upload timed out. Check your connection and try again.")),
-      UPLOAD_TIMEOUT_MS
-    )
-  );
-
-  const result = (await Promise.race([uploadPromise, timeout])) as Awaited<typeof uploadPromise>;
-  if (result.error) throw new Error(result.error.message);
-
-  const { data } = supabase.storage.from("shop-assets").getPublicUrl(path);
-  if (!data?.publicUrl) throw new Error("Could not generate public URL for uploaded image");
-  return data.publicUrl;
+  let payload: { success?: boolean; url?: string; error?: string } = {};
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error(`server returned HTTP ${response.status}`);
+  }
+  if (!response.ok || !payload.success || !payload.url) {
+    throw new Error(payload.error || `HTTP ${response.status}`);
+  }
+  return payload.url;
 }
 
 export default function ImageGalleryUpload({
@@ -163,9 +170,10 @@ export default function ImageGalleryUpload({
         {Array.from({ length: uploadingCount }).map((_, i) => (
           <div
             key={`uploading-${i}`}
-            className="aspect-square rounded-lg border-2 border-dashed border-green-400 dark:border-green-700 flex items-center justify-center bg-green-50 dark:bg-green-900/20"
+            className="aspect-square rounded-lg border-2 border-dashed border-green-400 dark:border-green-700 flex flex-col items-center justify-center gap-2 bg-green-50 dark:bg-green-900/20"
           >
-            <span className="text-xs font-medium text-green-600 dark:text-green-400 animate-pulse">
+            <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">
               Uploading...
             </span>
           </div>
@@ -211,7 +219,7 @@ export default function ImageGalleryUpload({
         JPEG, PNG, WebP or GIF · Max {MAX_SIZE_MB} MB each · Up to {maxImages} images · First image is the main thumbnail
       </p>
       {errors.length > 0 && (
-        <ul className="text-xs text-red-500 space-y-0.5">
+        <ul className="text-xs text-red-500 space-y-0.5 break-words">
           {errors.map((e, i) => (
             <li key={i}>• {e}</li>
           ))}
