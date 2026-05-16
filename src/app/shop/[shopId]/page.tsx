@@ -48,7 +48,11 @@ export default async function ShopPage({ params }: ShopPageProps) {
     ]);
   } catch (err) {
     if (err && typeof err === "object" && "digest" in err && String((err as { digest: string }).digest).startsWith("NEXT_NOT_FOUND")) throw err;
-    console.error("ShopPage load failed for", shopId, err);
+    const e = err as Error & { stack?: string; cause?: unknown };
+    console.log(`SHOPERR_MSG=${e?.message || String(err)}`);
+    console.log(`SHOPERR_NAME=${e?.name}`);
+    console.log(`SHOPERR_STACK_LINE1=${(e?.stack || "").split("\n").slice(0, 3).join(" | ")}`);
+    console.log(`SHOPERR_CAUSE=${e?.cause ? String(e.cause) : "none"}`);
     throw err;
   }
 
