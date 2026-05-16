@@ -10,15 +10,11 @@ export default function ProductGrid({ products, shopName }: ProductGridProps) {
   if (products.length === 0) return null;
 
   return (
-    <section>
+    <section id="products" className="scroll-mt-24">
       <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Products</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         {products.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            shopName={shopName}
-          />
+          <ProductCard key={product.id} product={product} shopName={shopName} />
         ))}
       </div>
     </section>

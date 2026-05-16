@@ -86,12 +86,11 @@ export default function ServiceCard({ service, shopName }: ServiceCardProps) {
       </div>
       <Button
         size="sm"
-        variant="outline"
         onClick={handleAdd}
         disabled={!service.isAvailable}
         className="shrink-0"
       >
-        Add
+        {service.isAvailable ? "Book Now" : "Unavailable"}
       </Button>
     </div>
   );

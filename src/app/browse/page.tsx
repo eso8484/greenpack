@@ -10,6 +10,7 @@ interface BrowsePageProps {
   searchParams: Promise<{
     q?: string;
     category?: string;
+    city?: string;
     sort?: string;
     verified?: string;
   }>;
@@ -19,6 +20,7 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
   const params = await searchParams;
   const query = params.q || "";
   const categorySlug = params.category || "";
+  const city = params.city || "";
   const sortBy = params.sort || "relevance";
   const verifiedOnly = params.verified === "true";
 
@@ -28,15 +30,18 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
   const filteredShops = await dbGetShops({
     query,
     categoryId,
+    city,
     sortBy,
     verifiedOnly,
   });
 
   const pageTitle = query
-    ? `Results for "${query}"`
-    : category
-      ? category.name
-      : "Browse All Shops";
+    ? `Results for "${query}"${city ? ` in ${city}` : ""}`
+    : city
+      ? `Shops in ${city}`
+      : category
+        ? category.name
+        : "Browse All Shops";
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

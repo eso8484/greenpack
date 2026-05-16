@@ -55,13 +55,6 @@ export default function VideoShowcase({ shop }: VideoShowcaseProps) {
                 </div>
               </button>
             )}
-            {!shop.video.url && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                <div className="bg-white/80 dark:bg-gray-800/80 rounded-lg px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-                  Shop Preview
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>

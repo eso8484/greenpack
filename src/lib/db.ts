@@ -120,6 +120,7 @@ function mapReview(row: any): Review {
 export async function dbGetShops(filters?: {
   query?: string;
   categoryId?: string | null;
+  city?: string;
   sortBy?: string;
   verifiedOnly?: boolean;
   featured?: boolean;
@@ -155,6 +156,11 @@ export async function dbGetShops(filters?: {
   if (filters?.categoryId) dbQuery = dbQuery.eq("category_id", filters.categoryId);
   if (filters?.verifiedOnly) dbQuery = dbQuery.eq("is_verified", true);
   if (filters?.featured) dbQuery = dbQuery.eq("is_featured", true);
+  if (filters?.city) {
+    dbQuery = dbQuery.or(
+      `location->>city.ilike.%${filters.city}%,location->>state.ilike.%${filters.city}%`
+    );
+  }
 
   if (filters?.sortBy === "rating") {
     dbQuery = dbQuery.order("rating", { ascending: false });
