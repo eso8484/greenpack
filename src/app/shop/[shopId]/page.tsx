@@ -35,15 +35,22 @@ export async function generateMetadata({
 
 export default async function ShopPage({ params }: ShopPageProps) {
   const { shopId } = await params;
-  const shop = await dbGetShopById(shopId);
 
-  if (!shop) notFound();
+  let shop, shopServices, shopProducts, shopReviews;
+  try {
+    shop = await dbGetShopById(shopId);
+    if (!shop) notFound();
 
-  const [shopServices, shopProducts, shopReviews] = await Promise.all([
-    dbGetServicesByShopId(shop.id),
-    dbGetProductsByShopId(shop.id),
-    dbGetReviewsByShopId(shop.id),
-  ]);
+    [shopServices, shopProducts, shopReviews] = await Promise.all([
+      dbGetServicesByShopId(shop.id),
+      dbGetProductsByShopId(shop.id),
+      dbGetReviewsByShopId(shop.id),
+    ]);
+  } catch (err) {
+    if (err && typeof err === "object" && "digest" in err && String((err as { digest: string }).digest).startsWith("NEXT_NOT_FOUND")) throw err;
+    console.error("ShopPage load failed for", shopId, err);
+    throw err;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
