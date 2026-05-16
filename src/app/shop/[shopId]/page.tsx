@@ -17,9 +17,9 @@ interface ShopPageProps {
   params: Promise<{ shopId: string }>;
 }
 
-export async function generateStaticParams() {
-  return [];
-}
+// Page must be SSR because dbGetShopById uses cookies (Supabase auth).
+// Without this, Next.js treats it as static and crashes with "Dynamic server usage".
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -35,26 +35,15 @@ export async function generateMetadata({
 
 export default async function ShopPage({ params }: ShopPageProps) {
   const { shopId } = await params;
+  const shop = await dbGetShopById(shopId);
 
-  let shop, shopServices, shopProducts, shopReviews;
-  try {
-    shop = await dbGetShopById(shopId);
-    if (!shop) notFound();
+  if (!shop) notFound();
 
-    [shopServices, shopProducts, shopReviews] = await Promise.all([
-      dbGetServicesByShopId(shop.id),
-      dbGetProductsByShopId(shop.id),
-      dbGetReviewsByShopId(shop.id),
-    ]);
-  } catch (err) {
-    if (err && typeof err === "object" && "digest" in err && String((err as { digest: string }).digest).startsWith("NEXT_NOT_FOUND")) throw err;
-    const e = err as Error & { stack?: string; cause?: unknown };
-    console.log(`SHOPERR_MSG=${e?.message || String(err)}`);
-    console.log(`SHOPERR_NAME=${e?.name}`);
-    console.log(`SHOPERR_STACK_LINE1=${(e?.stack || "").split("\n").slice(0, 3).join(" | ")}`);
-    console.log(`SHOPERR_CAUSE=${e?.cause ? String(e.cause) : "none"}`);
-    throw err;
-  }
+  const [shopServices, shopProducts, shopReviews] = await Promise.all([
+    dbGetServicesByShopId(shop.id),
+    dbGetProductsByShopId(shop.id),
+    dbGetReviewsByShopId(shop.id),
+  ]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
