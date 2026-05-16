@@ -88,7 +88,6 @@ export default function ProfilePage() {
       } catch {
         if (!controller.signal.aborted) {
           setOrders([]);
-          toast.error("Could not load order history");
         }
       } finally {
         if (!controller.signal.aborted) {

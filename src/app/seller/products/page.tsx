@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import ImageUpload from "@/components/ui/ImageUpload";
 import { formatPrice } from "@/lib/utils";
 
 interface ProductItem {
@@ -310,12 +311,11 @@ export default function ProductsPage() {
                 required
               />
             </div>
-            <Input
-              id="productImage"
-              label="Product Image URL (optional)"
-              placeholder="https://..."
+            <ImageUpload
+              label="Product Image (optional)"
               value={form.image}
-              onChange={(event) => setForm((prev) => ({ ...prev, image: event.target.value }))}
+              onChange={(url) => setForm((prev) => ({ ...prev, image: url }))}
+              folder="products"
             />
             <div className="flex gap-2 pt-2">
               <Button type="submit" size="sm" disabled={saving}>

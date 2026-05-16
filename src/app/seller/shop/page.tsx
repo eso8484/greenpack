@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import ImageUpload from "@/components/ui/ImageUpload";
 import { categories } from "@/lib/data/categories";
 
 interface ShopFormState {
@@ -22,6 +23,8 @@ interface ShopFormState {
   openTime: string;
   closeTime: string;
   days: string;
+  thumbnail: string;
+  banner: string;
 }
 
 const EMPTY_FORM: ShopFormState = {
@@ -40,6 +43,8 @@ const EMPTY_FORM: ShopFormState = {
   openTime: "",
   closeTime: "",
   days: "",
+  thumbnail: "",
+  banner: "",
 };
 
 export default function ShopEditorPage() {
@@ -68,6 +73,7 @@ export default function ShopEditorPage() {
             location?: { address?: string; city?: string; state?: string };
             contact?: { phone?: string; email?: string; whatsapp?: string };
             hours?: { open?: string; close?: string; days?: string };
+            images?: { thumbnail?: string; banner?: string };
           };
           error?: string;
         };
@@ -95,6 +101,8 @@ export default function ShopEditorPage() {
           openTime: payload.data.hours?.open ?? "",
           closeTime: payload.data.hours?.close ?? "",
           days: payload.data.hours?.days ?? "",
+          thumbnail: payload.data.images?.thumbnail ?? "",
+          banner: payload.data.images?.banner ?? "",
         });
       } catch {
         // silent — form stays empty if shop can't be loaded
@@ -157,6 +165,10 @@ export default function ShopEditorPage() {
           open: form.openTime.trim(),
           close: form.closeTime.trim(),
           days: form.days.trim(),
+        },
+        images: {
+          thumbnail: form.thumbnail.trim(),
+          banner: form.banner.trim(),
         },
       };
       if (trimmedCategoryId) body.category_id = trimmedCategoryId;
@@ -281,6 +293,26 @@ export default function ShopEditorPage() {
                 ))}
               </select>
             </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
+            Shop Images
+          </h2>
+          <div className="space-y-5">
+            <ImageUpload
+              label="Shop Thumbnail (displayed in listings)"
+              value={form.thumbnail}
+              onChange={(url) => updateField("thumbnail", url)}
+              folder="shops/thumbnail"
+            />
+            <ImageUpload
+              label="Shop Banner (displayed on shop page)"
+              value={form.banner}
+              onChange={(url) => updateField("banner", url)}
+              folder="shops/banner"
+            />
           </div>
         </div>
 

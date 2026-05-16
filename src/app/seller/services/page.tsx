@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import ImageUpload from "@/components/ui/ImageUpload";
 import { formatPrice } from "@/lib/utils";
 
 interface ServiceItem {
@@ -13,6 +14,7 @@ interface ServiceItem {
   price: number;
   price_type: "fixed" | "starting_from" | "per_hour" | "negotiable";
   duration: string | null;
+  image: string | null;
   is_available: boolean;
 }
 
@@ -22,6 +24,7 @@ interface ServiceFormState {
   price: string;
   priceType: "fixed" | "starting_from" | "per_hour" | "negotiable";
   duration: string;
+  image: string;
 }
 
 const EMPTY_FORM: ServiceFormState = {
@@ -30,6 +33,7 @@ const EMPTY_FORM: ServiceFormState = {
   price: "",
   priceType: "fixed",
   duration: "",
+  image: "",
 };
 
 export default function ServicesPage() {
@@ -109,6 +113,7 @@ export default function ServicesPage() {
       price: String(service.price),
       priceType: service.price_type,
       duration: service.duration ?? "",
+      image: service.image ?? "",
     });
     setShowForm(true);
   };
@@ -142,6 +147,7 @@ export default function ServicesPage() {
       };
       if (trimmedDescription) body.description = trimmedDescription;
       if (trimmedDuration) body.duration = trimmedDuration;
+      if (form.image.trim()) body.image = form.image.trim();
 
       const response = await fetch(endpoint, {
         method,
@@ -308,6 +314,12 @@ export default function ServicesPage() {
                 }
               />
             </div>
+            <ImageUpload
+              label="Service Image (optional)"
+              value={form.image}
+              onChange={(url) => setForm((prev) => ({ ...prev, image: url }))}
+              folder="services"
+            />
             <div className="flex gap-2 pt-2">
               <Button type="submit" size="sm" disabled={saving}>
                 {saving ? "Saving..." : editingServiceId ? "Update Service" : "Add Service"}
