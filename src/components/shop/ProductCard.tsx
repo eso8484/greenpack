@@ -34,6 +34,8 @@ export default function ProductCard({ product, shopName }: ProductCardProps) {
     });
   };
 
+  const galleryCount = product.gallery?.length ?? 0;
+
   return (
     <Card>
       <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
@@ -46,6 +48,11 @@ export default function ProductCard({ product, shopName }: ProductCardProps) {
           placeholder="blur"
           blurDataURL={BLUR_PLACEHOLDER}
         />
+        {galleryCount > 1 && (
+          <span className="absolute top-1.5 right-1.5 bg-black/60 text-white text-[10px] font-medium px-1.5 py-0.5 rounded backdrop-blur-sm">
+            {galleryCount} photos
+          </span>
+        )}
         {!product.inStock && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <Badge variant="red">Out of Stock</Badge>

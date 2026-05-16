@@ -47,16 +47,16 @@ function mapShop(row: any): Shop {
     },
     images: {
       thumbnail:
-        row.images?.thumbnail ??
+        row.images?.thumbnail ||
         "https://placehold.co/400x300/16a34a/white?text=Shop",
       banner:
-        row.images?.banner ??
+        row.images?.banner ||
         "https://placehold.co/1200x400/16a34a/white?text=Banner",
-      gallery: row.images?.gallery ?? [],
+      gallery: Array.isArray(row.images?.gallery) ? row.images.gallery : [],
     },
     video: {
-      url: row.video?.url ?? "",
-      thumbnail: row.video?.thumbnail ?? "",
+      url: row.video?.url || "",
+      thumbnail: row.video?.thumbnail || "",
     },
     tags: row.tags ?? [],
     isVerified: row.is_verified ?? false,
@@ -76,7 +76,8 @@ function mapService(row: any): Service {
     priceType: row.price_type ?? "fixed",
     duration: row.duration,
     categoryId: row.category_id ?? "",
-    image: row.image,
+    image: row.image || undefined,
+    gallery: Array.isArray(row.gallery) ? row.gallery : [],
     isAvailable: row.is_available ?? true,
     service_type: row.service_type ?? "in_store",
   };
@@ -92,8 +93,9 @@ function mapProduct(row: any): Product {
     price: Number(row.price),
     originalPrice: row.original_price ? Number(row.original_price) : undefined,
     image:
-      row.image ??
+      row.image ||
       "https://placehold.co/400x400/16a34a/white?text=Product",
+    gallery: Array.isArray(row.gallery) ? row.gallery : [],
     categoryId: row.category_id ?? "",
     inStock: row.in_stock ?? true,
     quantity: row.quantity,

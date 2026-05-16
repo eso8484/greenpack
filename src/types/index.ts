@@ -69,6 +69,7 @@ export interface Service {
   duration?: string;
   categoryId: string;
   image?: string;
+  gallery?: string[];
   isAvailable: boolean;
   service_type?: ServiceType;
 }
@@ -82,6 +83,7 @@ export interface Product {
   price: number;
   originalPrice?: number;
   image: string;
+  gallery?: string[];
   categoryId: string;
   inStock: boolean;
   quantity?: number;

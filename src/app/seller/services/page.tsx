@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import ImageUpload from "@/components/ui/ImageUpload";
+import ImageGalleryUpload from "@/components/ui/ImageGalleryUpload";
 import { formatPrice } from "@/lib/utils";
 
 interface ServiceItem {
@@ -15,6 +15,7 @@ interface ServiceItem {
   price_type: "fixed" | "starting_from" | "per_hour" | "negotiable";
   duration: string | null;
   image: string | null;
+  gallery: string[] | null;
   is_available: boolean;
 }
 
@@ -24,7 +25,7 @@ interface ServiceFormState {
   price: string;
   priceType: "fixed" | "starting_from" | "per_hour" | "negotiable";
   duration: string;
-  image: string;
+  gallery: string[];
 }
 
 const EMPTY_FORM: ServiceFormState = {
@@ -33,7 +34,7 @@ const EMPTY_FORM: ServiceFormState = {
   price: "",
   priceType: "fixed",
   duration: "",
-  image: "",
+  gallery: [],
 };
 
 export default function ServicesPage() {
@@ -107,13 +108,18 @@ export default function ServicesPage() {
 
   const openEditForm = (service: ServiceItem) => {
     setEditingServiceId(service.id);
+    const existingGallery = Array.isArray(service.gallery) ? service.gallery : [];
+    const merged =
+      service.image && !existingGallery.includes(service.image)
+        ? [service.image, ...existingGallery]
+        : existingGallery;
     setForm({
       name: service.name,
       description: service.description ?? "",
       price: String(service.price),
       priceType: service.price_type,
       duration: service.duration ?? "",
-      image: service.image ?? "",
+      gallery: merged,
     });
     setShowForm(true);
   };
@@ -147,7 +153,9 @@ export default function ServicesPage() {
       };
       if (trimmedDescription) body.description = trimmedDescription;
       if (trimmedDuration) body.duration = trimmedDuration;
-      if (form.image.trim()) body.image = form.image.trim();
+      const cleanGallery = form.gallery.filter((url) => url.trim().length > 0);
+      if (cleanGallery[0]) body.image = cleanGallery[0];
+      body.gallery = cleanGallery;
 
       const response = await fetch(endpoint, {
         method,
@@ -314,11 +322,12 @@ export default function ServicesPage() {
                 }
               />
             </div>
-            <ImageUpload
-              label="Service Image (optional)"
-              value={form.image}
-              onChange={(url) => setForm((prev) => ({ ...prev, image: url }))}
+            <ImageGalleryUpload
+              label="Service Images (first one is the main; add multiple if helpful)"
+              value={form.gallery}
+              onChange={(urls) => setForm((prev) => ({ ...prev, gallery: urls }))}
               folder="services"
+              maxImages={6}
             />
             <div className="flex gap-2 pt-2">
               <Button type="submit" size="sm" disabled={saving}>

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import ImageUpload from "@/components/ui/ImageUpload";
+import ImageGalleryUpload from "@/components/ui/ImageGalleryUpload";
 import { categories } from "@/lib/data/categories";
 
 interface ShopFormState {
@@ -25,6 +26,7 @@ interface ShopFormState {
   days: string;
   thumbnail: string;
   banner: string;
+  gallery: string[];
 }
 
 const EMPTY_FORM: ShopFormState = {
@@ -45,6 +47,7 @@ const EMPTY_FORM: ShopFormState = {
   days: "",
   thumbnail: "",
   banner: "",
+  gallery: [],
 };
 
 export default function ShopEditorPage() {
@@ -73,7 +76,7 @@ export default function ShopEditorPage() {
             location?: { address?: string; city?: string; state?: string };
             contact?: { phone?: string; email?: string; whatsapp?: string };
             hours?: { open?: string; close?: string; days?: string };
-            images?: { thumbnail?: string; banner?: string };
+            images?: { thumbnail?: string; banner?: string; gallery?: string[] };
           };
           error?: string;
         };
@@ -103,6 +106,9 @@ export default function ShopEditorPage() {
           days: payload.data.hours?.days ?? "",
           thumbnail: payload.data.images?.thumbnail ?? "",
           banner: payload.data.images?.banner ?? "",
+          gallery: Array.isArray(payload.data.images?.gallery)
+            ? payload.data.images.gallery
+            : [],
         });
       } catch {
         // silent — form stays empty if shop can't be loaded
@@ -169,6 +175,7 @@ export default function ShopEditorPage() {
         images: {
           thumbnail: form.thumbnail.trim(),
           banner: form.banner.trim(),
+          gallery: form.gallery.filter((url) => url.trim().length > 0),
         },
       };
       if (trimmedCategoryId) body.category_id = trimmedCategoryId;
@@ -312,6 +319,13 @@ export default function ShopEditorPage() {
               value={form.banner}
               onChange={(url) => updateField("banner", url)}
               folder="shops/banner"
+            />
+            <ImageGalleryUpload
+              label="Shop Gallery (different angles or items — shown on shop page)"
+              value={form.gallery}
+              onChange={(urls) => setForm((prev) => ({ ...prev, gallery: urls }))}
+              folder="shops/gallery"
+              maxImages={8}
             />
           </div>
         </div>

@@ -10,6 +10,7 @@ const ServiceSchema = z.object({
   duration: z.string().nullish(),
   category_id: z.string().nullish(),
   image: z.string().nullish(),
+  gallery: z.array(z.string()).optional(),
   is_available: z.boolean().optional(),
 });
 

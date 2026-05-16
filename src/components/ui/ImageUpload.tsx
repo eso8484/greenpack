@@ -14,7 +14,37 @@ interface ImageUploadProps {
 }
 
 const MAX_SIZE_MB = 5;
+const UPLOAD_TIMEOUT_MS = 45_000;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+async function uploadFile(file: File, folder: string): Promise<string> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("You must be logged in to upload images");
+
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${user.id}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const uploadPromise = supabase.storage
+    .from("shop-assets")
+    .upload(path, file, { upsert: true, cacheControl: "3600" });
+
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error("Upload timed out. Check your connection and try again.")),
+      UPLOAD_TIMEOUT_MS
+    )
+  );
+
+  const result = (await Promise.race([uploadPromise, timeout])) as Awaited<typeof uploadPromise>;
+  if (result.error) throw new Error(result.error.message);
+
+  const { data } = supabase.storage.from("shop-assets").getPublicUrl(path);
+  if (!data?.publicUrl) throw new Error("Could not generate public URL for uploaded image");
+  return data.publicUrl;
+}
 
 export default function ImageUpload({
   value,
@@ -41,29 +71,10 @@ export default function ImageUpload({
 
     setUploading(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError("You must be logged in to upload images");
-        return;
-      }
-
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `${user.id}/${folder}/${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("shop-assets")
-        .upload(path, file, { upsert: true });
-
-      if (uploadError) {
-        setError(uploadError.message);
-        return;
-      }
-
-      const { data } = supabase.storage.from("shop-assets").getPublicUrl(path);
-      onChange(data.publicUrl);
-    } catch {
-      setError("Upload failed. Please try again.");
+      const url = await uploadFile(file, folder);
+      onChange(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -78,7 +89,6 @@ export default function ImageUpload({
       )}
 
       <div className="flex items-start gap-4">
-        {/* Preview */}
         {value ? (
           <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shrink-0">
             <Image
@@ -99,7 +109,6 @@ export default function ImageUpload({
           </div>
         )}
 
-        {/* Controls */}
         <div className="flex-1 min-w-0">
           <input
             ref={inputRef}

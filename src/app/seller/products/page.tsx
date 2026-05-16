@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import ImageUpload from "@/components/ui/ImageUpload";
+import ImageGalleryUpload from "@/components/ui/ImageGalleryUpload";
 import { formatPrice } from "@/lib/utils";
 
 interface ProductItem {
@@ -15,6 +15,7 @@ interface ProductItem {
   in_stock: boolean;
   quantity: number;
   image: string | null;
+  gallery: string[] | null;
 }
 
 interface ProductFormState {
@@ -22,7 +23,7 @@ interface ProductFormState {
   price: string;
   originalPrice: string;
   quantity: string;
-  image: string;
+  gallery: string[];
 }
 
 const EMPTY_FORM: ProductFormState = {
@@ -30,7 +31,7 @@ const EMPTY_FORM: ProductFormState = {
   price: "",
   originalPrice: "",
   quantity: "",
-  image: "",
+  gallery: [],
 };
 
 export default function ProductsPage() {
@@ -113,12 +114,17 @@ export default function ProductsPage() {
 
   const openEditForm = (product: ProductItem) => {
     setEditingProductId(product.id);
+    const existingGallery = Array.isArray(product.gallery) ? product.gallery : [];
+    const merged =
+      product.image && !existingGallery.includes(product.image)
+        ? [product.image, ...existingGallery]
+        : existingGallery;
     setForm({
       name: product.name,
       price: String(product.price),
       originalPrice: product.original_price ? String(product.original_price) : "",
       quantity: String(product.quantity),
-      image: product.image ?? "",
+      gallery: merged,
     });
     setShowForm(true);
   };
@@ -153,6 +159,7 @@ export default function ProductsPage() {
         : `/api/shops/${shopId}/products`;
       const method = editingProductId ? "PUT" : "POST";
 
+      const cleanGallery = form.gallery.filter((url) => url.trim().length > 0);
       const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -164,7 +171,8 @@ export default function ProductsPage() {
           original_price: originalPrice,
           quantity,
           in_stock: quantity > 0,
-          image: form.image.trim() || undefined,
+          image: cleanGallery[0] || undefined,
+          gallery: cleanGallery,
         }),
       });
 
@@ -311,11 +319,12 @@ export default function ProductsPage() {
                 required
               />
             </div>
-            <ImageUpload
-              label="Product Image (optional)"
-              value={form.image}
-              onChange={(url) => setForm((prev) => ({ ...prev, image: url }))}
+            <ImageGalleryUpload
+              label="Product Images (first one is the main; add multiple angles)"
+              value={form.gallery}
+              onChange={(urls) => setForm((prev) => ({ ...prev, gallery: urls }))}
               folder="products"
+              maxImages={6}
             />
             <div className="flex gap-2 pt-2">
               <Button type="submit" size="sm" disabled={saving}>
@@ -347,8 +356,17 @@ export default function ProductsPage() {
             key={product.id}
             className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
           >
-            <div className="h-32 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 flex items-center justify-center">
-              <span className="text-4xl">📦</span>
+            <div className="h-32 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 flex items-center justify-center relative overflow-hidden">
+              {product.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-4xl">📦</span>
+              )}
             </div>
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
