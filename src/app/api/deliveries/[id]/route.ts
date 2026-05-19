@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { paystackInitiateTransfer } from "@/lib/paystack";
 import {
   notifyCustomerCourierAssigned,
   notifyVendorItemArrived,
@@ -188,6 +190,21 @@ export async function PUT(
       // Don't fail the request for SMS errors
     }
 
+    // Courier auto-payout on delivered. Runs in the same request because the
+    // courier is right here finishing the job. Failures are logged, not thrown
+    // — the delivery is already marked delivered and a retry can be triggered
+    // by an admin if needed. Idempotent on the per-delivery Paystack reference.
+    if (status === "delivered") {
+      try {
+        await settleCourierPayout(delivery.id as string);
+      } catch (payoutErr) {
+        console.error("Courier payout failed (delivery still completed)", {
+          deliveryId: delivery.id,
+          error: payoutErr instanceof Error ? payoutErr.message : payoutErr,
+        });
+      }
+    }
+
     return NextResponse.json({ success: true, data: delivery });
   } catch (err) {
     console.error("PUT /api/deliveries/[id]", err);
@@ -243,4 +260,125 @@ export async function POST(
     console.error("POST /api/deliveries/[id]/accept", err);
     return NextResponse.json({ success: false, error: "Failed to accept job" }, { status: 500 });
   }
+}
+
+// ─── Courier payout helper ────────────────────────────────────────────────────
+
+/**
+ * Transfer the courier's earnings via Paystack and stamp `paid_to_courier_at`.
+ *
+ * Idempotent: uses a deterministic Paystack reference (`gpkc_<delivery_id>`)
+ * and skips if `paid_to_courier_at` is already set. If this delivery is the
+ * last unpaid leg of the parent order, the order's `courier_paid_at` is also
+ * stamped so vendors can see the order is fully settled.
+ *
+ * Uses the admin client so RLS cannot interfere with bookkeeping rows that the
+ * courier or customer would otherwise have no write permission on (orders).
+ */
+async function settleCourierPayout(deliveryId: string): Promise<void> {
+  const admin = createAdminClient();
+
+  const { data: delivery, error: deliveryError } = await admin
+    .from("deliveries")
+    .select("id, order_id, courier_id, courier_fee, status, leg, paid_to_courier_at")
+    .eq("id", deliveryId)
+    .single();
+
+  if (deliveryError) throw deliveryError;
+  if (!delivery) throw new Error(`Delivery ${deliveryId} not found`);
+
+  if (delivery.status !== "delivered") {
+    console.info("Courier payout skipped — delivery not delivered", { deliveryId });
+    return;
+  }
+  if (delivery.paid_to_courier_at) {
+    console.info("Courier payout skipped — already paid", { deliveryId });
+    return;
+  }
+  const fee = Number(delivery.courier_fee ?? 0);
+  if (fee <= 0) {
+    console.info("Courier payout skipped — zero fee", { deliveryId });
+    // Still stamp paid_to_courier_at so the order can be marked complete.
+    await admin
+      .from("deliveries")
+      .update({ paid_to_courier_at: new Date().toISOString() })
+      .eq("id", deliveryId);
+    await maybeStampOrderCourierPaid(admin, delivery.order_id as string);
+    return;
+  }
+  if (!delivery.courier_id) {
+    throw new Error(`Delivery ${deliveryId} has no courier_id`);
+  }
+
+  const { data: courier, error: courierError } = await admin
+    .from("profiles")
+    .select("paystack_recipient_code, full_name")
+    .eq("id", delivery.courier_id)
+    .single();
+
+  if (courierError) throw courierError;
+  if (!courier?.paystack_recipient_code) {
+    throw new Error(
+      `Courier ${delivery.courier_id} has no paystack_recipient_code — they must complete /courier/payout setup`
+    );
+  }
+
+  // Idempotency reference. Paystack will reject duplicates so even a double-
+  // invocation cannot double-pay.
+  const reference = `gpkc_${deliveryId.replace(/-/g, "")}`;
+
+  const transfer = await paystackInitiateTransfer({
+    amountNaira: fee,
+    recipientCode: courier.paystack_recipient_code,
+    reason: `GreenPack delivery ${deliveryId.slice(0, 8).toUpperCase()}`,
+    reference,
+  });
+
+  console.info("Courier payout initiated", {
+    deliveryId,
+    transferCode: transfer.transfer_code,
+    amountNaira: fee,
+  });
+
+  await admin
+    .from("deliveries")
+    .update({ paid_to_courier_at: new Date().toISOString() })
+    .eq("id", deliveryId);
+
+  await maybeStampOrderCourierPaid(admin, delivery.order_id as string);
+}
+
+/**
+ * If every delivery row for this order has been paid, stamp the order's
+ * `courier_paid_at` so vendors and admins can see settlement is complete.
+ */
+async function maybeStampOrderCourierPaid(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string
+): Promise<void> {
+  const { data: legs, error } = await admin
+    .from("deliveries")
+    .select("paid_to_courier_at")
+    .eq("order_id", orderId);
+
+  if (error) {
+    console.error("Failed to inspect delivery legs for order settlement", {
+      orderId,
+      error,
+    });
+    return;
+  }
+
+  if (!legs || legs.length === 0) return;
+  const allPaid = legs.every((l) => l.paid_to_courier_at);
+  if (!allPaid) return;
+
+  await admin
+    .from("orders")
+    .update({
+      courier_paid_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", orderId)
+    .is("courier_paid_at", null);
 }

@@ -184,3 +184,55 @@ export async function paystackCreateTransferRecipient(
     }),
   });
 }
+
+// ─── Outgoing transfers (paying couriers) ─────────────────────────────────────
+
+export interface PaystackTransfer {
+  id: number;
+  amount: number;
+  reference: string;
+  recipient: number;
+  transfer_code: string;
+  status: string;
+  reason?: string;
+  currency: string;
+}
+
+export interface InitiateTransferParams {
+  /** Amount in NGN (naira) — converted to kobo internally. */
+  amountNaira: number;
+  recipientCode: string;
+  reason: string;
+  /** Deterministic reference for idempotency. Paystack rejects duplicates. */
+  reference: string;
+}
+
+/**
+ * POST /transfer — send NGN from the platform balance to a recipient.
+ *
+ * Idempotent on `reference`: if the same reference is submitted twice,
+ * Paystack returns an error rather than double-paying. Callers should treat
+ * the "transfer with this reference already exists" error as a no-op success.
+ */
+export async function paystackInitiateTransfer(
+  params: InitiateTransferParams
+): Promise<PaystackTransfer> {
+  const amountKobo = Math.round(params.amountNaira * 100);
+  if (!Number.isFinite(amountKobo) || amountKobo <= 0) {
+    throw new Error("Transfer amount must be a positive number");
+  }
+  if (!params.recipientCode) {
+    throw new Error("recipientCode is required");
+  }
+  return paystackFetch<PaystackTransfer>("/transfer", {
+    method: "POST",
+    body: JSON.stringify({
+      source: "balance",
+      amount: amountKobo,
+      recipient: params.recipientCode,
+      reason: params.reason,
+      reference: params.reference,
+      currency: "NGN",
+    }),
+  });
+}
