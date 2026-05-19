@@ -2,10 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Routes that require authentication (any role).
-// `/seller/onboarding` and `/seller/shop` are intentionally NOT role-gated:
-// a logged-in customer landing here is in the middle of becoming a vendor —
-// the shop POST endpoint flips their role on success.
-const AUTH_REQUIRED = ["/profile", "/checkout", "/seller/onboarding", "/seller/shop"];
+// `/seller/onboarding` is public — both guests and signed-in users land on the
+// unified registration form.  `/seller/shop` still requires auth because it
+// edits an existing shop tied to the logged-in vendor.
+// The shop POST endpoint flips the user's role to vendor on success.
+const AUTH_REQUIRED = ["/profile", "/checkout", "/seller/shop"];
 
 // Routes that should redirect away when user is already signed in
 const AUTH_ONLY_GUEST = ["/login", "/register", "/signup"];
