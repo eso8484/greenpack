@@ -184,19 +184,29 @@ export async function dbGetShopById(shopId: string): Promise<Shop | null> {
   const { createClient } = await import("./supabase/server");
   const supabase = await createClient();
 
-  let { data, error } = await supabase
-    .from("shops")
-    .select("*")
-    .eq("id", shopId)
-    .maybeSingle();
+  // Detect UUID up front. The previous "try id, fall back to slug" pattern
+  // broke for slug lookups because Postgres raises an `invalid_text_representation`
+  // error when a non-UUID string is compared against the UUID-typed id column,
+  // and we were treating any non-null error as "give up" instead of falling
+  // back to the slug. Result: every clicked search suggestion 404'd.
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shopId);
 
-  if (!data && !error) {
-    ({ data, error } = await supabase
+  if (isUuid) {
+    const { data, error } = await supabase
       .from("shops")
       .select("*")
-      .eq("slug", shopId)
-      .maybeSingle());
+      .eq("id", shopId)
+      .maybeSingle();
+    if (!error && data) return mapShop(data);
+    // Fall through to slug lookup — extremely unlikely (a slug that looks
+    // like a UUID), but cheap to cover.
   }
+
+  const { data, error } = await supabase
+    .from("shops")
+    .select("*")
+    .eq("slug", shopId)
+    .maybeSingle();
 
   if (error || !data) return null;
   return mapShop(data);

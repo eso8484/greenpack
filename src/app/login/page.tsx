@@ -7,10 +7,12 @@ import Image from "next/image";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import OTPInput from "@/components/auth/OTPInput";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 
 type LoginMethod = "email" | "phone";
+type LoginStage = "credentials" | "otp";
 
 const RESET_EMAIL_COOLDOWN_MS = 60000;
 
@@ -46,6 +48,14 @@ export default function LoginPage() {
   const [forgotCooldownUntil, setForgotCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
 
+  // OTP gate: when email login is used, we collect creds, validate them
+  // server-side, send a 6-digit code, then require the code before the
+  // session is created. Phone login (uses phone→email lookup) and Google
+  // OAuth bypass this gate by design.
+  const [stage, setStage] = useState<LoginStage>("credentials");
+  const [otpEmail, setOtpEmail] = useState<string | null>(null);
+  const [otpResendCountdown, setOtpResendCountdown] = useState(0);
+
   const rawRedirect = searchParams.get("redirect");
   // Only honor same-origin relative paths. Reject absolute URLs and
   // protocol-relative (`//evil.com`) to prevent open-redirect phishing.
@@ -53,6 +63,15 @@ export default function LoginPage() {
     rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
       ? rawRedirect
       : null;
+
+  // Detect vendor intent so the page's signup links keep the user on the
+  // vendor path instead of bouncing them back to /sell (which used to create
+  // a loop: /sell → /seller/onboarding → /signup → /login → /sell).
+  const isVendorIntent = redirect?.startsWith("/seller") ?? false;
+  const signupHref = isVendorIntent
+    ? `/signup?role=vendor&redirect=${encodeURIComponent(redirect ?? "/seller/shop")}`
+    : "/signup";
+  const vendorSignupHref = `/signup?role=vendor&redirect=${encodeURIComponent(redirect && isVendorIntent ? redirect : "/seller/shop")}`;
   const forgotMode = searchParams.get("forgot") === "1";
   const forgotEmailFromQuery = searchParams.get("email") ?? "";
 
@@ -77,6 +96,19 @@ export default function LoginPage() {
 
     return () => clearInterval(interval);
   }, [forgotCooldownUntil]);
+
+  const startResendTimer = () => {
+    setOtpResendCountdown(60);
+    const interval = setInterval(() => {
+      setOtpResendCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,9 +138,39 @@ export default function LoginPage() {
       }
     }
 
-    const { error, role } = await signIn(loginEmail, form.password);
-    if (error) {
-      setError(error);
+    if (method === "email") {
+      // OTP gate: validate password server-side and send a verification code.
+      // The session is NOT created here — that happens after OTP verification
+      // so browser-autofilled credentials can't grant access without the
+      // user proving control of the inbox.
+      try {
+        const res = await fetch("/api/auth/email-otp/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: loginEmail, password: form.password }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          setError(data.error || "Could not start OTP login");
+          setLoading(false);
+          return;
+        }
+        setOtpEmail(loginEmail);
+        setStage("otp");
+        startResendTimer();
+        toast.success(`We sent a code to ${loginEmail}`);
+      } catch {
+        setError("Network error. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Phone login keeps its existing single-step flow.
+    const { error: signInError, role } = await signIn(loginEmail, form.password);
+    if (signInError) {
+      setError(signInError);
       setLoading(false);
       return;
     }
@@ -121,8 +183,65 @@ export default function LoginPage() {
     else if (role === "courier") target = "/courier/dashboard";
     else if (role === "admin") target = "/admin";
 
-    // Hard redirect ensures session cookies are loaded on the next page
     window.location.assign(target);
+  };
+
+  const handleOTPVerify = async (code: string) => {
+    if (!otpEmail) return;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/email-otp/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: otpEmail,
+          password: form.password,
+          code,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || "Invalid code");
+        setLoading(false);
+        return;
+      }
+
+      toast.success("Welcome back!");
+
+      let target = "/browse";
+      if (redirect) target = redirect;
+      else if (data.role === "vendor") target = "/seller/dashboard";
+      else if (data.role === "courier") target = "/courier/dashboard";
+      else if (data.role === "admin") target = "/admin";
+
+      // Hard redirect so server-side cookies are picked up on the next page.
+      window.location.assign(target);
+    } catch {
+      setError("Network error. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handleOTPResend = async () => {
+    if (otpResendCountdown > 0 || !otpEmail) return;
+    setError("");
+    try {
+      const res = await fetch("/api/auth/email-otp/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: otpEmail, password: form.password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setError(data.error || "Could not resend code");
+        return;
+      }
+      toast.success("New code sent");
+      startResendTimer();
+    } catch {
+      setError("Network error");
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -263,15 +382,81 @@ export default function LoginPage() {
             </span>
           </Link>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Welcome back
+            {stage === "otp" ? "Verify it's you" : "Welcome back"}
           </h1>
           <p className="mt-2 text-gray-500 dark:text-gray-400">
-            Sign in to your account
+            {stage === "otp"
+              ? `We sent a 6-digit code to ${otpEmail ?? "your email"}`
+              : "Sign in to your account"}
           </p>
         </div>
 
         {/* Login Form */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl shadow-black/5 dark:shadow-black/20 border border-gray-100 dark:border-gray-700 p-8">
+          {stage === "otp" ? (
+            <div className="space-y-6">
+              <div className="flex justify-center">
+                <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <svg
+                    className="w-8 h-8 text-green-600 dark:text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                Enter the 6-digit code from your email. Browser-saved
+                passwords alone cannot complete this step.
+              </p>
+              <OTPInput onComplete={handleOTPVerify} disabled={loading} />
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                  <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
+                </div>
+              )}
+              {loading && (
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Verifying...
+                </div>
+              )}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleOTPResend}
+                  disabled={otpResendCountdown > 0}
+                  className="text-sm text-green-600 dark:text-green-400 font-medium hover:underline disabled:text-gray-400 disabled:no-underline disabled:cursor-not-allowed"
+                >
+                  {otpResendCountdown > 0
+                    ? `Resend code in ${otpResendCountdown}s`
+                    : "Resend code"}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setStage("credentials");
+                  setError("");
+                  setOtpEmail(null);
+                }}
+                className="w-full text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                ← Use a different account
+              </button>
+            </div>
+          ) : (
+            <>
           {/* Login method toggle */}
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-xl p-1 mb-6">
             <button
@@ -432,17 +617,22 @@ export default function LoginPage() {
             )}
             {googleLoading ? "Redirecting..." : "Continue with Google"}
           </button>
+            </>
+          )}
         </div>
 
         <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="text-green-600 hover:text-green-700 dark:text-green-400 font-semibold">
+          <Link href={signupHref} className="text-green-600 hover:text-green-700 dark:text-green-400 font-semibold">
             Create account
           </Link>
         </p>
         <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
           Want to sell on GreenPack?{" "}
-          <Link href="/sell" className="text-green-600 hover:text-green-700 dark:text-green-400 font-semibold">
+          <Link
+            href={vendorSignupHref}
+            className="text-green-600 hover:text-green-700 dark:text-green-400 font-semibold"
+          >
             Register your shop
           </Link>
         </p>

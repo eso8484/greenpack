@@ -11,22 +11,36 @@ export async function GET(
     const { shopId } = await params;
     const supabase = await createClient();
 
-    // Try by id first, then slug
-    let { data, error } = await supabase
-      .from("shops")
-      .select("*")
-      .eq("id", shopId)
-      .maybeSingle();
+    // Detect UUID first — Postgres raises invalid_text_representation when a
+    // slug like "my-shop" is compared against the UUID id column, which
+    // previously short-circuited the slug fallback and caused 404s.
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shopId);
 
-    if (!data && !error) {
-      ({ data, error } = await supabase
+    let data: Record<string, unknown> | null = null;
+
+    if (isUuid) {
+      const res = await supabase
+        .from("shops")
+        .select("*")
+        .eq("id", shopId)
+        .maybeSingle();
+      if (!res.error && res.data) data = res.data;
+    }
+
+    if (!data) {
+      const res = await supabase
         .from("shops")
         .select("*")
         .eq("slug", shopId)
-        .maybeSingle());
+        .maybeSingle();
+      if (res.error && isUuid) {
+        // Both lookups failed with errors — surface
+        throw res.error;
+      }
+      data = res.data ?? null;
     }
 
-    if (error) throw error;
     if (!data) {
       return NextResponse.json({ success: false, error: "Shop not found" }, { status: 404 });
     }
