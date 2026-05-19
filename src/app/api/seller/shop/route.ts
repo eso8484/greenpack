@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
 
 const CreateShopSchema = z.object({
@@ -125,9 +126,12 @@ export async function POST(request: Request) {
 
     if (shopError) throw shopError;
 
-    // Flip role from customer to vendor if not already vendor/admin
+    // Flip role from customer to vendor if not already vendor/admin.
+    // Uses the admin client because RLS + the guard_profile_role_change trigger
+    // (migration 009) block self-promotion via the user-scoped client.
     if (profile.role === "customer") {
-      const { error: roleError } = await supabase
+      const admin = createAdminClient();
+      const { error: roleError } = await admin
         .from("profiles")
         .update({ role: "vendor", updated_at: new Date().toISOString() })
         .eq("id", user.id);

@@ -5,12 +5,15 @@ import { z } from "zod";
 const OrderItemSchema = z.object({
   shop_id: z.string().uuid(),
   item_type: z.enum(["product", "service"]),
-  item_id: z.string().uuid().nullable().optional(),
+  // Required: server re-fetches the row to enforce canonical price/name.
+  item_id: z.string().uuid(),
   name: z.string(),
+  // `price` is accepted from the client only as a display hint; the server
+  // recomputes it from the products/services table before persisting.
   price: z.number().positive(),
-  quantity: z.number().int().positive(),
+  quantity: z.number().int().positive().max(99),
   image: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(500).optional(),
 });
 
 const CreateOrderSchema = z.object({
@@ -61,11 +64,78 @@ export async function POST(request: Request) {
 
     const { items, delivery, ...orderData } = parsed.data;
 
-    // Create order
+    // SECURITY: recompute every line-item price server-side from the canonical
+    // products/services row. Client-supplied `price` is ignored to prevent
+    // payment-amount tampering (audit issue: a customer could send price=1 for
+    // a ₦50,000 item and pay ₦1). The server uses item_id + item_type as the
+    // source of truth.
+    const productIds = items
+      .filter((i) => i.item_type === "product" && i.item_id)
+      .map((i) => i.item_id as string);
+    const serviceIds = items
+      .filter((i) => i.item_type === "service" && i.item_id)
+      .map((i) => i.item_id as string);
+
+    const [productRows, serviceRows] = await Promise.all([
+      productIds.length > 0
+        ? supabase.from("products").select("id, price, shop_id, name").in("id", productIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; price: number; shop_id: string; name: string }>, error: null }),
+      serviceIds.length > 0
+        ? supabase.from("services").select("id, price, shop_id, name").in("id", serviceIds)
+        : Promise.resolve({ data: [] as Array<{ id: string; price: number; shop_id: string; name: string }>, error: null }),
+    ]);
+
+    if (productRows.error) throw productRows.error;
+    if (serviceRows.error) throw serviceRows.error;
+
+    const priceByProductId = new Map((productRows.data ?? []).map((r) => [r.id, r]));
+    const priceByServiceId = new Map((serviceRows.data ?? []).map((r) => [r.id, r]));
+
+    const verifiedItems: typeof items = [];
+    let verifiedSubtotal = 0;
+    for (const item of items) {
+      if (!item.item_id) {
+        return NextResponse.json(
+          { success: false, error: `Missing item_id for ${item.item_type} '${item.name}'` },
+          { status: 400 }
+        );
+      }
+      const source =
+        item.item_type === "product"
+          ? priceByProductId.get(item.item_id)
+          : priceByServiceId.get(item.item_id);
+      if (!source) {
+        return NextResponse.json(
+          { success: false, error: `${item.item_type} not found: ${item.item_id}` },
+          { status: 400 }
+        );
+      }
+      if (source.shop_id !== item.shop_id) {
+        return NextResponse.json(
+          { success: false, error: `shop_id mismatch for ${item.item_type} ${item.item_id}` },
+          { status: 400 }
+        );
+      }
+      const canonicalPrice = Number(source.price);
+      verifiedSubtotal += canonicalPrice * item.quantity;
+      verifiedItems.push({
+        ...item,
+        name: source.name,
+        price: canonicalPrice,
+      });
+    }
+
+    const verifiedDeliveryFee = Number(orderData.delivery_fee ?? 0);
+    const verifiedTotal = verifiedSubtotal + verifiedDeliveryFee;
+
+    // Create order with SERVER-COMPUTED totals (ignore body total_amount/subtotal).
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
         ...orderData,
+        total_amount: verifiedTotal,
+        subtotal: verifiedSubtotal,
+        delivery_fee: verifiedDeliveryFee,
         customer_id: user.id,
       })
       .select()
@@ -73,9 +143,9 @@ export async function POST(request: Request) {
 
     if (orderError) throw orderError;
 
-    // Create order items
+    // Create order items with verified prices.
     const { error: itemsError } = await supabase.from("order_items").insert(
-      items.map((item) => ({ ...item, order_id: order.id }))
+      verifiedItems.map((item) => ({ ...item, order_id: order.id }))
     );
 
     if (itemsError) {

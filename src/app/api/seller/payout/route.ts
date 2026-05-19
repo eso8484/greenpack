@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   paystackCreateSubaccount,
   paystackResolveAccount,
@@ -120,7 +121,11 @@ export async function POST(request: Request) {
       percentage_charge: 97,
     });
 
-    const { data: updatedShop, error: updateError } = await supabase
+    // Use admin client: settlement fields are guarded by a BEFORE UPDATE trigger
+    // (migration 009) that rejects non-admin writes. This route already authn'd
+    // and authz'd the caller above, so this is the trusted path.
+    const admin = createAdminClient();
+    const { data: updatedShop, error: updateError } = await admin
       .from("shops")
       .update({
         paystack_subaccount_code: subaccount.subaccount_code,
@@ -130,6 +135,7 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", shop.id)
+      .eq("owner_id", user.id)
       .select(
         "id, paystack_subaccount_code, settlement_bank_code, settlement_account_number, settlement_account_name"
       )

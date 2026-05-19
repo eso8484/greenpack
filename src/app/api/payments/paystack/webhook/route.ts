@@ -86,47 +86,102 @@ export async function POST(request: Request) {
 
       if (updateError) throw updateError;
 
-      // Create delivery if order needs delivery
-      const { data: fullOrder, error: fetchError } = await admin
-        .from("orders")
-        .select("needs_delivery, customer_info, id")
-        .eq("id", order.id)
-        .single();
+      // Create delivery if order needs delivery (idempotent: skip if one exists).
+      const { data: existing } = await admin
+        .from("deliveries")
+        .select("id")
+        .eq("order_id", order.id)
+        .limit(1);
 
-      if (fetchError) {
-        console.error("Failed to fetch order after payment update", {
+      if ((existing?.length ?? 0) > 0) {
+        console.info("Webhook skipped delivery creation — already exists", {
           orderId: order.id,
-          error: fetchError,
         });
-      } else if (fullOrder?.needs_delivery && fullOrder.customer_info) {
-        const deliveryAddress = fullOrder.customer_info.address || "";
-        const { error: deliveryError } = await admin
-          .from("deliveries")
-          .insert({
-            order_id: order.id,
-            pickup_address: {
-              address: deliveryAddress,
-              instructions: fullOrder.customer_info.message || "",
-            },
-            delivery_address: {
-              address: deliveryAddress,
-              instructions: fullOrder.customer_info.message || "",
-            },
-            courier_fee: 0,
-            status: "pending",
-            created_at: now,
-          });
+      } else {
+        const { data: fullOrder, error: fetchError } = await admin
+          .from("orders")
+          .select("needs_delivery, customer_info, id, delivery_fee")
+          .eq("id", order.id)
+          .single();
 
-        if (deliveryError) {
-          console.error("Failed to create delivery from webhook", {
+        if (fetchError) {
+          console.error("Failed to fetch order after payment update", {
             orderId: order.id,
-            error: deliveryError,
+            error: fetchError,
           });
-        } else {
-          console.info("Created delivery from Paystack webhook", {
-            orderId: order.id,
-            reference: reference ?? null,
-          });
+        } else if (fullOrder?.needs_delivery && fullOrder.customer_info) {
+          const deliveryAddress = fullOrder.customer_info.address || "";
+          const courierFee = Number(fullOrder.delivery_fee ?? 0);
+
+          // Detect pickup_return services so we create two legs with split fee.
+          const { data: orderItems } = await admin
+            .from("order_items")
+            .select("item_type, item_id")
+            .eq("order_id", order.id);
+
+          const serviceIds = (orderItems ?? [])
+            .filter((it) => it.item_type === "service" && it.item_id)
+            .map((it) => it.item_id as string);
+
+          let hasPickupReturn = false;
+          if (serviceIds.length > 0) {
+            const { data: svc } = await admin
+              .from("services")
+              .select("service_type")
+              .in("id", serviceIds);
+            hasPickupReturn = (svc ?? []).some((s) => s.service_type === "pickup_return");
+          }
+
+          const pickup = {
+            address: deliveryAddress,
+            instructions: fullOrder.customer_info.message || "",
+          };
+          const dropoff = pickup;
+
+          const { error: deliveryError } = hasPickupReturn
+            ? await admin.from("deliveries").insert([
+                {
+                  order_id: order.id,
+                  pickup_address: pickup,
+                  delivery_address: dropoff,
+                  courier_fee: Math.round((courierFee / 2) * 100) / 100,
+                  leg: "pickup",
+                  status: "pending",
+                  created_at: now,
+                },
+                {
+                  order_id: order.id,
+                  pickup_address: pickup,
+                  delivery_address: dropoff,
+                  courier_fee: Math.round((courierFee / 2) * 100) / 100,
+                  leg: "return",
+                  status: "pending",
+                  created_at: now,
+                },
+              ])
+            : await admin.from("deliveries").insert({
+                order_id: order.id,
+                pickup_address: pickup,
+                delivery_address: dropoff,
+                courier_fee: courierFee,
+                leg: "single",
+                status: "pending",
+                created_at: now,
+              });
+
+          if (deliveryError) {
+            console.error("Failed to create delivery from webhook", {
+              orderId: order.id,
+              error: deliveryError,
+            });
+          } else {
+            console.info("Created delivery from Paystack webhook", {
+              orderId: order.id,
+              reference: reference ?? null,
+              courierFee,
+              legs: hasPickupReturn ? 2 : 1,
+            });
+          }
         }
       }
 

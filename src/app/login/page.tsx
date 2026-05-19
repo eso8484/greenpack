@@ -46,7 +46,13 @@ export default function LoginPage() {
   const [forgotCooldownUntil, setForgotCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  const redirect = searchParams.get("redirect");
+  const rawRedirect = searchParams.get("redirect");
+  // Only honor same-origin relative paths. Reject absolute URLs and
+  // protocol-relative (`//evil.com`) to prevent open-redirect phishing.
+  const redirect =
+    rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+      ? rawRedirect
+      : null;
   const forgotMode = searchParams.get("forgot") === "1";
   const forgotEmailFromQuery = searchParams.get("email") ?? "";
 
