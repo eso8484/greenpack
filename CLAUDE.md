@@ -273,6 +273,28 @@ SUPPORT_AGENT_API_KEY=             # Shared secret for backend agent event inges
 | `supabase/migrations/001_initial_schema.sql` | Core DB schema |
 | `supabase/migrations/002_verification_and_profile_update.sql` | OTP + profile fields |
 
+## Goals Folder Workflow
+
+`goals/ACHIVED.md` is the user's prompt queue. Whenever the user asks you to
+"execute the goals", "run the goals folder", or otherwise act on this file:
+
+1. **Read `goals/ACHIVED.md`** and compute a hash of its contents
+   (`sha256sum goals/ACHIVED.md | awk '{print $1}'`).
+2. **Compare against `goals/.last-executed`** — a single-line file storing the
+   hash of the prompt that was last executed (commit it to the repo so the
+   marker is visible to all worktrees / collaborators).
+3. **If the hashes match**: the prompt has already been run. Say so in one
+   sentence and stop. Do NOT re-execute — repeating completed work wastes
+   tokens and can re-introduce churn.
+4. **If the hashes differ (or `.last-executed` is missing)**: execute the
+   prompt end-to-end. When you are confident the work is done and pushed,
+   overwrite `goals/.last-executed` with the new hash and commit it
+   alongside the implementation.
+
+Always run the comparison before touching code. The marker file is the single
+source of truth for "what has been executed". If the user explicitly says
+"re-run" or "ignore the marker", honor that and overwrite the marker after.
+
 ## Skills
 
 | Skill | Trigger | Description |
