@@ -32,7 +32,10 @@ export default function Header() {
     if (error) {
       console.error("Logout failed:", error);
     }
-    router.push("/");
+    // Always land on /login after signing out so re-entry requires explicit
+    // credentials — matches the security expectation that logout fully ends
+    // the session and never silently re-auths the user.
+    router.replace("/login");
     router.refresh();
   };
 
@@ -102,9 +105,11 @@ export default function Header() {
                 ) : (
                   <Link
                     href="/sell"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-sm font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors whitespace-nowrap"
                   >
-                    Become a Vendor
+                    Become a Vendor ↗
                   </Link>
                 )}
               </nav>

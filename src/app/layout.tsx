@@ -7,6 +7,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import Toaster from "@/components/ui/Toaster";
+import InactivityWatch from "@/components/auth/InactivityWatch";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -39,6 +40,7 @@ export default function RootLayout({
               <CartProvider>
                 <AppChrome>{children}</AppChrome>
                 <Toaster />
+                <InactivityWatch />
               </CartProvider>
             </WishlistProvider>
           </AuthProvider>

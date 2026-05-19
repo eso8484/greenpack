@@ -28,7 +28,7 @@ export default function SellPage() {
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Link href="/register">
+                        <Link href="/seller/onboarding">
                             <button className="bg-green-500 hover:bg-green-600 text-white font-bold px-10 py-4 rounded-xl shadow-xl shadow-green-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer text-base">
                                 Register Your Business
                             </button>
@@ -205,7 +205,7 @@ export default function SellPage() {
                         Join hundreds of businesses already thriving on GreenPack. It&apos;s
                         free to get started.
                     </p>
-                    <Link href="/register" className="relative z-10">
+                    <Link href="/seller/onboarding" className="relative z-10">
                         <button className="bg-green-500 hover:bg-green-600 text-white font-bold px-10 py-4 rounded-xl shadow-xl shadow-green-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer text-base">
                             Register Your Business Now
                         </button>

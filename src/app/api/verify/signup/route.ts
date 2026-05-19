@@ -3,8 +3,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   try {
-    const { email, password, fullName, phone, dateOfBirth, role } =
-      await request.json();
+    const {
+      email,
+      password,
+      fullName,
+      phone,
+      dateOfBirth,
+      role,
+      address,
+      city,
+      state,
+      lat,
+      lng,
+    } = await request.json();
 
     if (!email || !password || !fullName) {
       return NextResponse.json(
@@ -67,24 +78,65 @@ export async function POST(request: Request) {
       }
     }
 
-    // Update profile with additional fields
+    // Update profile with additional fields. Location columns (address/lat/lng)
+    // are nullable per migration 010 — if the migration hasn't been applied
+    // yet they'll silently fail (logged below) without blocking signup.
+    const profileUpdate: Record<string, unknown> = {
+      full_name: fullName,
+      phone: normalizedPhone,
+      role: role || "customer",
+      date_of_birth: dateOfBirth || null,
+      email_verified: true,
+      phone_verified: false,
+      terms_accepted: true,
+      terms_accepted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (typeof address === "string" && address.trim()) {
+      profileUpdate.address = address.trim();
+    }
+    if (typeof city === "string" && city.trim()) {
+      profileUpdate.city = city.trim();
+    }
+    if (typeof state === "string" && state.trim()) {
+      profileUpdate.state = state.trim();
+    }
+    const numericLat = typeof lat === "number" ? lat : Number(lat);
+    const numericLng = typeof lng === "number" ? lng : Number(lng);
+    if (Number.isFinite(numericLat) && numericLat >= -90 && numericLat <= 90) {
+      profileUpdate.lat = numericLat;
+    }
+    if (Number.isFinite(numericLng) && numericLng >= -180 && numericLng <= 180) {
+      profileUpdate.lng = numericLng;
+    }
+
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({
-        full_name: fullName,
-        phone: normalizedPhone,
-        role: role || "customer",
-        date_of_birth: dateOfBirth || null,
-        email_verified: true,
-        phone_verified: false,
-        terms_accepted: true,
-        terms_accepted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(profileUpdate)
       .eq("id", authData.user.id);
 
     if (profileError) {
       console.error("Profile update error:", profileError);
+      // Retry without optional location columns in case migration 010 hasn't
+      // been applied yet — signup must not fail just because we couldn't
+      // persist coordinates.
+      if (
+        profileUpdate.address !== undefined ||
+        profileUpdate.lat !== undefined ||
+        profileUpdate.lng !== undefined
+      ) {
+        const fallback = { ...profileUpdate };
+        delete fallback.address;
+        delete fallback.city;
+        delete fallback.state;
+        delete fallback.lat;
+        delete fallback.lng;
+        await supabase
+          .from("profiles")
+          .update(fallback)
+          .eq("id", authData.user.id);
+      }
     }
 
     return NextResponse.json({

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+// useState is also used below for the geolocation buttons added in this file.
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -18,6 +19,8 @@ interface ShopFormState {
   address: string;
   city: string;
   state: string;
+  lat: number | null;
+  lng: number | null;
   phone: string;
   email: string;
   whatsapp: string;
@@ -39,6 +42,8 @@ const EMPTY_FORM: ShopFormState = {
   address: "",
   city: "",
   state: "",
+  lat: null,
+  lng: null,
   phone: "",
   email: "",
   whatsapp: "",
@@ -74,6 +79,8 @@ export default function ShopEditorPage() {
             category_id?: string;
             category_name?: string;
             location?: { address?: string; city?: string; state?: string };
+            lat?: number | string | null;
+            lng?: number | string | null;
             contact?: { phone?: string; email?: string; whatsapp?: string };
             hours?: { open?: string; close?: string; days?: string };
             images?: { thumbnail?: string; banner?: string; gallery?: string[] };
@@ -88,6 +95,10 @@ export default function ShopEditorPage() {
         if (cancelled) return;
 
         setShopId(payload.data.id);
+        const rawLat = payload.data.lat;
+        const rawLng = payload.data.lng;
+        const lat = rawLat == null ? null : Number(rawLat);
+        const lng = rawLng == null ? null : Number(rawLng);
         setForm({
           name: payload.data.name ?? "",
           slug: payload.data.slug ?? "",
@@ -98,6 +109,8 @@ export default function ShopEditorPage() {
           address: payload.data.location?.address ?? "",
           city: payload.data.location?.city ?? "",
           state: payload.data.location?.state ?? "",
+          lat: Number.isFinite(lat) ? lat : null,
+          lng: Number.isFinite(lng) ? lng : null,
           phone: payload.data.contact?.phone ?? "",
           email: payload.data.contact?.email ?? "",
           whatsapp: payload.data.contact?.whatsapp ?? "",
@@ -125,6 +138,127 @@ export default function ShopEditorPage() {
 
   const updateField = (field: keyof ShopFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const [locating, setLocating] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
+  /**
+   * Browser geolocation → coords → reverse geocode → fill the address fields.
+   * Used by the "Use My Current Location" button; ensures the saved shop
+   * coordinates are exactly where the vendor is standing (so courier distance
+   * calc is accurate) and the address text matches.
+   */
+  const handleUseMyLocation = () => {
+    if (!("geolocation" in navigator)) {
+      toast.error("This browser does not support location detection");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `/api/geocode/reverse?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
+          );
+          const payload = (await res.json()) as {
+            success?: boolean;
+            data?: {
+              lat: number;
+              lng: number;
+              address?: string;
+              city?: string;
+              state?: string;
+            } | null;
+          };
+
+          if (!payload.success || !payload.data) {
+            // Still capture the raw coords — manual address is fine.
+            setForm((prev) => ({
+              ...prev,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            }));
+            toast.success("Coordinates captured. Please enter the address manually.");
+            return;
+          }
+
+          const { address, city, state, lat, lng } = payload.data;
+          setForm((prev) => ({
+            ...prev,
+            address: address ?? prev.address,
+            city: city ?? prev.city,
+            state: state ?? prev.state,
+            lat,
+            lng,
+          }));
+          toast.success("Location detected and address filled in");
+        } catch (err) {
+          console.error("Reverse geocode failed", err);
+          toast.error("Could not look up your address — coordinates only");
+          setForm((prev) => ({
+            ...prev,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          }));
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error("Location permission denied. Please enter address manually.");
+        } else {
+          toast.error("Unable to determine your location");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  /**
+   * Forward geocode the typed address. Lets the vendor confirm the shop
+   * appears at the right pin before saving — without leaving the form.
+   */
+  const handleVerifyAddress = async () => {
+    const address = form.address.trim();
+    const city = form.city.trim();
+    const state = form.state.trim();
+    if (!address && !city) {
+      toast.error("Enter an address or city before verifying");
+      return;
+    }
+    setVerifying(true);
+    try {
+      const params = new URLSearchParams({ address });
+      if (city) params.set("city", city);
+      if (state) params.set("state", state);
+      const res = await fetch(`/api/geocode/forward?${params.toString()}`);
+      const payload = (await res.json()) as {
+        success?: boolean;
+        data?: { lat: number; lng: number; formatted?: string } | null;
+      };
+      if (!payload.success || !payload.data) {
+        toast.error("Couldn't find this address. Try refining the entry or use 'Use My Location'.");
+        return;
+      }
+      setForm((prev) => ({
+        ...prev,
+        lat: payload.data!.lat,
+        lng: payload.data!.lng,
+      }));
+      toast.success(
+        payload.data.formatted
+          ? `Pinned: ${payload.data.formatted}`
+          : "Address verified"
+      );
+    } catch (err) {
+      console.error("Forward geocode failed", err);
+      toast.error("Address verification failed. Try again.");
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleSave = async (event: FormEvent) => {
@@ -180,6 +314,10 @@ export default function ShopEditorPage() {
       };
       if (trimmedCategoryId) body.category_id = trimmedCategoryId;
       if (trimmedCategoryName) body.category_name = trimmedCategoryName;
+      // Persist verified coordinates so courier distance calc uses the exact
+      // pin instead of re-geocoding text addresses on every order.
+      if (form.lat != null && Number.isFinite(form.lat)) body.lat = form.lat;
+      if (form.lng != null && Number.isFinite(form.lng)) body.lng = form.lng;
 
       const isCreate = !shopId;
       const endpoint = isCreate ? "/api/seller/shop" : `/api/shops/${shopId}`;
@@ -331,9 +469,28 @@ export default function ShopEditorPage() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
-            Location
-          </h2>
+          <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Location
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Couriers calculate distance from the exact pin — please verify
+                your location.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleUseMyLocation}
+              disabled={locating}
+              className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 disabled:opacity-60 transition-colors"
+            >
+              <span className="material-symbols-outlined text-base">
+                {locating ? "progress_activity" : "my_location"}
+              </span>
+              {locating ? "Detecting..." : "Use My Current Location"}
+            </button>
+          </div>
           <div className="space-y-4">
             <Input
               id="address"
@@ -357,6 +514,43 @@ export default function ShopEditorPage() {
                 onChange={(event) => updateField("state", event.target.value)}
                 required
               />
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap pt-2">
+              <button
+                type="button"
+                onClick={handleVerifyAddress}
+                disabled={verifying || !form.address.trim()}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-green-500/30 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">
+                  {verifying ? "progress_activity" : "search"}
+                </span>
+                {verifying ? "Verifying..." : "Verify Address on Map"}
+              </button>
+
+              {form.lat != null && form.lng != null && (
+                <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400 font-medium">
+                  <span className="material-symbols-outlined text-base">verified</span>
+                  <span>
+                    Location verified · {form.lat.toFixed(5)}, {form.lng.toFixed(5)}
+                  </span>
+                  <a
+                    href={`https://www.openstreetmap.org/?mlat=${form.lat}&mlon=${form.lng}#map=17/${form.lat}/${form.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:no-underline ml-1"
+                  >
+                    View on map ↗
+                  </a>
+                </div>
+              )}
+              {(form.lat == null || form.lng == null) && form.address.trim() && (
+                <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-base">warning</span>
+                  Not yet verified — couriers may estimate distance approximately
+                </span>
+              )}
             </div>
           </div>
         </div>

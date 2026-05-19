@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
@@ -11,9 +12,30 @@ import PasswordStrength, {
 import OTPInput from "@/components/auth/OTPInput";
 
 type Step = "form" | "verify-email" | "complete";
+type SignupRole = "customer" | "vendor";
 
 export default function SignUpPage() {
   const { signIn } = useAuth();
+  const searchParams = useSearchParams();
+
+  // Vendor vs customer signup is distinguished by ?role=vendor on the URL.
+  // The /sell page's "Register Your Business" CTAs send users here so the
+  // vendor onboarding path is visibly different from the customer one.
+  const roleParam = searchParams.get("role");
+  const signupRole: SignupRole = roleParam === "vendor" ? "vendor" : "customer";
+  const isVendorSignup = signupRole === "vendor";
+
+  // Allow callers to specify where to land after signup (e.g. /seller/shop).
+  // Only same-origin relative paths are accepted — protects against open-redirect.
+  const rawRedirect = searchParams.get("redirect");
+  const redirectPath = useMemo(() => {
+    if (!rawRedirect) return null;
+    if (!rawRedirect.startsWith("/")) return null;
+    if (rawRedirect.startsWith("//")) return null;
+    return rawRedirect;
+  }, [rawRedirect]);
+
+  const defaultDestination = isVendorSignup ? "/seller/shop" : "/browse";
 
   const [step, setStep] = useState<Step>("form");
   const [form, setForm] = useState({
@@ -23,6 +45,11 @@ export default function SignUpPage() {
     password: "",
     confirmPassword: "",
     termsAccepted: false,
+    address: "",
+    city: "",
+    state: "",
+    lat: null as number | null,
+    lng: null as number | null,
   });
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -30,6 +57,72 @@ export default function SignUpPage() {
   const [resendCountdown, setResendCountdown] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [locating, setLocating] = useState(false);
+
+  const handleUseMyLocation = () => {
+    if (!("geolocation" in navigator)) {
+      toast.error("This browser does not support location detection");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `/api/geocode/reverse?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
+          );
+          const payload = (await res.json()) as {
+            success?: boolean;
+            data?: {
+              lat: number;
+              lng: number;
+              address?: string;
+              city?: string;
+              state?: string;
+            } | null;
+          };
+          if (!payload.success || !payload.data) {
+            setForm((prev) => ({
+              ...prev,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            }));
+            toast.success("Coordinates captured. Please enter your address manually.");
+            return;
+          }
+          const { address, city, state, lat, lng } = payload.data;
+          setForm((prev) => ({
+            ...prev,
+            address: address ?? prev.address,
+            city: city ?? prev.city,
+            state: state ?? prev.state,
+            lat,
+            lng,
+          }));
+          toast.success("Address detected from your location");
+        } catch (err) {
+          console.error("Reverse geocode failed", err);
+          setForm((prev) => ({
+            ...prev,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          }));
+          toast.error("Couldn't look up your address — coordinates captured only");
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          toast.error("Location permission denied. Please enter address manually.");
+        } else {
+          toast.error("Unable to determine your location");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   const startResendTimer = useCallback(() => {
     setResendCountdown(60);
@@ -129,7 +222,12 @@ export default function SignUpPage() {
           password: form.password,
           fullName: form.fullName,
           dateOfBirth: form.dateOfBirth,
-          role: "customer",
+          role: signupRole,
+          address: form.address || undefined,
+          city: form.city || undefined,
+          state: form.state || undefined,
+          lat: form.lat ?? undefined,
+          lng: form.lng ?? undefined,
         }),
       });
       const signupData = await signupRes.json();
@@ -141,13 +239,17 @@ export default function SignUpPage() {
       }
 
       setStep("complete");
-      toast.success("Account created successfully!");
+      toast.success(
+        isVendorSignup
+          ? "Vendor account created — let's set up your shop!"
+          : "Account created successfully!"
+      );
 
       const { error: signInError } = await signIn(form.email, form.password);
       if (signInError) {
         window.location.assign("/login");
       } else {
-        window.location.assign("/browse");
+        window.location.assign(redirectPath ?? defaultDestination);
       }
     } catch {
       setError("Network error. Please try again.");
@@ -230,11 +332,19 @@ export default function SignUpPage() {
 
           {step === "form" && (
             <>
+              {isVendorSignup && (
+                <div className="inline-flex items-center gap-2 bg-green-50 dark:bg-green-900/30 border border-green-500/20 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-4">
+                  <span className="material-symbols-outlined text-sm">storefront</span>
+                  Vendor Registration
+                </div>
+              )}
               <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2">
-                Create your account
+                {isVendorSignup ? "Create your vendor account" : "Create your account"}
               </h1>
               <p className="text-gray-500 dark:text-gray-400">
-                Sign up to discover shops, book services, and start shopping.
+                {isVendorSignup
+                  ? "Sign up to list your shop, sell products, and grow your business on GreenPack."
+                  : "Sign up to discover shops, book services, and start shopping."}
               </p>
             </>
           )}
@@ -345,6 +455,59 @@ export default function SignUpPage() {
                     .split("T")[0]}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition text-sm"
                 />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    {isVendorSignup ? "Business Address" : "Delivery Address"}
+                    <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">(optional)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleUseMyLocation}
+                    disabled={locating}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-base">
+                      {locating ? "progress_activity" : "my_location"}
+                    </span>
+                    {locating ? "Detecting..." : "Use My Location"}
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  placeholder={
+                    isVendorSignup
+                      ? "Where your business is located"
+                      : "Where you'd like deliveries sent"
+                  }
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition text-sm"
+                />
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <input
+                    type="text"
+                    value={form.city}
+                    onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    placeholder="City"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={form.state}
+                    onChange={(e) => setForm({ ...form, state: e.target.value })}
+                    placeholder="State"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition text-sm"
+                  />
+                </div>
+                {form.lat != null && form.lng != null && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">verified</span>
+                    Location confirmed · {form.lat.toFixed(4)}, {form.lng.toFixed(4)}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -591,21 +754,37 @@ export default function SignUpPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Already have an account?{" "}
               <Link
-                href="/login"
+                href={
+                  isVendorSignup
+                    ? `/login?redirect=${encodeURIComponent(redirectPath ?? defaultDestination)}`
+                    : "/login"
+                }
                 className="text-green-600 dark:text-green-400 font-semibold hover:underline"
               >
                 Log in
               </Link>
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Want to sell or offer services?{" "}
-              <Link
-                href="/sell"
-                className="text-green-600 dark:text-green-400 font-semibold hover:underline"
-              >
-                Sell on GreenPack →
-              </Link>
-            </p>
+            {!isVendorSignup ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Want to sell or offer services?{" "}
+                <Link
+                  href="/sell"
+                  className="text-green-600 dark:text-green-400 font-semibold hover:underline"
+                >
+                  Become a vendor →
+                </Link>
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Just here to shop?{" "}
+                <Link
+                  href="/signup"
+                  className="text-green-600 dark:text-green-400 font-semibold hover:underline"
+                >
+                  Create a customer account →
+                </Link>
+              </p>
+            )}
           </div>
         )}
       </div>

@@ -1,49 +1,75 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchSuggestions } from "@/hooks/useSearchSuggestions";
+import SearchSuggestions from "@/components/layout/SearchSuggestions";
+import type { Suggestion } from "@/app/api/search/suggest/route";
 
 export default function HeroSection() {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [city, setCity] = useState("");
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { suggestions, isLoading } = useSearchSuggestions(query);
+
+  // Derived-during-render reset to satisfy `react-hooks/set-state-in-effect`.
+  const [trackedSuggestions, setTrackedSuggestions] = useState(suggestions);
+  if (trackedSuggestions !== suggestions) {
+    setTrackedSuggestions(suggestions);
+    setActiveIndex(-1);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointer = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointer);
+    return () => document.removeEventListener("mousedown", handlePointer);
+  }, [open]);
+
+  const submitFreeform = useCallback(
+    (q: string) => {
+      setOpen(false);
+      router.push(`/browse?q=${encodeURIComponent(q.trim())}`);
+    },
+    [router]
+  );
+
+  const handleSelect = useCallback(
+    (suggestion: Suggestion) => {
+      setOpen(false);
+      setQuery("");
+      router.push(suggestion.href);
+    },
+    [router]
+  );
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams();
-    if (query.trim()) params.set("q", query.trim());
-    if (city.trim()) params.set("city", city.trim());
-    router.push(`/browse${params.toString() ? `?${params.toString()}` : ""}`);
-  };
-
-  const useMyLocation = () => {
-    if (!("geolocation" in navigator)) {
-      setCity("");
+    if (activeIndex >= 0 && activeIndex < suggestions.length) {
+      handleSelect(suggestions[activeIndex]);
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&zoom=10`,
-            { headers: { "Accept-Language": "en" } }
-          );
-          const data = await res.json();
-          const detected =
-            data?.address?.city ||
-            data?.address?.town ||
-            data?.address?.state ||
-            "";
-          if (detected) setCity(detected);
-        } catch {
-          // silent — keep manual input
-        }
-      },
-      () => {
-        // permission denied — silent
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
-    );
+    if (query.trim()) submitFreeform(query);
+    else router.push("/browse");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((idx) => Math.min(suggestions.length - 1, idx + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((idx) => Math.max(-1, idx - 1));
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
   };
 
   return (
@@ -65,39 +91,43 @@ export default function HeroSection() {
 
         <form
           onSubmit={handleSearch}
-          className="bg-white dark:bg-gray-900 p-2 md:p-3 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-3xl mx-auto border border-white/20"
+          className="bg-white dark:bg-gray-900 p-2 md:p-3 rounded-2xl shadow-2xl flex items-center gap-2 max-w-2xl mx-auto border border-white/20"
         >
-          <div className="flex-1 flex items-center px-4 gap-3 border-b md:border-b-0 md:border-r border-gray-100 dark:border-gray-800">
-            <span className="material-symbols-outlined text-gray-400">search</span>
-            <input
-              className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-gray-900 dark:text-white placeholder:text-gray-400 py-4 text-sm"
-              placeholder="Laundry, barbers, food..."
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <div className="flex-1 flex items-center px-4 gap-3">
-            <span className="material-symbols-outlined text-gray-400">location_on</span>
-            <input
-              className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-gray-900 dark:text-white placeholder:text-gray-400 py-4 text-sm"
-              placeholder="Enter your city..."
-              type="text"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            />
-            <button
-              type="button"
-              onClick={useMyLocation}
-              title="Use my location"
-              className="text-green-600 dark:text-green-400 text-xs font-semibold whitespace-nowrap hover:underline cursor-pointer"
-            >
-              Use mine
-            </button>
+          <div ref={containerRef} className="flex-1 relative">
+            <div className="flex items-center px-4 gap-3">
+              <span className="material-symbols-outlined text-gray-400 pointer-events-none">
+                search
+              </span>
+              <input
+                className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-gray-900 dark:text-white placeholder:text-gray-400 py-4 text-sm"
+                placeholder="Search shops, services, products..."
+                type="text"
+                autoComplete="off"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setOpen(true);
+                }}
+                onFocus={() => setOpen(true)}
+                onKeyDown={handleKeyDown}
+                aria-autocomplete="list"
+                aria-expanded={open}
+              />
+            </div>
+            {open && query.trim().length > 0 && (
+              <SearchSuggestions
+                query={query}
+                suggestions={suggestions}
+                isLoading={isLoading}
+                activeIndex={activeIndex}
+                onSelect={handleSelect}
+                onSubmitFreeform={submitFreeform}
+              />
+            )}
           </div>
           <button
             type="submit"
-            className="bg-green-500 text-white px-10 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all text-sm cursor-pointer"
+            className="bg-green-500 text-white px-8 md:px-10 py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all text-sm cursor-pointer shrink-0"
           >
             Search Now
           </button>

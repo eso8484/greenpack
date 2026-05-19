@@ -60,11 +60,32 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
     const handleLogout = async () => {
         try {
             const supabase = createClient();
-            await supabase.auth.signOut();
+            // Global scope invalidates the refresh token server-side, matching
+            // the AuthContext signOut behaviour so vendor logouts behave like
+            // public-site logouts.
+            await supabase.auth.signOut({ scope: "global" });
+            if (typeof window !== "undefined") {
+                try {
+                    const purge = (storage: Storage) => {
+                        const keys: string[] = [];
+                        for (let i = 0; i < storage.length; i++) {
+                            const key = storage.key(i);
+                            if (key && (key.startsWith("sb-") || key.startsWith("supabase."))) {
+                                keys.push(key);
+                            }
+                        }
+                        keys.forEach((key) => storage.removeItem(key));
+                    };
+                    purge(window.localStorage);
+                    purge(window.sessionStorage);
+                } catch {
+                    // ignore storage edge cases
+                }
+            }
         } catch (err) {
             console.error("Logout failed:", err);
         }
-        router.push("/login");
+        router.replace("/login");
         router.refresh();
     };
 

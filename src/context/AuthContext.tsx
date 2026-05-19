@@ -167,7 +167,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Optimistically clear local auth state so UI updates immediately.
     setState({ user: null, session: null, profile: null, role: null, isLoading: false });
 
+    // 1. Global sign-out invalidates the refresh token on the server so other
+    //    tabs / devices are dropped too. Without this users could be silently
+    //    re-authenticated on the next page load via a leftover refresh token.
     const { error } = await supabase.auth.signOut({ scope: "global" });
+
+    // 2. Belt-and-braces: explicitly purge any Supabase auth keys that might
+    //    have survived in browser storage. The Supabase SDK uses keys prefixed
+    //    with `sb-<project-ref>-` and they should be cleared by signOut, but
+    //    this protects against SDK upgrades and edge cases.
+    if (typeof window !== "undefined") {
+      try {
+        const purge = (storage: Storage) => {
+          const keys: string[] = [];
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
+            if (key && (key.startsWith("sb-") || key.startsWith("supabase."))) {
+              keys.push(key);
+            }
+          }
+          keys.forEach((key) => storage.removeItem(key));
+        };
+        purge(window.localStorage);
+        purge(window.sessionStorage);
+      } catch {
+        // Some browsers throw on storage access (e.g. private mode quota) —
+        // ignore, the SDK signOut has already done the primary cleanup.
+      }
+    }
+
     if (!error) return { error: null };
 
     // Fallback in case global scope fails due network/session edge-cases.

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { geocodeAddress } from "@/lib/geocode";
 import { z } from "zod";
 
 const CreateShopSchema = z.object({
@@ -16,6 +17,10 @@ const CreateShopSchema = z.object({
   images: z.record(z.string(), z.unknown()).optional(),
   video: z.record(z.string(), z.unknown()).optional(),
   tags: z.array(z.string()).optional(),
+  // Top-level coordinates. Vendors who clicked "Use My Location" already have
+  // these; otherwise we attempt server-side geocoding from location.address.
+  lat: z.number().min(-90).max(90).nullish(),
+  lng: z.number().min(-180).max(180).nullish(),
 });
 
 const UpdateShopSchema = CreateShopSchema.partial();
@@ -114,12 +119,40 @@ export async function POST(request: Request) {
       );
     }
 
+    // Auto-geocode from address when the vendor didn't supply explicit coords.
+    // Failure here is non-fatal — admins can re-trigger geocoding later, and
+    // delivery fee calc will fall back to a default distance until coords land.
+    let lat = parsed.data.lat ?? null;
+    let lng = parsed.data.lng ?? null;
+    const loc = (parsed.data.location ?? {}) as {
+      address?: string;
+      city?: string;
+      state?: string;
+    };
+    if ((lat == null || lng == null) && (loc.address || loc.city)) {
+      try {
+        const geo = await geocodeAddress(
+          loc.address ?? "",
+          loc.city,
+          loc.state
+        );
+        if (geo) {
+          lat = geo.lat;
+          lng = geo.lng;
+        }
+      } catch (geoErr) {
+        console.warn("Shop creation geocoding failed; continuing without coords", geoErr);
+      }
+    }
+
     // Create shop
     const { data: shop, error: shopError } = await supabase
       .from("shops")
       .insert({
         owner_id: user.id,
         ...parsed.data,
+        lat,
+        lng,
       })
       .select()
       .single();
