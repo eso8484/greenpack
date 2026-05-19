@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useReducer, type ReactNode } from "react";
+import {
+  createContext,
+  useReducer,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 import type { CartItem } from "@/types";
 
 interface CartState {
@@ -65,7 +71,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ),
       };
     case "CLEAR_CART":
-      return { items: [] };
+      // Return the SAME state object when already empty so useReducer skips
+      // the re-render. Returning a fresh `{ items: [] }` every time fed an
+      // infinite render→effect→clearCart loop during payment verification.
+      return state.items.length === 0 ? state : { items: [] };
     default:
       return state;
   }
@@ -80,30 +89,43 @@ export function CartProvider({ children }: { children: ReactNode }) {
     0
   );
 
-  const addItem = (item: CartItem) =>
-    dispatch({ type: "ADD_ITEM", payload: item });
-  const removeItem = (id: string) =>
-    dispatch({ type: "REMOVE_ITEM", payload: id });
-  const updateQuantity = (id: string, quantity: number) =>
-    dispatch({ type: "UPDATE_QUANTITY", payload: { id, quantity } });
-  const updateNotes = (id: string, notes: string) =>
-    dispatch({ type: "UPDATE_NOTES", payload: { id, notes } });
-  const clearCart = () => dispatch({ type: "CLEAR_CART" });
-
-  return (
-    <CartContext.Provider
-      value={{
-        items: state.items,
-        itemCount,
-        subtotal,
-        addItem,
-        removeItem,
-        updateQuantity,
-        updateNotes,
-        clearCart,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
+  // Memoize the action creators. `dispatch` is stable, so these keep a stable
+  // identity across renders — consumers that put them in effect dependency
+  // arrays (e.g. checkout's payment-verify effect) won't re-fire on every
+  // render.
+  const addItem = useCallback(
+    (item: CartItem) => dispatch({ type: "ADD_ITEM", payload: item }),
+    []
   );
+  const removeItem = useCallback(
+    (id: string) => dispatch({ type: "REMOVE_ITEM", payload: id }),
+    []
+  );
+  const updateQuantity = useCallback(
+    (id: string, quantity: number) =>
+      dispatch({ type: "UPDATE_QUANTITY", payload: { id, quantity } }),
+    []
+  );
+  const updateNotes = useCallback(
+    (id: string, notes: string) =>
+      dispatch({ type: "UPDATE_NOTES", payload: { id, notes } }),
+    []
+  );
+  const clearCart = useCallback(() => dispatch({ type: "CLEAR_CART" }), []);
+
+  const value = useMemo(
+    () => ({
+      items: state.items,
+      itemCount,
+      subtotal,
+      addItem,
+      removeItem,
+      updateQuantity,
+      updateNotes,
+      clearCart,
+    }),
+    [state.items, itemCount, subtotal, addItem, removeItem, updateQuantity, updateNotes, clearCart]
+  );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

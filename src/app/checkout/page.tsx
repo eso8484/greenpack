@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ContactForm from "@/components/checkout/ContactForm";
 import OrderReview from "@/components/checkout/OrderReview";
 import { useCart } from "@/hooks/useCart";
@@ -32,6 +32,9 @@ export default function CheckoutPage() {
   const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  // Tracks which payment reference has already been verified so the effect
+  // can't re-run verification for the same reference.
+  const verifiedReferenceRef = useRef<string | null>(null);
 
   // Geolocation state
   const [customerLat, setCustomerLat] = useState<number | null>(null);
@@ -194,6 +197,11 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!paymentReference) return;
+    // Verify each reference exactly once. Without this guard a changing
+    // dependency (or a re-render after clearCart) could re-fire verification
+    // in a loop.
+    if (verifiedReferenceRef.current === paymentReference) return;
+    verifiedReferenceRef.current = paymentReference;
 
     let cancelled = false;
 
