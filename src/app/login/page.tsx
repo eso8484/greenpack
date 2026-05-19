@@ -64,10 +64,14 @@ export default function LoginPage() {
       ? rawRedirect
       : null;
 
-  // Detect vendor intent so the page's signup links keep the user on the
-  // vendor path instead of bouncing them back to /sell (which used to create
-  // a loop: /sell → /seller/onboarding → /signup → /login → /sell).
-  const isVendorIntent = redirect?.startsWith("/seller") ?? false;
+  // Login mode separates customer and vendor flows so a customer account
+  // can't accidentally authenticate against vendor pages and vice versa.
+  // ?mode=vendor explicitly OR a redirect into /seller signals vendor lane.
+  const modeParam = searchParams.get("mode");
+  const isVendorIntent =
+    modeParam === "vendor" || (redirect?.startsWith("/seller") ?? false);
+  const loginMode: "customer" | "vendor" = isVendorIntent ? "vendor" : "customer";
+
   const signupHref = isVendorIntent
     ? `/signup?role=vendor&redirect=${encodeURIComponent(redirect ?? "/seller/shop")}`
     : "/signup";
@@ -142,12 +146,17 @@ export default function LoginPage() {
       // OTP gate: validate password server-side and send a verification code.
       // The session is NOT created here — that happens after OTP verification
       // so browser-autofilled credentials can't grant access without the
-      // user proving control of the inbox.
+      // user proving control of the inbox. `mode` enforces customer/vendor
+      // separation so the wrong-lane account is rejected before OTP send.
       try {
         const res = await fetch("/api/auth/email-otp/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: loginEmail, password: form.password }),
+          body: JSON.stringify({
+            email: loginEmail,
+            password: form.password,
+            mode: loginMode,
+          }),
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
@@ -198,6 +207,7 @@ export default function LoginPage() {
           email: otpEmail,
           password: form.password,
           code,
+          mode: loginMode,
         }),
       });
       const data = await res.json();
@@ -230,7 +240,11 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/email-otp/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: otpEmail, password: form.password }),
+        body: JSON.stringify({
+          email: otpEmail,
+          password: form.password,
+          mode: loginMode,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -381,13 +395,25 @@ export default function LoginPage() {
               Green<span className="text-green-500">Pack</span>
             </span>
           </Link>
+          {isVendorIntent && stage !== "otp" && (
+            <div className="inline-flex items-center gap-2 bg-green-50 dark:bg-green-900/30 border border-green-500/20 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-4">
+              <span className="material-symbols-outlined text-sm">storefront</span>
+              Vendor Sign In
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {stage === "otp" ? "Verify it's you" : "Welcome back"}
+            {stage === "otp"
+              ? "Verify it's you"
+              : isVendorIntent
+                ? "Sign in to your vendor account"
+                : "Welcome back"}
           </h1>
           <p className="mt-2 text-gray-500 dark:text-gray-400">
             {stage === "otp"
               ? `We sent a 6-digit code to ${otpEmail ?? "your email"}`
-              : "Sign in to your account"}
+              : isVendorIntent
+                ? "Sign in to manage your business on GreenPack"
+                : "Sign in to your account"}
           </p>
         </div>
 

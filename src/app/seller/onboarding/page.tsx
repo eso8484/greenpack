@@ -137,6 +137,35 @@ export default function SellerOnboardingPage() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
+        const accM = Math.round(accuracy);
+
+        // When the fix is too imprecise we never trust a reverse-geocoded
+        // address — it can be hundreds of meters off and look correct
+        // (this is what produced "address auto-fills my university in
+        // another state" reports: the underlying WiFi/IP geolocation was
+        // pointing at the wrong cell tower entirely). Only fill the coords
+        // and ask the user to type the address themselves.
+        const ACCURACY_TRUST_THRESHOLD_M = 500;
+        const trustGeocode = accuracy <= ACCURACY_TRUST_THRESHOLD_M;
+
+        if (!trustGeocode) {
+          setShop((prev) => ({
+            ...prev,
+            address: "",
+            city: "",
+            state: "",
+            lat: latitude,
+            lng: longitude,
+            gpsAccuracy: accM,
+          }));
+          toast.warning(
+            `GPS accuracy is ±${accM}m — please type your address manually to avoid mis-pinning.`,
+            { duration: 7000 }
+          );
+          setLocating(false);
+          return;
+        }
+
         try {
           const res = await fetch(
             `/api/geocode/reverse?lat=${latitude}&lng=${longitude}`
@@ -161,7 +190,7 @@ export default function SellerOnboardingPage() {
               state: "",
               lat: latitude,
               lng: longitude,
-              gpsAccuracy: Math.round(accuracy),
+              gpsAccuracy: accM,
             }));
             toast.success("GPS coordinates captured. Please enter the address manually.");
             return;
@@ -187,9 +216,11 @@ export default function SellerOnboardingPage() {
             state: state ?? prev.state,
             lat: lat ?? latitude,
             lng: lng ?? longitude,
-            gpsAccuracy: Math.round(accuracy),
+            gpsAccuracy: accM,
           }));
-          toast.success("Location detected and address filled in.");
+          toast.success(
+            `Location detected (±${accM}m). Please verify the address is correct.`
+          );
         } catch (err) {
           console.error("Reverse geocode failed", err);
           setShop((prev) => ({
@@ -645,7 +676,7 @@ export default function SellerOnboardingPage() {
                   </p>
                 </div>
                 <Link
-                  href="/login?redirect=/seller/onboarding"
+                  href="/login?mode=vendor&redirect=/seller/dashboard"
                   className="text-xs text-green-700 dark:text-green-400 underline hover:no-underline whitespace-nowrap shrink-0"
                 >
                   Switch account
@@ -1094,7 +1125,7 @@ export default function SellerOnboardingPage() {
         <p className="text-center mt-6 text-sm text-gray-500 dark:text-gray-400">
           Already have an account?{" "}
           <Link
-            href="/login?redirect=/seller/onboarding"
+            href="/login?mode=vendor&redirect=/seller/dashboard"
             className="text-green-600 dark:text-green-400 font-semibold hover:underline"
           >
             Sign In

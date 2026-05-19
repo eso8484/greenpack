@@ -15,10 +15,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 export async function POST(request: Request) {
   try {
-    const { email, password, code } = (await request.json()) as {
+    const { email, password, code, mode } = (await request.json()) as {
       email?: string;
       password?: string;
       code?: string;
+      mode?: "customer" | "vendor";
     };
 
     if (!email || !password || !code) {
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const loginMode: "customer" | "vendor" = mode === "vendor" ? "vendor" : "customer";
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedCode = String(code).trim();
 
@@ -85,10 +87,33 @@ export async function POST(request: Request) {
       .eq("id", signInData.user.id)
       .single();
 
-    return NextResponse.json({
-      success: true,
-      role: profile?.role ?? "customer",
-    });
+    const role = profile?.role ?? "customer";
+
+    // Defense-in-depth — even though /start already gated on role, re-check
+    // here in case the user's role was changed between OTP issue and
+    // completion (e.g. a parallel admin promotion / demotion).
+    const isAdmin = role === "admin";
+    const matchesMode =
+      isAdmin ||
+      (loginMode === "customer" && role === "customer") ||
+      (loginMode === "vendor" && role === "vendor");
+
+    if (!matchesMode) {
+      await supabase.auth.signOut({ scope: "local" });
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            loginMode === "customer"
+              ? "This account is no longer a customer account. Please contact support."
+              : "This account is no longer a vendor account. Please contact support.",
+          code: "ROLE_MISMATCH",
+        },
+        { status: 403 }
+      );
+    }
+
+    return NextResponse.json({ success: true, role });
   } catch (err) {
     console.error("POST /api/auth/email-otp/complete", err);
     return NextResponse.json(

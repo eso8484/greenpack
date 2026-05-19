@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
+import dns from "node:dns/promises";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+// See /api/verify/send-email for full rationale: pre-resolve SMTP_HOST to
+// IPv4 because the AAAA-first behavior across multiple records breaks SMTP
+// on hosts (e.g. WSL2) without working IPv6 egress.
+let cachedSmtpIpv4: string | null = null;
+async function resolveSmtpIpv4(host: string): Promise<string> {
+  if (cachedSmtpIpv4) return cachedSmtpIpv4;
+  const addresses = await dns.resolve4(host);
+  if (!addresses.length) throw new Error(`No IPv4 address for ${host}`);
+  cachedSmtpIpv4 = addresses[0];
+  return cachedSmtpIpv4;
+}
 
 /**
  * Step 1 of OTP-gated email login.
@@ -23,9 +36,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 export async function POST(request: Request) {
   try {
-    const { email, password } = (await request.json()) as {
+    const { email, password, mode } = (await request.json()) as {
       email?: string;
       password?: string;
+      mode?: "customer" | "vendor";
     };
 
     if (!email || typeof email !== "string" || !password || typeof password !== "string") {
@@ -35,6 +49,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const loginMode: "customer" | "vendor" = mode === "vendor" ? "vendor" : "customer";
     const normalizedEmail = email.trim().toLowerCase();
 
     // ─── Step 1: validate credentials without leaving a live session ────────
@@ -43,12 +58,13 @@ export async function POST(request: Request) {
     // cleared before returning. This means the client cannot bypass OTP by
     // intercepting cookies on this response.
     const supabase = await createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    const { data: signInData, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
-    if (signInError) {
+    if (signInError || !signInData.user) {
       // Don't leak which of "user not found" vs "bad password" — both return
       // the same friendly message.
       return NextResponse.json(
@@ -57,12 +73,53 @@ export async function POST(request: Request) {
       );
     }
 
+    // ─── Step 1b: role-gate — separate customer and vendor login flows ─────
+    // Customer login only accepts role=customer; vendor login accepts vendor
+    // (and admin, who can act in either lane). If the role doesn't match the
+    // selected mode we sign out and return a directive error so the UI can
+    // route the user to the right place. Admins pass either mode.
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", signInData.user.id)
+      .single();
+
+    const role = profile?.role ?? "customer";
+    const isAdmin = role === "admin";
+    const matchesMode =
+      isAdmin ||
+      (loginMode === "customer" && role === "customer") ||
+      (loginMode === "vendor" && role === "vendor");
+
+    if (!matchesMode) {
+      await supabase.auth.signOut({ scope: "local" });
+      if (loginMode === "customer") {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "This email is registered as a vendor. To shop as a customer, create a separate customer account (you can use a different email).",
+            code: "ROLE_MISMATCH_VENDOR",
+          },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "This email is a customer account. To register a business, click \"Become a Vendor\" on the home page.",
+          code: "ROLE_MISMATCH_CUSTOMER",
+        },
+        { status: 403 }
+      );
+    }
+
     // Tear down the transient session so the client cannot proceed without OTP.
     await supabase.auth.signOut({ scope: "local" });
 
     // ─── Step 2: generate + store OTP ──────────────────────────────────────
-    const admin = createAdminClient();
-
     // Rate limit: max 3 OTPs per email in the last 5 minutes.
     const { count } = await admin
       .from("verification_otps")
@@ -121,10 +178,13 @@ export async function POST(request: Request) {
     }
 
     const nodemailer = await import("nodemailer");
+    const smtpHost = process.env.SMTP_HOST!;
+    const smtpIpv4 = await resolveSmtpIpv4(smtpHost);
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
+      host: smtpIpv4,
       port: parseInt(process.env.SMTP_PORT || "587"),
       secure: process.env.SMTP_SECURE === "true",
+      tls: { servername: smtpHost },
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,

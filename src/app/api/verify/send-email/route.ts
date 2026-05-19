@@ -1,5 +1,24 @@
 import { NextResponse } from "next/server";
+import dns from "node:dns/promises";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+/**
+ * Resolve the SMTP host to an IPv4 address. Setting `dns.setDefaultResultOrder`
+ * is unreliable across multi-record providers (Gmail rotates between several
+ * IPv6/IPv4 addresses and Node sometimes still picks the AAAA result first),
+ * so we explicitly grab an A record and pass the IPv4 string to nodemailer,
+ * keeping the original hostname for TLS SNI.
+ *
+ * Cached per process — the first call resolves, subsequent calls reuse.
+ */
+let cachedSmtpIpv4: string | null = null;
+async function resolveSmtpIpv4(host: string): Promise<string> {
+  if (cachedSmtpIpv4) return cachedSmtpIpv4;
+  const addresses = await dns.resolve4(host);
+  if (!addresses.length) throw new Error(`No IPv4 address for ${host}`);
+  cachedSmtpIpv4 = addresses[0];
+  return cachedSmtpIpv4;
+}
 
 export async function POST(request: Request) {
   try {
@@ -60,10 +79,15 @@ export async function POST(request: Request) {
     if (smtpConfigured) {
       // Use Nodemailer if SMTP is configured
       const nodemailer = await import("nodemailer");
+      const smtpHost = process.env.SMTP_HOST!;
+      const smtpIpv4 = await resolveSmtpIpv4(smtpHost);
       const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
+        host: smtpIpv4,
         port: parseInt(process.env.SMTP_PORT || "587"),
         secure: process.env.SMTP_SECURE === "true",
+        // Keep the original hostname for TLS Server Name Indication so
+        // Gmail's cert chain still validates against smtp.gmail.com.
+        tls: { servername: smtpHost },
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS,
