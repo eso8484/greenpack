@@ -2,9 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Routes that require authentication (any role).
-// `/seller/onboarding` is public — both guests and signed-in users land on the
-// unified registration form.  `/seller/shop` still requires auth because it
-// edits an existing shop tied to the logged-in vendor.
+// `/vendor/register` is public — both guests and signed-in users land on the
+// unified registration form (it lives outside /seller so it doesn't inherit
+// the seller-dashboard sidebar layout). `/seller/shop` still requires auth
+// because it edits an existing shop tied to the logged-in vendor.
 // The shop POST endpoint flips the user's role to vendor on success.
 const AUTH_REQUIRED = ["/profile", "/checkout", "/seller/shop"];
 
