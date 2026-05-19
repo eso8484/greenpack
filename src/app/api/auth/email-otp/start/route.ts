@@ -79,12 +79,26 @@ export async function POST(request: Request) {
     }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    await admin.from("verification_otps").insert({
-      identifier: normalizedEmail,
-      code,
-      type: "email_login",
-      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    });
+    // Check the insert result. The previous version dropped the error which
+    // meant a CHECK-constraint failure on `type` looked like success from the
+    // client side — user received an email (no, wait — we hadn't sent it yet),
+    // tried to verify, and saw "Invalid or expired code" because the row was
+    // never persisted. Surface insert errors loudly so we never repeat that.
+    const { error: insertError } = await admin
+      .from("verification_otps")
+      .insert({
+        identifier: normalizedEmail,
+        code,
+        type: "email_login",
+        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      });
+    if (insertError) {
+      console.error("email-otp/start insert failed", insertError);
+      return NextResponse.json(
+        { success: false, error: "Could not start OTP login — please try again." },
+        { status: 500 }
+      );
+    }
 
     // ─── Step 3: send via SMTP ─────────────────────────────────────────────
     const smtpConfigured =
