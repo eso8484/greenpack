@@ -288,11 +288,21 @@ export default function CheckoutPage() {
 
       const orderPayload = await orderResponse.json();
       if (!orderResponse.ok || !orderPayload.success || !orderPayload.data?.id) {
-        throw new Error(
-          typeof orderPayload.error === "string"
-            ? orderPayload.error
-            : "Failed to create order"
-        );
+        // Surface the real reason. Validation failures return an object of
+        // field errors; flatten it to a readable string instead of hiding it
+        // behind a generic "Failed to create order".
+        const raw = orderPayload.error;
+        let message = "Failed to create order";
+        if (typeof raw === "string") {
+          message = raw;
+        } else if (raw && typeof raw === "object") {
+          const parts = Object.entries(raw as Record<string, unknown>).map(
+            ([field, errs]) =>
+              `${field}: ${Array.isArray(errs) ? errs.join(", ") : String(errs)}`
+          );
+          if (parts.length) message = parts.join(" · ");
+        }
+        throw new Error(message);
       }
 
       const paymentResponse = await fetch("/api/payments/paystack/initialize", {
