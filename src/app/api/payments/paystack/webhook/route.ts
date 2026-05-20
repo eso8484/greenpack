@@ -1,10 +1,12 @@
 import { createHmac } from "crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeEqual } from "@/lib/security";
 
 function isValidPaystackSignature(payload: string, signature: string, secret: string) {
   const expected = createHmac("sha512", secret).update(payload).digest("hex");
-  return expected === signature;
+  // Constant-time compare so the HMAC can't be recovered via response timing.
+  return safeEqual(expected, signature);
 }
 
 export async function POST(request: Request) {

@@ -1,8 +1,21 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyOtp } from "@/lib/otp";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
+/**
+ * Pre-validate an OTP WITHOUT consuming it.
+ *
+ * This is a UX nicety so the client can show "invalid code" before submitting
+ * the real action. The code is intentionally not marked used here — the
+ * downstream action (e.g. /api/verify/signup) re-verifies and consumes it, so
+ * it remains the single source of truth. Brute-force is capped inside
+ * verifyOtp regardless of which path is hit.
+ */
 export async function POST(request: Request) {
   try {
+    if (!(await rateLimit(`verify-check:${clientIp(request)}`, 30, 300))) {
+      return tooManyRequests();
+    }
     const { identifier, code, type } = await request.json();
 
     if (!identifier || !code || !type) {
@@ -19,49 +32,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // Normalize identifier
-    let normalizedId = identifier;
+    // Normalize identifier to match how it was stored at send time.
+    let normalizedId = String(identifier);
     if (type === "email") {
-      normalizedId = identifier.toLowerCase();
+      normalizedId = normalizedId.toLowerCase();
     } else {
-      // Normalize phone
-      const cleaned = identifier.replace(/\D/g, "");
+      const cleaned = normalizedId.replace(/\D/g, "");
       if (cleaned.startsWith("0") && cleaned.length === 11) {
         normalizedId = "234" + cleaned.slice(1);
-      } else if (cleaned.startsWith("234")) {
-        normalizedId = cleaned;
       } else {
         normalizedId = cleaned;
       }
     }
 
-    const supabase = createAdminClient();
+    const result = await verifyOtp({
+      identifier: normalizedId,
+      type,
+      code: String(code),
+      consume: false,
+    });
 
-    // Find valid OTP
-    const { data: otp } = await supabase
-      .from("verification_otps")
-      .select("*")
-      .eq("identifier", normalizedId)
-      .eq("type", type)
-      .eq("code", code)
-      .eq("used", false)
-      .gte("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (!otp) {
+    if (!result.ok) {
       return NextResponse.json(
-        { success: false, error: "Invalid or expired code. Please try again." },
+        {
+          success: false,
+          error:
+            result.reason === "locked"
+              ? "Too many incorrect attempts. Please request a new code."
+              : "Invalid or expired code. Please try again.",
+        },
         { status: 400 }
       );
     }
-
-    // Mark OTP as used
-    await supabase
-      .from("verification_otps")
-      .update({ used: true })
-      .eq("id", otp.id);
 
     return NextResponse.json({ success: true, verified: true });
   } catch (err) {

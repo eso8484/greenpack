@@ -222,6 +222,7 @@ export default function SignUpPage() {
           password: form.password,
           fullName: form.fullName,
           dateOfBirth: form.dateOfBirth,
+          code,
           role: signupRole,
           address: form.address || undefined,
           city: form.city || undefined,

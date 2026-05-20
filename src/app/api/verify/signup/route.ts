@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { verifyOtp } from "@/lib/otp";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    if (!(await rateLimit(`signup:${clientIp(request)}`, 10, 3600))) {
+      return tooManyRequests();
+    }
+
     const {
       email,
       password,
@@ -10,6 +16,7 @@ export async function POST(request: Request) {
       phone,
       dateOfBirth,
       role,
+      code,
       address,
       city,
       state,
@@ -17,12 +24,43 @@ export async function POST(request: Request) {
       lng,
     } = await request.json();
 
-    if (!email || !password || !fullName) {
+    if (!email || !password || !fullName || !code) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
       );
     }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+
+    // SECURITY: verify the email OTP server-side HERE — this endpoint creates
+    // the account, so it must not assume a separate /verify/check call ran.
+    // Without this an attacker could POST directly and skip email verification.
+    const otpResult = await verifyOtp({
+      identifier: normalizedEmail,
+      type: "email",
+      code: String(code),
+      consume: true,
+    });
+    if (!otpResult.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            otpResult.reason === "locked"
+              ? "Too many incorrect attempts. Please request a new code."
+              : "Invalid or expired verification code.",
+        },
+        { status: 401 }
+      );
+    }
+
+    // SECURITY: never grant a privileged role from a client field. Self-service
+    // signup may create customer or vendor (vendor is self-service by design and
+    // still must create a shop to function). "courier" must go through
+    // /courier/register + admin approval, and "admin" can never be self-assigned
+    // — both are coerced to customer.
+    const safeRole: "customer" | "vendor" = role === "vendor" ? "vendor" : "customer";
 
     const supabase = createAdminClient();
 
@@ -34,7 +72,7 @@ export async function POST(request: Request) {
         email_confirm: true,
         user_metadata: {
           full_name: fullName,
-          role: role || "customer",
+          role: safeRole,
         },
       });
 
@@ -84,7 +122,7 @@ export async function POST(request: Request) {
     const profileUpdate: Record<string, unknown> = {
       full_name: fullName,
       phone: normalizedPhone,
-      role: role || "customer",
+      role: safeRole,
       date_of_birth: dateOfBirth || null,
       email_verified: true,
       phone_verified: false,

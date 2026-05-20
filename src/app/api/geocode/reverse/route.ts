@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { reverseGeocode } from "@/lib/geocode";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * GET /api/geocode/reverse?lat=...&lng=...
@@ -12,6 +13,9 @@ import { reverseGeocode } from "@/lib/geocode";
  */
 export async function GET(request: Request) {
   try {
+    if (!(await rateLimit(`geocode-reverse:${clientIp(request)}`, 40, 60))) {
+      return tooManyRequests();
+    }
     const { searchParams } = new URL(request.url);
     const lat = parseFloat(searchParams.get("lat") ?? "");
     const lng = parseFloat(searchParams.get("lng") ?? "");

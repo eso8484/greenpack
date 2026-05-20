@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import dns from "node:dns/promises";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { generateNumericOtp } from "@/lib/security";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * Resolve the SMTP host to an IPv4 address. Setting `dns.setDefaultResultOrder`
@@ -22,6 +24,9 @@ async function resolveSmtpIpv4(host: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
+    if (!(await rateLimit(`send-email:${clientIp(request)}`, 8, 3600))) {
+      return tooManyRequests();
+    }
     const { email } = await request.json();
 
     if (!email || typeof email !== "string") {
@@ -65,8 +70,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate 6-digit OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 6-digit OTP (cryptographically secure)
+    const code = generateNumericOtp(6);
 
     // Store OTP (expires in 10 minutes)
     await supabase.from("verification_otps").insert({

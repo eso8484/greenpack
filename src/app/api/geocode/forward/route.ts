@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { geocodeAddress } from "@/lib/geocode";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 /**
  * GET /api/geocode/forward?address=...&city=...&state=...
@@ -15,6 +16,9 @@ import { geocodeAddress } from "@/lib/geocode";
  */
 export async function GET(request: Request) {
   try {
+    if (!(await rateLimit(`geocode-forward:${clientIp(request)}`, 40, 60))) {
+      return tooManyRequests();
+    }
     const { searchParams } = new URL(request.url);
     const address = (searchParams.get("address") ?? "").trim();
     const city = (searchParams.get("city") ?? "").trim();

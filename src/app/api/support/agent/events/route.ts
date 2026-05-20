@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeEqual } from "@/lib/security";
 
 const AgentEventSchema = z.object({
   action: z.enum(["assign", "reply", "resolve", "reopen"]),
@@ -16,7 +17,8 @@ function isAuthorized(request: Request) {
   if (!configured) return false;
   if (!incoming) return false;
 
-  return incoming === configured;
+  // Constant-time compare to avoid leaking the shared key via timing.
+  return safeEqual(incoming, configured);
 }
 
 export async function POST(request: Request) {

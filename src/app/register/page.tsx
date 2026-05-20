@@ -127,6 +127,7 @@ export default function RegisterPage() {
           password: form.password,
           fullName: form.fullName,
           dateOfBirth: form.dateOfBirth,
+          code,
           role: "customer",
         }),
       });

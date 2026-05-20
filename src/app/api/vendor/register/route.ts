@@ -11,6 +11,8 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { geocodeAddress } from "@/lib/geocode";
+import { verifyOtp } from "@/lib/otp";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Validation schema
@@ -85,6 +87,10 @@ function normalizePhone(raw: string | null | undefined): string | null {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
+  if (!(await rateLimit(`vendor-register:${clientIp(request)}`, 8, 3600))) {
+    return tooManyRequests();
+  }
+
   // 1. Parse + validate
   let body: unknown;
   try {
@@ -111,34 +117,27 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  // 3. Verify OTP — mark used BEFORE creating the user so that if auth creation
-  //    fails the code isn't silently consumed and the user can try again after
-  //    fixing the error. (If we mark it used only after success a race-condition
-  //    lets two parallel submissions both pass the OTP check.)
-  const { data: otpRow } = await admin
-    .from("verification_otps")
-    .select("id")
-    .eq("identifier", email)
-    .eq("type", "email")
-    .eq("code", account.otp)
-    .eq("used", false)
-    .gte("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (!otpRow) {
+  // 3. Verify + consume the OTP (constant-time compare, brute-force capped).
+  //    Consuming up front prevents two parallel submissions from both passing,
+  //    and the helper enforces single-use.
+  const otpResult = await verifyOtp({
+    identifier: email,
+    type: "email",
+    code: account.otp,
+    consume: true,
+  });
+  if (!otpResult.ok) {
     return NextResponse.json(
-      { success: false, error: "Invalid or expired verification code" },
+      {
+        success: false,
+        error:
+          otpResult.reason === "locked"
+            ? "Too many incorrect attempts. Please request a new code."
+            : "Invalid or expired verification code",
+      },
       { status: 401 }
     );
   }
-
-  // Mark the OTP used immediately so concurrent requests cannot reuse it.
-  await admin
-    .from("verification_otps")
-    .update({ used: true })
-    .eq("id", otpRow.id);
 
   // 4. Create the auth user (email pre-confirmed since we just verified it)
   const { data: authData, error: authError } =

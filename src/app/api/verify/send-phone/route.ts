@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { generateNumericOtp } from "@/lib/security";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 function normalizePhone(phone: string): string {
   const cleaned = phone.replace(/\D/g, "");
@@ -12,6 +14,9 @@ function normalizePhone(phone: string): string {
 
 export async function POST(request: Request) {
   try {
+    if (!(await rateLimit(`send-phone:${clientIp(request)}`, 8, 3600))) {
+      return tooManyRequests();
+    }
     const { phone } = await request.json();
 
     if (!phone || typeof phone !== "string") {
@@ -39,8 +44,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate 6-digit OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 6-digit OTP (cryptographically secure)
+    const code = generateNumericOtp(6);
 
     // Store OTP (expires in 10 minutes)
     await supabase.from("verification_otps").insert({

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import dns from "node:dns/promises";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { generateNumericOtp } from "@/lib/security";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 // See /api/verify/send-email for full rationale: pre-resolve SMTP_HOST to
 // IPv4 because the AAAA-first behavior across multiple records breaks SMTP
@@ -36,6 +38,9 @@ async function resolveSmtpIpv4(host: string): Promise<string> {
  */
 export async function POST(request: Request) {
   try {
+    if (!(await rateLimit(`email-otp-start:${clientIp(request)}`, 15, 3600))) {
+      return tooManyRequests();
+    }
     const { email, password, mode } = (await request.json()) as {
       email?: string;
       password?: string;
@@ -135,7 +140,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = generateNumericOtp(6);
     // Check the insert result. The previous version dropped the error which
     // meant a CHECK-constraint failure on `type` looked like success from the
     // client side — user received an email (no, wait — we hadn't sent it yet),
