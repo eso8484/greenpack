@@ -91,6 +91,14 @@ export default function Footer() {
                 Sell on GreenPack
               </Link>
             </li>
+            <li>
+              <Link
+                href="/become-courier"
+                className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              >
+                Become a Courier
+              </Link>
+            </li>
           </ul>
         </div>
 
