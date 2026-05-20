@@ -115,16 +115,20 @@ export default function Header() {
                 {profile?.role === "courier" || profile?.role === "admin" ? (
                   <Link
                     href="/courier/dashboard"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"
                   >
-                    Courier Hub
+                    Courier Hub ↗
                   </Link>
                 ) : (
                   <Link
                     href="/become-courier"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"
                   >
-                    Become a Courier
+                    Become a Courier ↗
                   </Link>
                 )}
               </nav>

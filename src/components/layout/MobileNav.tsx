@@ -180,13 +180,15 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
           </Link>
           <Link
             href="/become-courier"
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={onClose}
             className="flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-500/20 text-green-700 dark:text-green-400 rounded-xl font-semibold text-sm hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
           >
             <span className="material-symbols-outlined text-lg">
               local_shipping
             </span>
-            Become a Courier
+            Become a Courier ↗
           </Link>
         </div>
 
