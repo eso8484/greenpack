@@ -4,7 +4,25 @@
       "Bash(npx next build:*)",
       "Bash(npm uninstall:*)",
       "Bash(npm install:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npx tsc *)",
+      "Bash(cp /mnt/c/Users/enejo/Desktop/GreenPack/.env.local /mnt/c/Users/enejo/Desktop/GreenPack/.claude/worktrees/category-dropdown/.env.local)",
+      "Bash(ln -sf /mnt/c/Users/enejo/Desktop/GreenPack/node_modules /mnt/c/Users/enejo/Desktop/GreenPack/.claude/worktrees/category-dropdown/node_modules)",
+      "mcp__puppeteer__puppeteer_navigate",
+      "Bash(sudo -n apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libasound2 libatspi2.0-0 libdbus-1-3)",
+      "Bash(curl -s -o /dev/null -w \"homepage: %{http_code}\\\\n\" http://localhost:3017/ -L --max-time 60)",
+      "Bash(curl -s \"http://localhost:3017/api/search/suggest?q=lag\" --max-time 30)",
+      "Bash(curl -s \"http://localhost:3017/api/search/suggest?q=a\" --max-time 30)",
+      "Bash(curl -s -o /dev/null -w \"Status: %{http_code}\\\\n\" --max-time 120 \"http://localhost:3017/shop/eso-beauty-salon\")",
+      "Bash(curl -s -o /dev/null -w \"Status: %{http_code}\\\\n\" --max-time 60 \"http://localhost:3017/shop/cb1c52fe-35b2-4a41-9016-3c01fec5c11d\")",
+      "Bash(curl -s -o /dev/null -w \"Status: %{http_code}\\\\n\" --max-time 30 \"http://localhost:3017/shop/this-shop-does-not-exist\")",
+      "Bash(node -e \"const p=require\\('playwright'\\); console.log\\('ok'\\)\")",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"chrome.exe.*9222\")",
+      "Bash(curl *)",
+      "mcp__puppeteer__puppeteer_screenshot",
+      "Bash(rm -f node_modules .env.local)",
+      "Bash(git add *)"
     ]
   }
 }

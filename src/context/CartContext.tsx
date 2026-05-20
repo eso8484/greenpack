@@ -5,12 +5,14 @@ import {
   useReducer,
   useCallback,
   useMemo,
+  useEffect,
   type ReactNode,
 } from "react";
 import type { CartItem } from "@/types";
 
 interface CartState {
   items: CartItem[];
+  hydrated: boolean;
 }
 
 type CartAction =
@@ -18,7 +20,8 @@ type CartAction =
   | { type: "REMOVE_ITEM"; payload: string }
   | { type: "UPDATE_QUANTITY"; payload: { id: string; quantity: number } }
   | { type: "UPDATE_NOTES"; payload: { id: string; notes: string } }
-  | { type: "CLEAR_CART" };
+  | { type: "CLEAR_CART" }
+  | { type: "RESTORE_CART"; payload: CartItem[] };
 
 interface CartContextValue {
   items: CartItem[];
@@ -41,6 +44,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       );
       if (existing) {
         return {
+          ...state,
           items: state.items.map((item) =>
             item.id === action.payload.id
               ? { ...item, quantity: item.quantity + action.payload.quantity }
@@ -48,14 +52,16 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           ),
         };
       }
-      return { items: [...state.items, action.payload] };
+      return { ...state, items: [...state.items, action.payload] };
     }
     case "REMOVE_ITEM":
       return {
+        ...state,
         items: state.items.filter((item) => item.id !== action.payload),
       };
     case "UPDATE_QUANTITY":
       return {
+        ...state,
         items: state.items.map((item) =>
           item.id === action.payload.id
             ? { ...item, quantity: Math.max(1, action.payload.quantity) }
@@ -64,6 +70,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       };
     case "UPDATE_NOTES":
       return {
+        ...state,
         items: state.items.map((item) =>
           item.id === action.payload.id
             ? { ...item, notes: action.payload.notes }
@@ -71,17 +78,46 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ),
       };
     case "CLEAR_CART":
-      // Return the SAME state object when already empty so useReducer skips
-      // the re-render. Returning a fresh `{ items: [] }` every time fed an
-      // infinite render→effect→clearCart loop during payment verification.
-      return state.items.length === 0 ? state : { items: [] };
+      return state.items.length === 0 ? state : { ...state, items: [] };
+    case "RESTORE_CART":
+      return { ...state, items: action.payload, hydrated: true };
     default:
       return state;
   }
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(cartReducer, { items: [] });
+  const [state, dispatch] = useReducer(cartReducer, {
+    items: [],
+    hydrated: false,
+  });
+
+  // Load cart from localStorage on mount.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("greenpack:cart");
+      if (stored) {
+        const items = JSON.parse(stored) as CartItem[];
+        dispatch({ type: "RESTORE_CART", payload: items });
+      } else {
+        dispatch({ type: "RESTORE_CART", payload: [] });
+      }
+    } catch (error) {
+      console.error("Failed to load cart from localStorage:", error);
+      dispatch({ type: "RESTORE_CART", payload: [] });
+    }
+  }, []);
+
+  // Save cart to localStorage whenever items change (after hydration).
+  useEffect(() => {
+    if (state.hydrated) {
+      try {
+        localStorage.setItem("greenpack:cart", JSON.stringify(state.items));
+      } catch (error) {
+        console.error("Failed to save cart to localStorage:", error);
+      }
+    }
+  }, [state.items, state.hydrated]);
 
   const itemCount = state.items.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = state.items.reduce(
