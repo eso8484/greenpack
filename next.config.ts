@@ -17,12 +17,12 @@ import type { NextConfig } from "next";
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
   "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.paystack.co https://nominatim.openstreetmap.org https://maps.googleapis.com",
-  "frame-src 'self' https://*.paystack.co https://checkout.paystack.com",
+  "frame-src 'self' https://www.google.com https://maps.google.com https://*.paystack.co https://checkout.paystack.com",
   "form-action 'self' https://checkout.paystack.com",
   "frame-ancestors 'self'",
   "object-src 'none'",
