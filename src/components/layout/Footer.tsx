@@ -8,16 +8,14 @@ export default function Footer() {
         {/* About - spans 2 cols */}
         <div className="col-span-1 md:col-span-2">
           <Link href="/" className="flex items-center gap-3 mb-6">
-            <div className="bg-green-500 p-1.5 rounded-lg">
-              <Image
-                src="/logo.png"
-                alt="Green Pack Delight Logo"
-                width={24}
-                height={24}
-                className="rounded"
-                unoptimized
-              />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Green Pack Delight Logo"
+              width={32}
+              height={32}
+              className="rounded"
+              unoptimized
+            />
             <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
               Green Pack Delight
             </span>
