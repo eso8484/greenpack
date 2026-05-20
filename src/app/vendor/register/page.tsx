@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import Button from "@/components/ui/Button";
@@ -9,6 +9,7 @@ import Input from "@/components/ui/Input";
 import OTPInput from "@/components/auth/OTPInput";
 import PasswordStrength, { isPasswordStrong } from "@/components/auth/PasswordStrength";
 import { categories } from "@/lib/data/categories";
+import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,6 +127,75 @@ export default function VendorRegisterPage() {
     }, 1000);
   }, []);
 
+  // ── Address autocomplete + forward geocode ───────────────────────────────
+
+  const addressRef = useRef<HTMLInputElement>(null);
+
+  const handleAddressResolved = (r: {
+    address: string;
+    city?: string;
+    state?: string;
+    lat: number;
+    lng: number;
+  }) => {
+    setShop((prev) => ({
+      ...prev,
+      address: r.address || prev.address,
+      city: r.city ?? prev.city,
+      state: r.state ?? prev.state,
+      lat: r.lat,
+      lng: r.lng,
+      gpsAccuracy: null,
+    }));
+    toast.success("Address pinned from Google. Please confirm the city/state are right.");
+  };
+
+  const { enabled: autocompleteEnabled } = useAddressAutocomplete(
+    addressRef,
+    handleAddressResolved
+  );
+
+  /** Forward-geocode the typed address (uses Google when GOOGLE_MAPS_API_KEY is set). */
+  const handleFindAddress = async () => {
+    const q = shop.address.trim();
+    if (!q) {
+      toast.error("Type your address first, then tap Find.");
+      return;
+    }
+    setLocating(true);
+    try {
+      const params = new URLSearchParams({ address: q });
+      if (shop.city.trim()) params.set("city", shop.city.trim());
+      if (shop.state.trim()) params.set("state", shop.state.trim());
+      const res = await fetch(`/api/geocode/forward?${params.toString()}`);
+      const payload = (await res.json()) as {
+        success?: boolean;
+        data?: { address?: string; city?: string; state?: string; lat: number; lng: number } | null;
+      };
+      if (!payload.success || !payload.data) {
+        toast.error(
+          "Couldn't locate that address. Add more detail (street, area, city) and try again."
+        );
+        return;
+      }
+      const { address, city, state, lat, lng } = payload.data;
+      setShop((prev) => ({
+        ...prev,
+        address: address ?? prev.address,
+        city: city ?? prev.city,
+        state: state ?? prev.state,
+        lat: lat ?? prev.lat,
+        lng: lng ?? prev.lng,
+        gpsAccuracy: null,
+      }));
+      toast.success("Address located. Please confirm the pin is right.");
+    } catch {
+      toast.error("Network error while locating the address.");
+    } finally {
+      setLocating(false);
+    }
+  };
+
   // ── Geolocation ────────────────────────────────────────────────────────────
 
   const handleUseMyLocation = () => {
@@ -145,7 +215,7 @@ export default function VendorRegisterPage() {
         // another state" reports: the underlying WiFi/IP geolocation was
         // pointing at the wrong cell tower entirely). Only fill the coords
         // and ask the user to type the address themselves.
-        const ACCURACY_TRUST_THRESHOLD_M = 500;
+        const ACCURACY_TRUST_THRESHOLD_M = 120;
         const trustGeocode = accuracy <= ACCURACY_TRUST_THRESHOLD_M;
 
         if (!trustGeocode) {
@@ -159,7 +229,7 @@ export default function VendorRegisterPage() {
             gpsAccuracy: accM,
           }));
           toast.warning(
-            `GPS accuracy is ±${accM}m — please type your address manually to avoid mis-pinning.`,
+            `GPS is only accurate to ±${accM}m — type your address and tap "Find this address" for an exact pin.`,
             { duration: 7000 }
           );
           setLocating(false);
@@ -947,6 +1017,7 @@ export default function VendorRegisterPage() {
                 <div className="relative">
                   <input
                     id="vendorAddress"
+                    ref={addressRef}
                     type="text"
                     required
                     autoComplete="off"
@@ -964,6 +1035,22 @@ export default function VendorRegisterPage() {
                     >
                       <span className="material-symbols-outlined text-base">verified</span>
                       Verified
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 flex-wrap pt-1">
+                  <button
+                    type="button"
+                    onClick={handleFindAddress}
+                    disabled={locating}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 dark:text-green-400 hover:underline disabled:opacity-60"
+                  >
+                    <span className="material-symbols-outlined text-sm">search</span>
+                    Find this address on the map
+                  </button>
+                  {autocompleteEnabled && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      or start typing for Google suggestions
                     </span>
                   )}
                 </div>

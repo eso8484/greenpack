@@ -9,6 +9,15 @@ import ImageUpload from "@/components/ui/ImageUpload";
 import ImageGalleryUpload from "@/components/ui/ImageGalleryUpload";
 import { categories } from "@/lib/data/categories";
 
+/** Generate a URL-safe slug from a shop name. */
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
 interface ShopFormState {
   name: string;
   slug: string;
@@ -123,6 +132,9 @@ export default function ShopEditorPage() {
             ? payload.data.images.gallery
             : [],
         });
+        // An existing shop already has a slug — don't auto-overwrite it when
+        // the vendor edits the name.
+        if (payload.data.slug) setSlugTouched(true);
       } catch {
         // silent — form stays empty if shop can't be loaded
       } finally {
@@ -136,8 +148,21 @@ export default function ShopEditorPage() {
     };
   }, []);
 
+  const [slugTouched, setSlugTouched] = useState(false);
+
   const updateField = (field: keyof ShopFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Auto-generate the slug from the shop name until the vendor edits the slug
+  // themselves (or an existing slug was loaded). Fixes the slug not
+  // auto-filling during initial shop setup.
+  const handleNameChange = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      name: value,
+      slug: slugTouched ? prev.slug : slugify(value),
+    }));
   };
 
   const [locating, setLocating] = useState(false);
@@ -385,14 +410,17 @@ export default function ShopEditorPage() {
               id="shopName"
               label="Shop Name"
               value={form.name}
-              onChange={(event) => updateField("name", event.target.value)}
+              onChange={(event) => handleNameChange(event.target.value)}
               required
             />
             <Input
               id="shopSlug"
               label="Slug"
               value={form.slug}
-              onChange={(event) => updateField("slug", event.target.value)}
+              onChange={(event) => {
+                setSlugTouched(true);
+                updateField("slug", event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""));
+              }}
               required
             />
             <div className="space-y-1">

@@ -75,14 +75,6 @@ export default function Footer() {
             </li>
             <li>
               <Link
-                href="/browse"
-                className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
-              >
-                Lagos City Guide
-              </Link>
-            </li>
-            <li>
-              <Link
                 href="/sell"
                 className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
               >
