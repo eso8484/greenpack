@@ -1,21 +1,12 @@
 import { NextResponse } from "next/server";
-import dns from "node:dns/promises";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateNumericOtp } from "@/lib/security";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
-
-// See /api/verify/send-email for full rationale: pre-resolve SMTP_HOST to
-// IPv4 because the AAAA-first behavior across multiple records breaks SMTP
-// on hosts (e.g. WSL2) without working IPv6 egress.
-let cachedSmtpIpv4: string | null = null;
-async function resolveSmtpIpv4(host: string): Promise<string> {
-  if (cachedSmtpIpv4) return cachedSmtpIpv4;
-  const addresses = await dns.resolve4(host);
-  if (!addresses.length) throw new Error(`No IPv4 address for ${host}`);
-  cachedSmtpIpv4 = addresses[0];
-  return cachedSmtpIpv4;
-}
+import {
+  sendTransactionalEmail,
+  transactionalEmailConfigured,
+} from "@/lib/email";
 
 /**
  * Step 1 of OTP-gated email login.
@@ -162,42 +153,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // ─── Step 3: send via SMTP ─────────────────────────────────────────────
-    const smtpConfigured =
-      !!process.env.SMTP_HOST &&
-      !!process.env.SMTP_USER &&
-      !!process.env.SMTP_PASS;
-
-    if (!smtpConfigured) {
-      // Surface the same error shape as the signup OTP route. In dev/staging
-      // without SMTP set, the operator should configure it before enabling
-      // OTP login in production.
+    // ─── Step 3: send via Resend (preferred) or SMTP fallback ─────────────
+    if (!transactionalEmailConfigured()) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "Email delivery is not configured. Ask the operator to set SMTP_HOST/USER/PASS.",
+            "Email delivery is not configured. Ask the operator to set RESEND_API_KEY or SMTP_HOST/USER/PASS.",
         },
         { status: 503 }
       );
     }
 
-    const nodemailer = await import("nodemailer");
-    const smtpHost = process.env.SMTP_HOST!;
-    const smtpIpv4 = await resolveSmtpIpv4(smtpHost);
-    const transporter = nodemailer.createTransport({
-      host: smtpIpv4,
-      port: parseInt(process.env.SMTP_PORT || "587"),
-      secure: process.env.SMTP_SECURE === "true",
-      tls: { servername: smtpHost },
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"Green Pack Delight" <${process.env.SMTP_FROM || "noreply@greenpackdelight.com"}>`,
+    const ok = await sendTransactionalEmail({
       to: normalizedEmail,
       subject: "Your login code - Green Pack Delight",
       html: `
@@ -213,7 +181,15 @@ export async function POST(request: Request) {
           <p style="color: #999; font-size: 13px; text-align: center;">This code expires in 10 minutes. If you didn't request it, ignore this email and change your password.</p>
         </div>
       `,
+      text: `Your Green Pack Delight login code: ${code}\n\nThis code expires in 10 minutes.`,
     });
+
+    if (!ok) {
+      return NextResponse.json(
+        { success: false, error: "Could not deliver the login code email." },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {
