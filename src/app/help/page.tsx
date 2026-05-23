@@ -29,9 +29,8 @@ const quickActions = [
 ];
 
 const supportChannels = [
-  { label: "Live chat", value: "Average wait: 2 minutes" },
-  { label: "WhatsApp", value: "+234 801 234 5678" },
-  { label: "Phone", value: "Mon - Sat, 8:00 - 20:00" },
+  { label: "Live chat", value: "Average wait: 2 minutes", href: undefined },
+  { label: "Email", value: "support@greenparkdelight.com", href: "mailto:support@greenparkdelight.com" },
 ];
 
 export default function HelpCenterPage() {
@@ -273,9 +272,18 @@ export default function HelpCenterPage() {
                   <p className="text-sm uppercase tracking-wide text-green-700 dark:text-green-400 font-semibold">
                     {channel.label}
                   </p>
-                  <p className="mt-1 text-gray-800 dark:text-gray-200 font-medium">
-                    {channel.value}
-                  </p>
+                  {channel.href ? (
+                    <a
+                      href={channel.href}
+                      className="mt-1 block text-gray-800 dark:text-gray-200 font-medium hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                    >
+                      {channel.value}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-gray-800 dark:text-gray-200 font-medium">
+                      {channel.value}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
