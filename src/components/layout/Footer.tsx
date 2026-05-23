@@ -137,8 +137,7 @@ export default function Footer() {
       {/* Bottom bar */}
       <div className="max-w-7xl mx-auto mt-16 pt-8 border-t border-gray-100 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4">
         <p className="text-gray-400 dark:text-gray-500 text-xs text-center md:text-left">
-          © {new Date().getFullYear()} Green Pack Delight. Proudly made in
-          Lagos, Nigeria. Supporting local prosperity.
+          © {new Date().getFullYear()} Green Pack Delight. All rights reserved.
         </p>
         <div className="flex gap-4 items-center text-gray-400 dark:text-gray-500 text-xs">
           <span className="flex items-center gap-1">
