@@ -119,6 +119,9 @@ export default function RegisterPage() {
         return;
       }
 
+      const urlParams = new URLSearchParams(window.location.search);
+      const role = urlParams.get('role') === 'vendor' ? 'vendor' : 'customer';
+
       const signupRes = await fetch("/api/verify/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
