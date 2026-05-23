@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Badge from "@/components/ui/Badge";
-import Rating from "@/components/ui/Rating";
 import { BLUR_PLACEHOLDER } from "@/lib/utils";
 import type { Shop } from "@/types";
 
@@ -33,11 +32,6 @@ export default function ShopHeader({ shop }: ShopHeaderProps) {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Badge>{shop.categoryName}</Badge>
-            <Rating
-              value={shop.rating}
-              reviewCount={shop.reviewCount}
-              className="[&_span]:text-white"
-            />
             <span className="text-sm text-white/80 flex items-center gap-1">
               <svg
                 className="w-4 h-4"
