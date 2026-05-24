@@ -30,7 +30,7 @@ const quickActions = [
 
 const supportChannels = [
   { label: "Live chat", value: "Average wait: 2 minutes", href: undefined },
-  { label: "Email", value: "support@greenparkdelight.com", href: "mailto:support@greenparkdelight.com" },
+  { label: "Email", value: "support@greenpackdelight.com", href: "mailto:support@greenpackdelight.com" },
 ];
 
 export default function HelpCenterPage() {

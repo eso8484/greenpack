@@ -2,12 +2,12 @@
  * Unified transactional email helper.
  *
  * Prefers Resend API (using the verified custom domain) so emails come from
- * your professional address — e.g. `Green Pack Delight <noreply@greenparkdelight.com>`.
+ * your professional address — e.g. `Green Pack Delight <noreply@greenpackdelight.com>`.
  * Falls back to Gmail SMTP if Resend is not configured.
  *
  * Configure via:
  *   RESEND_API_KEY         — Resend API key
- *   EMAIL_FROM             — From address, e.g. `Green Pack Delight <noreply@greenparkdelight.com>`
+ *   EMAIL_FROM             — From address, e.g. `Green Pack Delight <noreply@greenpackdelight.com>`
  *                           (falls back to SUPPORT_EMAIL_FROM, then SMTP_FROM)
  *   SMTP_HOST/USER/PASS    — Optional fallback if Resend is unset
  */
@@ -25,7 +25,7 @@ function resolvedFrom(): string {
   return (
     process.env.EMAIL_FROM ||
     process.env.SUPPORT_EMAIL_FROM ||
-    `Green Pack Delight <noreply@greenparkdelight.com>`
+    `Green Pack Delight <noreply@greenpackdelight.com>`
   );
 }
 
