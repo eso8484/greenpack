@@ -6,6 +6,7 @@ import {
   sendTransactionalEmail,
   transactionalEmailConfigured,
 } from "@/lib/email";
+import { EMAIL_LOGO_URL } from "@/lib/constants";
 
 export async function POST(request: Request) {
   try {
@@ -67,7 +68,8 @@ export async function POST(request: Request) {
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
           <div style="text-align: center; margin-bottom: 24px;">
-            <h1 style="color: #22c55e; font-size: 24px; margin: 0;">Green Pack Delight</h1>
+            <img src="${EMAIL_LOGO_URL}" alt="Green Pack Delight" width="64" height="64" style="width: 64px; height: 64px; border-radius: 12px; display: inline-block;" />
+            <h1 style="color: #22c55e; font-size: 22px; margin: 12px 0 0;">Green Pack Delight</h1>
           </div>
           <h2 style="color: #111; font-size: 20px; text-align: center;">Verify your email</h2>
           <p style="color: #666; text-align: center;">Enter this code to complete your signup:</p>

@@ -5,6 +5,11 @@ export const CURRENCY = "NGN";
 export const CURRENCY_SYMBOL = "₦";
 export const ITEMS_PER_PAGE = 12;
 
+// Absolute URL for the logo used in transactional emails. Must be a public,
+// non-redirecting https URL (the apex 307-redirects to www, and some email
+// clients won't follow image redirects), so we point straight at www.
+export const EMAIL_LOGO_URL = "https://www.greenpackdelight.com/logo.png";
+
 // === Payment & Delivery Constants ===
 // Platform takes 3% of subtotal; vendor gets the rest via Paystack subaccount.
 export const PLATFORM_FEE_PERCENT = 3;
