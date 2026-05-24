@@ -43,7 +43,12 @@ function getAgentAlertEmails() {
 
 async function sendSupportEmail(payload: EmailPayload) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.SUPPORT_EMAIL_FROM;
+  // Fall back to the brand support address so support mail still sends even if
+  // SUPPORT_EMAIL_FROM is unset on the host. Must use the Resend-verified
+  // domain (greenpackdelight.com), or Resend rejects the send with a 403.
+  const from =
+    process.env.SUPPORT_EMAIL_FROM ||
+    "Green Pack Delight <support@greenpackdelight.com>";
 
   if (!payload.to.length) return false;
 
