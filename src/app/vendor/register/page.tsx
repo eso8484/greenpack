@@ -916,6 +916,7 @@ export default function VendorRegisterPage() {
               <Input
                 id="shopName"
                 label="Shop Name"
+                placeholder="e.g. Bella's Fashion House"
                 required
                 autoComplete="off"
                 name="vendor-shop-name"
@@ -1060,6 +1061,7 @@ export default function VendorRegisterPage() {
                 <Input
                   id="vendorCity"
                   label="City"
+                  placeholder="e.g. Abuja"
                   required
                   autoComplete="off"
                   name="vendor-city"
@@ -1069,6 +1071,7 @@ export default function VendorRegisterPage() {
                 <Input
                   id="vendorState"
                   label="State"
+                  placeholder="e.g. FCT"
                   required
                   autoComplete="off"
                   name="vendor-state"

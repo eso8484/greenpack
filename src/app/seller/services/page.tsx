@@ -274,6 +274,7 @@ export default function ServicesPage() {
               <textarea
                 id="serviceDescription"
                 rows={3}
+                placeholder="e.g. A relaxing 45-minute haircut and styling session, including a wash, scalp massage, and finishing. Suitable for all hair types."
                 className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 transition-colors focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 resize-none"
                 value={form.description}
                 onChange={(event) =>

@@ -409,6 +409,7 @@ export default function ShopEditorPage() {
             <Input
               id="shopName"
               label="Shop Name"
+              placeholder="e.g. Bella's Fashion House"
               value={form.name}
               onChange={(event) => handleNameChange(event.target.value)}
               required
@@ -416,6 +417,7 @@ export default function ShopEditorPage() {
             <Input
               id="shopSlug"
               label="Slug"
+              placeholder="e.g. bellas-fashion-house"
               value={form.slug}
               onChange={(event) => {
                 setSlugTouched(true);
@@ -430,6 +432,7 @@ export default function ShopEditorPage() {
               <textarea
                 id="description"
                 rows={4}
+                placeholder="e.g. We're an Abuja-based fashion house specializing in custom Ankara designs, ready-to-wear pieces, and bridal outfits. With 5+ years of experience, we use quality fabrics and expert tailoring to bring your style to life."
                 className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 transition-colors focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 resize-none"
                 value={form.description}
                 onChange={(event) => updateField("description", event.target.value)}
@@ -438,6 +441,7 @@ export default function ShopEditorPage() {
             <Input
               id="shortDescription"
               label="Short Description"
+              placeholder="e.g. Custom Ankara & bridal fashion in Abuja"
               value={form.shortDescription}
               onChange={(event) => updateField("shortDescription", event.target.value)}
             />
@@ -523,6 +527,7 @@ export default function ShopEditorPage() {
             <Input
               id="address"
               label="Street Address"
+              placeholder="e.g. 12 Aminu Kano Crescent, Wuse 2"
               value={form.address}
               onChange={(event) => updateField("address", event.target.value)}
               required
@@ -531,6 +536,7 @@ export default function ShopEditorPage() {
               <Input
                 id="city"
                 label="City"
+                placeholder="e.g. Abuja"
                 value={form.city}
                 onChange={(event) => updateField("city", event.target.value)}
                 required
@@ -538,6 +544,7 @@ export default function ShopEditorPage() {
               <Input
                 id="state"
                 label="State"
+                placeholder="e.g. FCT"
                 value={form.state}
                 onChange={(event) => updateField("state", event.target.value)}
                 required
@@ -592,6 +599,7 @@ export default function ShopEditorPage() {
               id="phone"
               label="Phone"
               type="tel"
+              placeholder="e.g. 0803 123 4567"
               value={form.phone}
               onChange={(event) => updateField("phone", event.target.value)}
               required
@@ -600,6 +608,7 @@ export default function ShopEditorPage() {
               id="shopEmail"
               label="Email"
               type="email"
+              placeholder="e.g. hello@bellasfashion.com"
               value={form.email}
               onChange={(event) => updateField("email", event.target.value)}
               required
@@ -608,6 +617,7 @@ export default function ShopEditorPage() {
               id="whatsapp"
               label="WhatsApp (Optional)"
               type="tel"
+              placeholder="e.g. 0803 123 4567"
               value={form.whatsapp}
               onChange={(event) => updateField("whatsapp", event.target.value)}
             />

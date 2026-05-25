@@ -247,6 +247,7 @@ export default function ProfilePage() {
                     <Input
                       id="name"
                       label="Full Name"
+                      placeholder="e.g. Amaka Okafor"
                       value={formData.name}
                       onChange={(e) =>
                         setFormData({ ...formData, name: e.target.value })
@@ -256,6 +257,7 @@ export default function ProfilePage() {
                       id="email"
                       label="Email"
                       type="email"
+                      placeholder="e.g. you@example.com"
                       value={formData.email}
                       onChange={(e) =>
                         setFormData({ ...formData, email: e.target.value })
@@ -264,6 +266,7 @@ export default function ProfilePage() {
                     <Input
                       id="phone"
                       label="Phone"
+                      placeholder="e.g. 0803 123 4567"
                       value={formData.phone}
                       onChange={(e) =>
                         setFormData({ ...formData, phone: e.target.value })
