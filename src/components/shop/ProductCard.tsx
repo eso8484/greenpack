@@ -37,13 +37,14 @@ export default function ProductCard({ product, shopName }: ProductCardProps) {
   const galleryCount = product.gallery?.length ?? 0;
 
   return (
-    <Card>
-      <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
+    <Card className="group rounded-2xl">
+      <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-800">
         <Image
           src={product.image}
           alt={product.name}
           fill
-          className="object-cover"
+          sizes="(max-width: 640px) 50vw, 240px"
+          className="object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
           unoptimized
           placeholder="blur"
           blurDataURL={BLUR_PLACEHOLDER}

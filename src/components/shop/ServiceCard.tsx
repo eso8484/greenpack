@@ -37,9 +37,9 @@ export default function ServiceCard({ service, shopName }: ServiceCardProps) {
   const mainImage = service.image || service.gallery?.[0];
 
   return (
-    <div className="flex items-start gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-green-200 dark:hover:border-green-800 transition-colors">
+    <div className="flex items-start gap-4 p-4 rounded-2xl bg-white dark:bg-gray-800/70 border border-gray-100 dark:border-gray-700/70 hover:border-green-300 dark:hover:border-green-700 hover:shadow-lg hover:shadow-green-500/5 transition-all">
       {mainImage && (
-        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden shrink-0 bg-gray-100 dark:bg-gray-800">
+        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shrink-0 bg-gray-100 dark:bg-gray-800">
           <Image
             src={mainImage}
             alt={service.name}
@@ -66,19 +66,7 @@ export default function ServiceCard({ service, shopName }: ServiceCardProps) {
           <PriceTag price={service.price} priceType={service.priceType} />
           {service.duration && (
             <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+              <span className="material-symbols-outlined text-[15px]">schedule</span>
               {service.duration}
             </span>
           )}

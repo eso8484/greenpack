@@ -19,7 +19,7 @@ export default function VideoShowcase({ shop }: VideoShowcaseProps) {
   return (
     <div>
       {/* Main display */}
-      <div className="relative aspect-video bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden">
+      <div className="relative aspect-video bg-gray-100 dark:bg-gray-800 rounded-2xl overflow-hidden">
         {showVideo && shop.video.url ? (
           <video
             src={shop.video.url}
@@ -42,17 +42,12 @@ export default function VideoShowcase({ shop }: VideoShowcaseProps) {
             {shop.video.url && (
               <button
                 onClick={() => setShowVideo(true)}
-                className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer"
+                aria-label="Play video"
+                className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer group"
               >
-                <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center shadow-lg">
-                  <svg
-                    className="w-7 h-7 text-green-600 ml-1"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
+                <span className="w-16 h-16 rounded-full bg-green-500/90 group-hover:bg-green-500 flex items-center justify-center text-white shadow-lg shadow-green-500/30 backdrop-blur-sm group-hover:scale-110 transition-all">
+                  <span className="material-symbols-outlined text-4xl fill-1">play_arrow</span>
+                </span>
               </button>
             )}
           </>

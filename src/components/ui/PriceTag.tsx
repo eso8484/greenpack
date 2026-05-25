@@ -26,7 +26,7 @@ export default function PriceTag({
         </span>
       )}
       {originalPrice && originalPrice > price && (
-        <span className="text-xs font-medium text-red-500 dark:text-red-400">
+        <span className="inline-flex items-center rounded-md bg-accent-500/15 px-1.5 py-0.5 text-xs font-bold text-accent-600 dark:text-accent-400">
           -{Math.round(((originalPrice - price) / originalPrice) * 100)}%
         </span>
       )}

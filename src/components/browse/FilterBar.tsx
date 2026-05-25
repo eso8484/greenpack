@@ -26,7 +26,7 @@ export default function FilterBar({ totalResults }: FilterBarProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-gray-500 dark:text-gray-400">
-        <span className="font-medium text-gray-900 dark:text-white">{totalResults}</span>{" "}
+        <span className="font-black text-green-600 dark:text-green-400 tabular-nums">{totalResults}</span>{" "}
         {totalResults === 1 ? "shop" : "shops"} found
       </p>
 
@@ -61,7 +61,7 @@ export default function FilterBar({ totalResults }: FilterBarProps) {
       <select
         value={currentSort}
         onChange={(e) => updateParam("sort", e.target.value)}
-        className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 focus:outline-none cursor-pointer"
+        className="px-4 py-2.5 text-sm font-medium border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 focus:outline-none cursor-pointer"
       >
         <option value="relevance">Sort: Relevance</option>
         <option value="rating">Sort: Highest Rated</option>

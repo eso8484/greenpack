@@ -7,12 +7,12 @@ interface ReviewCardProps {
 
 export default function ReviewCard({ review }: ReviewCardProps) {
   return (
-    <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl">
+    <div className="p-4 md:p-5 rounded-2xl bg-white dark:bg-gray-800/70 border border-gray-100 dark:border-gray-700/70">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-            <span className="text-sm font-semibold text-green-600 dark:text-green-400">
-              {review.customerName.charAt(0)}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-sm">
+            <span className="text-sm font-bold">
+              {review.customerName.charAt(0).toUpperCase()}
             </span>
           </div>
           <div>

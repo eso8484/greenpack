@@ -13,10 +13,18 @@ export default function ReviewSection({ reviews }: ReviewSectionProps) {
   const avgRating = calculateAverageRating(reviews);
 
   return (
-    <section>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Customer Reviews</h2>
-        <div className="flex items-center gap-2">
+    <section className="scroll-mt-24">
+      <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+        <div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-2">
+            <span className="material-symbols-outlined text-[14px] fill-1">reviews</span>
+            Reviews
+          </span>
+          <h2 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+            Customer reviews
+          </h2>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl bg-gray-50 dark:bg-gray-800/70 px-3 py-2">
           <Rating value={avgRating} />
           <span className="text-sm text-gray-500 dark:text-gray-400">
             ({reviews.length} {reviews.length === 1 ? "review" : "reviews"})

@@ -44,13 +44,30 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
         : "Browse All Shops";
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{pageTitle}</h1>
-        {/* Mobile search */}
-        <div className="md:hidden mb-4">
-          <SearchBar />
+    <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+      {/* Gradient header band */}
+      <div className="relative overflow-hidden rounded-2xl bg-mesh-green px-6 py-7 md:px-10 md:py-9 mb-6">
+        <div className="absolute inset-0 bg-grid-faint opacity-30" aria-hidden />
+        <div
+          className="absolute -top-16 right-10 w-64 h-64 rounded-full bg-accent-500/15 blur-3xl animate-float"
+          aria-hidden
+        />
+        <div className="relative z-10">
+          {category && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 backdrop-blur px-3 py-1 text-xs font-semibold text-green-50 mb-3">
+              <span className="text-sm leading-none">{category.icon}</span>
+              {category.name}
+            </span>
+          )}
+          <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight">
+            {pageTitle}
+          </h1>
+          <p className="text-sm md:text-base text-green-50/80 mt-1">
+            Discover verified local shops &amp; services near you.
+          </p>
+          <div className="mt-5 max-w-xl">
+            <SearchBar />
+          </div>
         </div>
       </div>
 
@@ -58,7 +75,9 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
       <div className="flex gap-8">
         {/* Sidebar - Desktop */}
         <div className="hidden md:block w-64 shrink-0">
-          <CategorySidebar activeCategory={categorySlug} />
+          <div className="sticky top-24">
+            <CategorySidebar activeCategory={categorySlug} />
+          </div>
         </div>
 
         {/* Content */}

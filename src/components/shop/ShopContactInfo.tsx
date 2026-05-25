@@ -56,16 +56,20 @@ export default function ShopContactInfo({ shop }: ShopContactInfoProps) {
     );
   }, [hasCoords, lat, lng]);
 
+  const IconTile = ({ icon }: { icon: string }) => (
+    <span className="flex items-center justify-center w-9 h-9 shrink-0 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400">
+      <span className="material-symbols-outlined text-[20px]">{icon}</span>
+    </span>
+  );
+
   return (
-    <Card className="p-5">
-      <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Contact &amp; Location</h3>
+    <Card className="p-5 rounded-2xl">
+      <h3 className="font-bold text-gray-900 dark:text-white mb-4">Contact &amp; location</h3>
       <div className="space-y-4">
         {/* Phone */}
         {shop.contact.phone && (
           <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-green-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-            </svg>
+            <IconTile icon="call" />
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Phone</p>
               <a href={`tel:${shop.contact.phone}`} className="text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
@@ -78,10 +82,8 @@ export default function ShopContactInfo({ shop }: ShopContactInfoProps) {
         {/* Email */}
         {shop.contact.email && (
           <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-green-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            <div>
+            <IconTile icon="mail" />
+            <div className="min-w-0">
               <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
               <a href={`mailto:${shop.contact.email}`} className="text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 break-all">
                 {shop.contact.email}
@@ -93,11 +95,9 @@ export default function ShopContactInfo({ shop }: ShopContactInfoProps) {
         {/* Hours */}
         {(shop.hours.days || shop.hours.open || shop.hours.close) && (
           <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-green-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <IconTile icon="schedule" />
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Business Hours</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Business hours</p>
               {shop.hours.days && (
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{shop.hours.days}</p>
               )}
@@ -112,10 +112,7 @@ export default function ShopContactInfo({ shop }: ShopContactInfoProps) {
 
         {/* Address + Distance */}
         <div className="flex items-start gap-3">
-          <svg className="w-5 h-5 text-green-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
+          <IconTile icon="location_on" />
           <div className="min-w-0 flex-1">
             <p className="text-sm text-gray-500 dark:text-gray-400">Address</p>
             <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -140,7 +137,7 @@ export default function ShopContactInfo({ shop }: ShopContactInfoProps) {
         </div>
 
         {/* Map */}
-        <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 aspect-video bg-gray-50 dark:bg-gray-800">
+        <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 aspect-video bg-gray-50 dark:bg-gray-800">
           <iframe
             src={embedUrl}
             className="w-full h-full"
@@ -154,11 +151,9 @@ export default function ShopContactInfo({ shop }: ShopContactInfoProps) {
           href={directionsUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors"
+          className="w-full inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold text-sm px-4 py-3 rounded-xl shadow-lg shadow-green-500/25 transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-          </svg>
+          <span className="material-symbols-outlined text-[18px]">directions</span>
           Get Directions
         </a>
       </div>
