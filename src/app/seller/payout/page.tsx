@@ -148,14 +148,14 @@ export default function SellerPayoutPage() {
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Payout Account</h1>
+        <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">Payout Account</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Add the bank account where Green Pack should settle your earnings
         </p>
       </div>
 
       {hasExisting && !editMode && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
           <div className="flex items-start justify-between mb-5">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -194,7 +194,7 @@ export default function SellerPayoutPage() {
 
       {(editMode || !hasExisting) && (
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
               {hasExisting ? "Update Payout Account" : "Bank Details"}
             </h2>

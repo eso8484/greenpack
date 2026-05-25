@@ -246,7 +246,7 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Products</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">Products</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Manage your inventory ({products.length} products, {inStockCount} in stock)
           </p>
@@ -257,15 +257,15 @@ export default function ProductsPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-gray-400">Total Products</p>
           <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">{products.length}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-gray-400">In Stock</p>
           <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-1">{inStockCount}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-gray-400">Inventory Value</p>
           <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
             {formatPrice(totalInventoryValue)}
@@ -274,7 +274,7 @@ export default function ProductsPage() {
       </div>
 
       {showForm && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-green-200 dark:border-green-800 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-green-200 dark:border-green-800 p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             {editingProductId ? "Edit Product" : "Add New Product"}
           </h3>
@@ -354,7 +354,7 @@ export default function ProductsPage() {
         {products.map((product) => (
           <div
             key={product.id}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+            className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
           >
             <div className="h-32 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 flex items-center justify-center relative overflow-hidden">
               {product.image ? (
@@ -420,7 +420,7 @@ export default function ProductsPage() {
       </div>
 
       {products.length === 0 && (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">
           <span className="text-4xl">📦</span>
           <p className="mt-3 text-gray-500 dark:text-gray-400">
             No products yet. Add your first product to get started.

@@ -240,7 +240,7 @@ export default function ServicesPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Services</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">Services</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Manage your shop&apos;s services ({services.length} total)
           </p>
@@ -251,7 +251,7 @@ export default function ServicesPage() {
       </div>
 
       {showForm && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-green-200 dark:border-green-800 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-green-200 dark:border-green-800 p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             {editingServiceId ? "Edit Service" : "Add New Service"}
           </h3>
@@ -354,7 +354,7 @@ export default function ServicesPage() {
         {services.map((service) => (
           <div
             key={service.id}
-            className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md transition-shadow"
+            className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md transition-shadow"
           >
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
@@ -421,7 +421,7 @@ export default function ServicesPage() {
       </div>
 
       {services.length === 0 && (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700">
           <span className="text-4xl">🛠️</span>
           <p className="mt-3 text-gray-500 dark:text-gray-400">
             No services yet. Add your first service to get started.

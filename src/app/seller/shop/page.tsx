@@ -394,14 +394,14 @@ export default function ShopEditorPage() {
   return (
     <div className="max-w-3xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Shop</h1>
+        <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">My Shop</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
           Edit your shop profile and business information
         </p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
             Basic Information
           </h2>
@@ -473,7 +473,7 @@ export default function ShopEditorPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
             Shop Images
           </h2>
@@ -500,7 +500,7 @@ export default function ShopEditorPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
           <div className="flex items-start justify-between gap-3 mb-5 flex-wrap">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -590,7 +590,7 @@ export default function ShopEditorPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
             Contact Information
           </h2>
@@ -624,7 +624,7 @@ export default function ShopEditorPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
             Business Hours
           </h2>
@@ -655,7 +655,7 @@ export default function ShopEditorPage() {
           </div>
         </div>
 
-        <div className="sticky bottom-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 shadow-lg">
+        <div className="sticky bottom-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 shadow-lg">
           <Button type="submit" size="lg" className="w-full" disabled={saving}>
             {saving ? "Saving..." : "Save Changes"}
           </Button>
