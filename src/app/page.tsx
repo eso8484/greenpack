@@ -1,6 +1,6 @@
-import { dbGetShops } from "@/lib/db";
+import { dbGetShops, dbGetProductsByShopId } from "@/lib/db";
 import { categories } from "@/lib/data/categories";
-import HeroSection from "@/components/home/HeroSection";
+import HeroSection, { type HeroDeal } from "@/components/home/HeroSection";
 import CategoryNav from "@/components/home/CategoryNav";
 import TrendingShops from "@/components/home/TrendingShops";
 import FeaturedShops from "@/components/home/FeaturedShops";
@@ -29,6 +29,40 @@ export default async function Home() {
 
   const videoShops = allShops.filter((s) => Boolean(s.video?.url)).slice(0, 6);
 
+  // Hero deal carousel: up to 5 featured (or top-rated) shops. For each, look
+  // up its products and compute a REAL "% off" from originalPrice vs price —
+  // nothing is invented; shops without a markdown fall back to a truthful
+  // "Featured / Top rated / Verified" badge in the carousel component.
+  const dealShops = (featured.length ? featured : topRated).slice(0, 5);
+  const deals: HeroDeal[] = await Promise.all(
+    dealShops.map(async (shop) => {
+      let discountPct = 0;
+      try {
+        const products = await dbGetProductsByShopId(shop.id);
+        for (const p of products) {
+          if (p.originalPrice && p.originalPrice > p.price) {
+            const pct = Math.round((1 - p.price / p.originalPrice) * 100);
+            if (pct > discountPct) discountPct = pct;
+          }
+        }
+      } catch {
+        // products are optional decoration here — never block the hero
+      }
+      return {
+        id: shop.id,
+        name: shop.name,
+        href: `/shop/${shop.id}`,
+        image: shop.images.thumbnail,
+        category: shop.categoryName,
+        rating: shop.rating,
+        reviewCount: shop.reviewCount,
+        isVerified: shop.isVerified,
+        isFeatured: shop.isFeatured,
+        discountPct: discountPct > 0 ? discountPct : undefined,
+      };
+    })
+  );
+
   const stats = {
     shops: allShops.length,
     verified: allShops.filter((s) => s.isVerified).length,
@@ -40,7 +74,7 @@ export default async function Home() {
 
   return (
     <div className="pb-4">
-      <HeroSection />
+      <HeroSection deals={deals} />
       <CategoryNav />
       <TrendingShops shops={topRated} />
       <FeaturedShops shops={featuredOrTop} />
