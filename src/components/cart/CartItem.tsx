@@ -14,10 +14,10 @@ export default function CartItem({ item }: CartItemProps) {
   const { removeItem, updateQuantity, updateNotes } = useCart();
 
   return (
-    <div className="flex gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-xl">
+    <div className="flex gap-4 p-4 rounded-2xl bg-white dark:bg-gray-800/70 border border-gray-100 dark:border-gray-700/70 hover:shadow-lg hover:shadow-green-500/5 transition-shadow">
       {/* Image */}
       {item.image ? (
-        <div className="relative w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden shrink-0">
+        <div className="relative w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shrink-0">
           <Image
             src={item.image}
             alt={item.name}
@@ -29,20 +29,10 @@ export default function CartItem({ item }: CartItemProps) {
           />
         </div>
       ) : (
-        <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center shrink-0">
-          <svg
-            className="w-8 h-8 text-green-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-            />
-          </svg>
+        <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-green-100 to-green-50 dark:from-green-900/40 dark:to-green-800/20 flex items-center justify-center shrink-0">
+          <span className="material-symbols-outlined text-green-400 text-3xl">
+            {item.type === "service" ? "design_services" : "inventory_2"}
+          </span>
         </div>
       )}
 
@@ -58,21 +48,10 @@ export default function CartItem({ item }: CartItemProps) {
           </div>
           <button
             onClick={() => removeItem(item.id)}
-            className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors cursor-pointer"
+            aria-label={`Remove ${item.name}`}
+            className="p-1 rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer"
           >
-            <svg
-              className="w-4.5 h-4.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
 
@@ -82,21 +61,23 @@ export default function CartItem({ item }: CartItemProps) {
           </span>
 
           {item.type === "product" ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
               <button
                 onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                className="w-7 h-7 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:border-green-400 hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer"
+                aria-label="Decrease quantity"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer"
               >
-                -
+                <span className="material-symbols-outlined text-[18px]">remove</span>
               </button>
-              <span className="text-sm font-medium w-6 text-center">
+              <span className="text-sm font-bold w-6 text-center tabular-nums">
                 {item.quantity}
               </span>
               <button
                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                className="w-7 h-7 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:border-green-400 hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer"
+                aria-label="Increase quantity"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 transition-colors cursor-pointer"
               >
-                +
+                <span className="material-symbols-outlined text-[18px]">add</span>
               </button>
             </div>
           ) : (
@@ -105,7 +86,7 @@ export default function CartItem({ item }: CartItemProps) {
               placeholder="Add notes..."
               value={item.notes || ""}
               onChange={(e) => updateNotes(item.id, e.target.value)}
-              className="text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-md px-2 py-1 w-32 focus:border-green-500 focus:outline-none"
+              className="text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-1.5 w-32 focus:border-green-500 focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900 focus:outline-none transition-colors"
             />
           )}
         </div>

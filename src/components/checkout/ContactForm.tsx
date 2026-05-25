@@ -54,10 +54,19 @@ export default function ContactForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-        Contact Information
-      </h2>
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 rounded-2xl bg-white dark:bg-gray-800/70 border border-gray-100 dark:border-gray-700/70 p-5 md:p-6 shadow-sm"
+    >
+      <div className="mb-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-2">
+          <span className="material-symbols-outlined text-[14px] fill-1">person</span>
+          Your details
+        </span>
+        <h2 className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tight">
+          Contact information
+        </h2>
+      </div>
       <Input
         id="fullName"
         label="Full Name *"

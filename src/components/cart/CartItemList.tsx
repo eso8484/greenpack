@@ -32,7 +32,8 @@ export default function CartItemList() {
     <div className="space-y-6">
       {Object.entries(grouped).map(([shopName, shopItems]) => (
         <div key={shopName}>
-          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+          <h3 className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-3">
+            <span className="material-symbols-outlined text-[15px] fill-1">storefront</span>
             {shopName}
           </h3>
           <div className="space-y-3">

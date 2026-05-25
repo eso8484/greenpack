@@ -39,9 +39,9 @@ export default function OrderReview({
   const total = subtotal + (showDeliveryLine ? deliveryFee : 0);
 
   return (
-    <Card className="p-5">
+    <Card className="p-5 rounded-2xl">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-900 dark:text-white">Order Review</h3>
+        <h3 className="font-bold text-gray-900 dark:text-white">Order review</h3>
         <Link
           href="/cart"
           className="text-xs text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium"

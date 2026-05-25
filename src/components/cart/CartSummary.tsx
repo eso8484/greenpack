@@ -14,8 +14,8 @@ export default function CartSummary() {
   if (items.length === 0) return null;
 
   return (
-    <Card className="p-5">
-      <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Order Summary</h3>
+    <Card className="p-5 rounded-2xl">
+      <h3 className="font-bold text-gray-900 dark:text-white mb-4">Order summary</h3>
       <div className="space-y-2 mb-4">
         <div className="flex justify-between text-sm">
           <span className="text-gray-500 dark:text-gray-400">Items ({itemCount})</span>
@@ -42,6 +42,10 @@ export default function CartSummary() {
           Proceed to Checkout
         </Button>
       </Link>
+      <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+        <span className="material-symbols-outlined text-[14px]">lock</span>
+        Secure checkout via Paystack
+      </p>
     </Card>
   );
 }
