@@ -164,7 +164,7 @@ export default function SellerDashboard() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">Dashboard</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Welcome back! {shop ? `Here is how ${shop.name} is performing.` : ""}
           </p>
@@ -182,17 +182,17 @@ export default function SellerDashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-gray-400">Total Orders</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{orders.length}</p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-gray-400">Revenue</p>
           <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
             {formatPrice(paidRevenue)}
           </p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-gray-400">Avg. Rating</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
             {shop?.rating?.toFixed(1) ?? "0.0"}
@@ -201,7 +201,7 @@ export default function SellerDashboard() {
             {(shop?.review_count ?? 0)} reviews
           </p>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-gray-400">Active Listings</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
             {products.length + services.length}
@@ -212,7 +212,7 @@ export default function SellerDashboard() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
         <div className="flex items-center justify-between p-6 pb-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Orders</h2>
           {shop && (

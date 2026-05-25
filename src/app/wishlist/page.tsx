@@ -23,9 +23,14 @@ export default function WishlistPage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 py-16">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
-            My Wishlist
-          </h1>
+          <div className="flex items-center gap-3 mb-8">
+            <span className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/25">
+              <span className="material-symbols-outlined fill-1">favorite</span>
+            </span>
+            <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+              My wishlist
+            </h1>
+          </div>
           <EmptyState
             title="Your wishlist is empty"
             description="Start exploring and save your favorite shops and products"
@@ -45,12 +50,15 @@ export default function WishlistPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-3 mb-8">
+            <span className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/25 shrink-0">
+              <span className="material-symbols-outlined fill-1">favorite</span>
+            </span>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                My Wishlist
+              <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                My wishlist
               </h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {wishlistCount} {wishlistCount === 1 ? "item" : "items"} saved
               </p>
             </div>
@@ -73,7 +81,7 @@ export default function WishlistPage() {
                       exit={{ opacity: 0, scale: 0.95 }}
                     >
                       <Link href={`/shop/${shop.id}`}>
-                        <Card className="h-full overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl transition-all group">
+                        <Card className="h-full rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl hover:shadow-green-500/10 transition-all group">
                           <div className="relative h-48 overflow-hidden">
                             <Image
                               src={shop.images.thumbnail}
@@ -151,13 +159,13 @@ export default function WishlistPage() {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                     >
-                      <Card>
-                        <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
+                      <Card className="rounded-2xl group overflow-hidden">
+                        <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-800">
                           <Image
                             src={product.image}
                             alt={product.name}
                             fill
-                            className="object-cover"
+                            className="object-cover group-hover:scale-105 transition-transform duration-500"
                             unoptimized
                             placeholder="blur"
                             blurDataURL={BLUR_PLACEHOLDER}

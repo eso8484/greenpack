@@ -88,11 +88,16 @@ export default function SearchPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Search Results
-          </h1>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/25 shrink-0">
+              <span className="material-symbols-outlined">search</span>
+            </span>
+            <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+              Search results
+            </h1>
+          </div>
           {query && (
-            <p className="text-gray-600 dark:text-gray-400 mb-8">
+            <p className="text-gray-600 dark:text-gray-400 mb-8 ml-[3.7rem] -mt-1">
               Showing results for &quot;{query}&quot;
             </p>
           )}
@@ -176,13 +181,13 @@ function ResultCard({ result }: { result: SearchResult }) {
     const shop = result.data as Shop;
     return (
       <Link href={`/shop/${shop.id}`}>
-        <Card className="h-full overflow-hidden hover:shadow-xl transition-all group">
+        <Card className="h-full rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-green-500/10 transition-all group">
           <div className="relative h-48 overflow-hidden">
             <Image
               src={shop.images.thumbnail}
               alt={shop.name}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
+              className="object-cover group-hover:scale-110 transition-transform duration-500"
               unoptimized
               placeholder="blur"
               blurDataURL={BLUR_PLACEHOLDER}
@@ -233,7 +238,7 @@ function ResultCard({ result }: { result: SearchResult }) {
     const service = result.data as Service;
     return (
       <Link href={`/shop/${service.shopId}`}>
-        <Card className="p-6 hover:shadow-xl transition-all">
+        <Card className="p-6 rounded-2xl hover:shadow-xl hover:shadow-green-500/10 transition-all">
           <div className="flex justify-between items-start mb-3">
             <Badge variant="green">Service</Badge>
           </div>
@@ -256,13 +261,13 @@ function ResultCard({ result }: { result: SearchResult }) {
     const product = result.data as Product;
     return (
       <Link href={`/shop/${product.shopId}`}>
-        <Card className="overflow-hidden hover:shadow-xl transition-all">
-          <div className="relative aspect-square bg-gray-100 dark:bg-gray-800">
+        <Card className="rounded-2xl group overflow-hidden hover:shadow-xl hover:shadow-green-500/10 transition-all">
+          <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-800">
             <Image
               src={product.image}
               alt={product.name}
               fill
-              className="object-cover"
+              className="object-cover group-hover:scale-105 transition-transform duration-500"
               unoptimized
               placeholder="blur"
               blurDataURL={BLUR_PLACEHOLDER}

@@ -217,7 +217,7 @@ export default function AdminSupportPage() {
       <div className="max-w-7xl mx-auto px-4 py-8 md:py-10">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <div className="mb-6">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">Support Agent Console</h1>
+            <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight">Support Agent Console</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-2">
               Manage live support queue, assign tickets, and reply to customers from one place.
             </p>

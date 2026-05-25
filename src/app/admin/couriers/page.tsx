@@ -126,7 +126,7 @@ export default function AdminCouriersPage() {
         <div className="max-w-5xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
                 Courier Applications
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
