@@ -173,13 +173,18 @@ export default function ProfilePage() {
           animate={{ opacity: 1, y: 0 }}
         >
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              My Account
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage your profile and preferences
-            </p>
+          <div className="flex items-center gap-3 mb-8">
+            <span className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/25 shrink-0">
+              <span className="material-symbols-outlined">account_circle</span>
+            </span>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                My account
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Manage your profile and preferences
+              </p>
+            </div>
           </div>
 
           {/* Tabs */}
@@ -203,7 +208,7 @@ export default function ProfilePage() {
           {activeTab === "overview" && (
             <div className="grid md:grid-cols-3 gap-6">
               {/* Profile Card */}
-              <Card className="p-6 md:col-span-2">
+              <Card className="p-6 rounded-2xl md:col-span-2">
                 <div className="flex justify-between items-start mb-6">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                     Profile Information
@@ -313,7 +318,7 @@ export default function ProfilePage() {
 
               {/* Quick Stats */}
               <div className="space-y-4">
-                <Card className="p-6">
+                <Card className="p-6 rounded-2xl">
                   <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
                     Total Orders
                   </h3>
@@ -321,7 +326,7 @@ export default function ProfilePage() {
                     {orders.length}
                   </p>
                 </Card>
-                <Card className="p-6">
+                <Card className="p-6 rounded-2xl">
                   <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
                     Total Spent
                   </h3>
@@ -329,7 +334,7 @@ export default function ProfilePage() {
                     {formatPrice(totalSpent)}
                   </p>
                 </Card>
-                <Card className="p-6">
+                <Card className="p-6 rounded-2xl">
                   <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
                     Saved Addresses
                   </h3>
@@ -344,12 +349,12 @@ export default function ProfilePage() {
           {activeTab === "orders" && (
             <div className="space-y-4">
               {ordersLoading && (
-                <Card className="p-6">
+                <Card className="p-6 rounded-2xl">
                   <p className="text-gray-600 dark:text-gray-400">Loading orders...</p>
                 </Card>
               )}
               {!ordersLoading && orders.length === 0 && (
-                <Card className="p-6">
+                <Card className="p-6 rounded-2xl">
                   <p className="text-gray-600 dark:text-gray-400">
                     No orders yet. Your order history will appear here once you place an order.
                   </p>
@@ -412,7 +417,7 @@ export default function ProfilePage() {
                 </Button>
               </div>
               {savedAddresses.length === 0 ? (
-                <Card className="p-6">
+                <Card className="p-6 rounded-2xl">
                   <p className="text-gray-600 dark:text-gray-400">
                     No saved addresses yet. Addresses from your completed checkouts will appear here.
                   </p>
@@ -445,7 +450,7 @@ export default function ProfilePage() {
           )}
 
           {activeTab === "settings" && (
-            <Card className="p-6">
+            <Card className="p-6 rounded-2xl">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
                 Account Settings
               </h2>

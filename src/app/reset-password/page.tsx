@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import AuthBackdrop from "@/components/auth/AuthBackdrop";
 import { createClient } from "@/lib/supabase/client";
 
 type RecoveryStatus = "verifying" | "ready" | "success" | "error";
@@ -210,8 +211,9 @@ export default function ResetPasswordPage() {
 
   if (status === "verifying") {
     return (
-      <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-8 text-center">
+      <div className="relative min-h-[85vh] flex items-center justify-center px-4 py-12 overflow-hidden">
+        <AuthBackdrop />
+        <div className="relative z-10 w-full max-w-md rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-8 text-center">
           <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
           <p className="mt-4 text-gray-700 dark:text-gray-300">{statusMessage}</p>
         </div>
@@ -220,8 +222,9 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
+    <div className="relative min-h-[85vh] flex items-center justify-center px-4 py-12 overflow-hidden">
+      <AuthBackdrop />
+      <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reset your password</h1>
           <p className="mt-2 text-gray-500 dark:text-gray-400">{statusMessage}</p>

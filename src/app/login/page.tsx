@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import OTPInput from "@/components/auth/OTPInput";
+import AuthBackdrop from "@/components/auth/AuthBackdrop";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 
@@ -308,8 +309,9 @@ export default function LoginPage() {
   // ─── Forgot password modal ───────────────────────────────────────────────────
   if (showForgot) {
     return (
-      <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
+      <div className="relative min-h-[85vh] flex items-center justify-center px-4 py-12 overflow-hidden">
+        <AuthBackdrop />
+        <div className="relative z-10 w-full max-w-md">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Reset your password
@@ -378,8 +380,9 @@ export default function LoginPage() {
 
   // ─── Main login page ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
+    <div className="relative min-h-[85vh] flex items-center justify-center px-4 py-12 overflow-hidden">
+      <AuthBackdrop />
+      <div className="relative z-10 w-full max-w-md">
         {/* Logo & Title */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">

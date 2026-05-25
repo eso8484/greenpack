@@ -10,6 +10,7 @@ import PasswordStrength, {
   isPasswordStrong,
 } from "@/components/auth/PasswordStrength";
 import OTPInput from "@/components/auth/OTPInput";
+import AuthBackdrop from "@/components/auth/AuthBackdrop";
 
 type Step = "form" | "verify-email" | "complete";
 type SignupRole = "customer" | "vendor";
@@ -317,8 +318,9 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f8f7] dark:bg-[#122017] flex items-center justify-center px-4 py-16">
-      <div className="w-full max-w-md">
+    <div className="relative min-h-screen bg-[#f6f8f7] dark:bg-[#122017] flex items-center justify-center px-4 py-16 overflow-hidden">
+      <AuthBackdrop />
+      <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">
             <div className="bg-green-500 p-1.5 rounded-lg">
