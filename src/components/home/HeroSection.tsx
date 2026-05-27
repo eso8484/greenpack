@@ -289,10 +289,11 @@ export default function HeroSection({ deals = [] }: { deals?: HeroDeal[] }) {
               placeholder="blur"
               blurDataURL={BLUR_PLACEHOLDER}
             />
-            {/* legibility + brand tint */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
-            <div className="absolute inset-0 bg-green-950/30" />
-            <div className="absolute inset-0 bg-grid-faint opacity-20" aria-hidden />
+            {/* Legibility scrim — kept light so the real shop photo stays vivid,
+               darker only at the very bottom for the dots/arrows. */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/25 to-black/20" />
+            <div className="absolute inset-0 bg-green-950/15" />
+            <div className="absolute inset-0 bg-grid-faint opacity-10" aria-hidden />
 
             <div className="absolute inset-0 flex items-center justify-center px-6">
               <div className={`w-full max-w-3xl text-center ${reveal(active)}`}>
@@ -304,16 +305,16 @@ export default function HeroSection({ deals = [] }: { deals?: HeroDeal[] }) {
                 </span>
 
                 {deal.category && (
-                  <p className="mt-4 text-xs md:text-sm font-semibold uppercase tracking-[0.2em] text-green-300">
+                  <p className="mt-4 text-xs md:text-sm font-semibold uppercase tracking-[0.2em] text-green-300 [text-shadow:0_1px_10px_rgba(0,0,0,0.6)]">
                     {deal.category}
                   </p>
                 )}
 
-                <h2 className="mt-2 text-4xl md:text-6xl font-black text-white leading-[1.05] tracking-tight">
+                <h2 className="mt-2 text-4xl md:text-6xl font-black text-white leading-[1.05] tracking-tight [text-shadow:0_2px_18px_rgba(0,0,0,0.6)]">
                   {deal.name}
                 </h2>
 
-                <p className="mt-4 text-base md:text-lg text-green-50/85 max-w-xl mx-auto">
+                <p className="mt-4 text-base md:text-lg text-green-50/90 max-w-xl mx-auto [text-shadow:0_1px_12px_rgba(0,0,0,0.55)]">
                   {dealTagline(deal)}
                 </p>
 
