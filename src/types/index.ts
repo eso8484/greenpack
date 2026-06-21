@@ -122,6 +122,8 @@ export interface CustomerInfo {
   phone: string;
   address?: string;
   message?: string;
+  lat?: number;
+  lng?: number;
 }
 
 // === SEARCH & FILTER ===
@@ -244,15 +246,27 @@ export interface Delivery {
     address: string;
     city?: string;
     instructions?: string;
+    lat?: number;
+    lng?: number;
+    name?: string;
+    phone?: string;
   };
   shop_address?: {
     address: string;
     city?: string;
+    lat?: number;
+    lng?: number;
+    name?: string;
+    phone?: string;
   };
   delivery_address: {
     address: string;
     city?: string;
     instructions?: string;
+    lat?: number;
+    lng?: number;
+    name?: string;
+    phone?: string;
   };
   courier_fee: number;
   items_description?: string;

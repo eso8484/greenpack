@@ -27,6 +27,10 @@ const CreateOrderSchema = z.object({
     phone: z.string(),
     address: z.string().optional(),
     message: z.string().optional(),
+    // Coords from the customer's selected delivery address — used to compute
+    // courier distance + navigation on the delivery record.
+    lat: z.number().finite().optional(),
+    lng: z.number().finite().optional(),
   }),
   needs_delivery: z.boolean().optional(),
   payment_provider: z.enum(["paystack", "flutterwave"]).optional(),

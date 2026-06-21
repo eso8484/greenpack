@@ -94,6 +94,96 @@ export async function geocodeAddress(
   }
 }
 
+/**
+ * Address text → up to `limit` candidate matches, for type-ahead suggestions.
+ * Tries Google first if a key is set, then Nominatim. Always returns an array
+ * (empty on no match / error) so callers can render a suggestion list safely.
+ */
+export async function searchAddresses(
+  query: string,
+  limit = 5,
+  country = "Nigeria"
+): Promise<GeocodeResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const boundedLimit = Math.min(Math.max(limit, 1), 8);
+
+  const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (googleKey) {
+    try {
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+        `${q}, ${country}`
+      )}&region=ng&key=${googleKey}`;
+      const res = await fetch(url, { next: { revalidate: 0 } });
+      if (res.ok) {
+        const data = await res.json();
+        const results = Array.isArray(data?.results) ? data.results : [];
+        const mapped = results
+          .slice(0, boundedLimit)
+          .map((top: Record<string, unknown>): GeocodeResult | null => {
+            const geometry = top.geometry as { location?: { lat?: number; lng?: number } } | undefined;
+            const loc = geometry?.location;
+            if (!loc || typeof loc.lat !== "number" || typeof loc.lng !== "number") return null;
+            const components = top.address_components as unknown[] | undefined;
+            return {
+              lat: loc.lat,
+              lng: loc.lng,
+              formatted: top.formatted_address as string | undefined,
+              address: top.formatted_address as string | undefined,
+              city: pickComponent(components, ["locality", "administrative_area_level_2"]),
+              state: pickComponent(components, ["administrative_area_level_1"]),
+              country: pickComponent(components, ["country"]),
+            };
+          })
+          .filter((r: GeocodeResult | null): r is GeocodeResult => r !== null);
+        if (mapped.length > 0) return mapped;
+      }
+    } catch (err) {
+      console.warn("Google address search failed, falling back to Nominatim:", err);
+    }
+  }
+
+  try {
+    const url = `${NOMINATIM_BASE}/search?q=${encodeURIComponent(
+      q
+    )}&format=json&addressdetails=1&limit=${boundedLimit}&countrycodes=ng`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) return [];
+    const rows = (await res.json()) as Array<{
+      lat: string;
+      lon: string;
+      display_name?: string;
+      address?: Record<string, string | undefined>;
+    }>;
+    return rows
+      .map((row): GeocodeResult | null => {
+        const lat = parseFloat(row.lat);
+        const lng = parseFloat(row.lon);
+        if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+        return {
+          lat,
+          lng,
+          formatted: row.display_name,
+          address: row.display_name,
+          city:
+            row.address?.city ||
+            row.address?.town ||
+            row.address?.village ||
+            row.address?.suburb,
+          state: row.address?.state,
+          country: row.address?.country,
+        };
+      })
+      .filter((r): r is GeocodeResult => r !== null);
+  } catch (err) {
+    console.error("Nominatim address search failed:", err);
+    return [];
+  }
+}
+
 /** Coordinates → address details. */
 export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeResult | null> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;

@@ -11,6 +11,7 @@ import PasswordStrength, {
 } from "@/components/auth/PasswordStrength";
 import OTPInput from "@/components/auth/OTPInput";
 import AuthBackdrop from "@/components/auth/AuthBackdrop";
+import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 
 type Step = "form" | "verify-email" | "complete";
 type SignupRole = "customer" | "vendor";
@@ -58,72 +59,6 @@ export default function SignUpPage() {
   const [resendCountdown, setResendCountdown] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [locating, setLocating] = useState(false);
-
-  const handleUseMyLocation = () => {
-    if (!("geolocation" in navigator)) {
-      toast.error("This browser does not support location detection");
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(
-            `/api/geocode/reverse?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
-          );
-          const payload = (await res.json()) as {
-            success?: boolean;
-            data?: {
-              lat: number;
-              lng: number;
-              address?: string;
-              city?: string;
-              state?: string;
-            } | null;
-          };
-          if (!payload.success || !payload.data) {
-            setForm((prev) => ({
-              ...prev,
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-            }));
-            toast.success("Coordinates captured. Please enter your address manually.");
-            return;
-          }
-          const { address, city, state, lat, lng } = payload.data;
-          setForm((prev) => ({
-            ...prev,
-            address: address ?? prev.address,
-            city: city ?? prev.city,
-            state: state ?? prev.state,
-            lat,
-            lng,
-          }));
-          toast.success("Address detected from your location");
-        } catch (err) {
-          console.error("Reverse geocode failed", err);
-          setForm((prev) => ({
-            ...prev,
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          }));
-          toast.error("Couldn't look up your address — coordinates captured only");
-        } finally {
-          setLocating(false);
-        }
-      },
-      (err) => {
-        setLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error("Location permission denied. Please enter address manually.");
-        } else {
-          toast.error("Unable to determine your location");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
 
   const startResendTimer = useCallback(() => {
     setResendCountdown(60);
@@ -461,33 +396,37 @@ export default function SignUpPage() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    {isVendorSignup ? "Business Address" : "Delivery Address"}
-                    <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">(optional)</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleUseMyLocation}
-                    disabled={locating}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 disabled:opacity-60"
-                  >
-                    <span className="material-symbols-outlined text-base">
-                      {locating ? "progress_activity" : "my_location"}
-                    </span>
-                    {locating ? "Detecting..." : "Use My Location"}
-                  </button>
-                </div>
-                <input
-                  type="text"
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  {isVendorSignup ? "Business Address" : "Delivery Address"}
+                  <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">(optional)</span>
+                </label>
+                <AddressAutocomplete
                   value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  resolved={form.lat != null && form.lng != null}
+                  onChange={(value) => setForm((prev) => ({ ...prev, address: value }))}
+                  onClearResolved={() =>
+                    setForm((prev) =>
+                      prev.lat == null && prev.lng == null
+                        ? prev
+                        : { ...prev, lat: null, lng: null }
+                    )
+                  }
+                  onResolve={(r) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      address: r.address,
+                      city: r.city ?? prev.city,
+                      state: r.state ?? prev.state,
+                      lat: r.lat,
+                      lng: r.lng,
+                    }))
+                  }
                   placeholder={
                     isVendorSignup
-                      ? "Where your business is located"
-                      : "Where you'd like deliveries sent"
+                      ? "Start typing your business address…"
+                      : "Start typing your delivery address…"
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition text-sm"
+                  inputClassName="rounded-xl bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
                 />
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <input
@@ -505,12 +444,9 @@ export default function SignUpPage() {
                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition text-sm"
                   />
                 </div>
-                {form.lat != null && form.lng != null && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1.5 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">verified</span>
-                    Location confirmed · {form.lat.toFixed(4)}, {form.lng.toFixed(4)}
-                  </p>
-                )}
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
+                  Start typing and pick your address from the list for accurate delivery.
+                </p>
               </div>
 
               <div>

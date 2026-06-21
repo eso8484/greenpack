@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import AddressAutocomplete, {
+  type ResolvedAddress,
+} from "@/components/ui/AddressAutocomplete";
 import type { CustomerInfo } from "@/types";
 
 interface ContactFormProps {
@@ -10,6 +13,12 @@ interface ContactFormProps {
   isSubmitting: boolean;
   disabled?: boolean;
   disabledReason?: string | null;
+  /** Whether a delivery address (with coords) is required before submitting. */
+  addressRequired?: boolean;
+  /** Fired when the user picks an address suggestion — carries coords. */
+  onAddressResolved?: (resolved: ResolvedAddress) => void;
+  /** Fired when the address text is edited after resolving (coords stale). */
+  onAddressCleared?: () => void;
 }
 
 export default function ContactForm({
@@ -17,6 +26,9 @@ export default function ContactForm({
   isSubmitting,
   disabled = false,
   disabledReason = null,
+  addressRequired = false,
+  onAddressResolved,
+  onAddressCleared,
 }: ContactFormProps) {
   const [form, setForm] = useState<CustomerInfo>({
     fullName: "",
@@ -26,6 +38,7 @@ export default function ContactForm({
     message: "",
   });
 
+  const [addressResolved, setAddressResolved] = useState(false);
   const [errors, setErrors] = useState<Partial<CustomerInfo>>({});
 
   const validate = (): boolean => {
@@ -35,6 +48,14 @@ export default function ContactForm({
     else if (!/\S+@\S+\.\S+/.test(form.email))
       newErrors.email = "Invalid email";
     if (!form.phone.trim()) newErrors.phone = "Phone number is required";
+    if (addressRequired) {
+      if (!form.address?.trim()) {
+        newErrors.address = "Delivery address is required";
+      } else if (!addressResolved) {
+        newErrors.address =
+          "Pick your address from the suggestions so we can calculate delivery";
+      }
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -95,12 +116,30 @@ export default function ContactForm({
           error={errors.phone}
         />
       </div>
-      <Input
+      <AddressAutocomplete
         id="address"
-        label="Address (optional)"
-        placeholder="Your delivery address"
+        label={addressRequired ? "Delivery Address *" : "Address (optional)"}
+        placeholder="Start typing your delivery address…"
         value={form.address || ""}
-        onChange={(e) => update("address", e.target.value)}
+        resolved={addressResolved}
+        error={errors.address}
+        onChange={(value) => {
+          update("address", value);
+        }}
+        onClearResolved={() => {
+          if (addressResolved) {
+            setAddressResolved(false);
+            onAddressCleared?.();
+          }
+        }}
+        onResolve={(r) => {
+          setForm((prev) => ({ ...prev, address: r.address }));
+          setAddressResolved(true);
+          if (errors.address) {
+            setErrors((prev) => ({ ...prev, address: undefined }));
+          }
+          onAddressResolved?.(r);
+        }}
       />
       <div className="space-y-1">
         <label
