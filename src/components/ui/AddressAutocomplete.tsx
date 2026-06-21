@@ -61,7 +61,8 @@ interface AddressAutocompleteProps {
   name?: string;
 }
 
-const DEBOUNCE_MS = 350;
+const DEBOUNCE_MS = 250;
+const MIN_QUERY = 3;
 
 export default function AddressAutocomplete({
   id,
@@ -100,7 +101,7 @@ export default function AddressAutocomplete({
       return;
     }
     const q = value.trim();
-    if (q.length < 3) {
+    if (q.length < MIN_QUERY) {
       setSuggestions([]);
       setOpen(false);
       setLoading(false);
@@ -124,7 +125,9 @@ export default function AddressAutocomplete({
         const list = payload.success && Array.isArray(payload.data) ? payload.data : [];
         setSuggestions(list);
         setActiveIndex(-1);
-        setOpen(list.length > 0);
+        // Open even on zero results so we can show a "no matches" hint instead
+        // of a dropdown that silently never appears.
+        setOpen(true);
       } catch {
         if (!cancelled) {
           setSuggestions([]);
@@ -249,41 +252,50 @@ export default function AddressAutocomplete({
           )}
         </span>
 
-        {open && suggestions.length > 0 && (
-          <ul
-            id={listboxId}
-            role="listbox"
-            className="absolute z-30 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg"
-          >
-            {suggestions.map((s, i) => (
-              <li
-                key={`${s.lat},${s.lng},${i}`}
-                role="option"
-                aria-selected={i === activeIndex}
-                // onMouseDown (not onClick) so it fires before the input blur
-                // closes the dropdown.
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  select(s);
-                }}
-                onMouseEnter={() => setActiveIndex(i)}
-                className={cn(
-                  "flex items-start gap-2 px-3 py-2.5 cursor-pointer text-sm",
-                  i === activeIndex
-                    ? "bg-green-50 dark:bg-green-900/30"
-                    : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                )}
-              >
-                <span className="material-symbols-outlined text-base text-green-600 dark:text-green-400 mt-0.5">
-                  location_on
-                </span>
-                <span className="text-gray-700 dark:text-gray-200 leading-snug">
-                  {s.formatted || s.address}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        {open &&
+          (suggestions.length > 0 ||
+            (!loading && value.trim().length >= MIN_QUERY)) && (
+            <ul
+              id={listboxId}
+              role="listbox"
+              className="absolute z-30 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg"
+            >
+              {suggestions.length > 0 ? (
+                suggestions.map((s, i) => (
+                  <li
+                    key={`${s.lat},${s.lng},${i}`}
+                    role="option"
+                    aria-selected={i === activeIndex}
+                    // onMouseDown (not onClick) so it fires before the input blur
+                    // closes the dropdown.
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      select(s);
+                    }}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    className={cn(
+                      "flex items-start gap-2 px-3 py-2.5 cursor-pointer text-sm",
+                      i === activeIndex
+                        ? "bg-green-50 dark:bg-green-900/30"
+                        : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    )}
+                  >
+                    <span className="material-symbols-outlined text-base text-green-600 dark:text-green-400 mt-0.5">
+                      location_on
+                    </span>
+                    <span className="text-gray-700 dark:text-gray-200 leading-snug">
+                      {s.formatted || s.address}
+                    </span>
+                  </li>
+                ))
+              ) : (
+                <li className="px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400 leading-snug">
+                  No matches yet — keep typing, or just enter your address
+                  manually.
+                </li>
+              )}
+            </ul>
+          )}
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
