@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, haversineKm } from "@/lib/utils";
 import type { Delivery } from "@/types";
 
 type Tab = "available" | "active" | "earnings" | "profile";
@@ -324,6 +324,36 @@ interface JobCardProps {
 }
 
 function JobCard({ job, actionLoading, showStatus, primaryAction }: JobCardProps) {
+  const shopAddr = job.shop_address;
+  const customerAddr = job.delivery_address ?? job.pickup_address;
+
+  const sLat = shopAddr?.lat;
+  const sLng = shopAddr?.lng;
+  const cLat = customerAddr?.lat;
+  const cLng = customerAddr?.lng;
+
+  // Distance between the seller and the customer — what the courier actually
+  // travels for this job.
+  const distanceKm =
+    sLat != null && sLng != null && cLat != null && cLng != null
+      ? haversineKm(sLat, sLng, cLat, cLng)
+      : null;
+
+  // Prefer turn-by-turn directions when we have both ends; otherwise drop a pin.
+  const navUrl =
+    cLat != null && cLng != null
+      ? sLat != null && sLng != null
+        ? `https://www.google.com/maps/dir/?api=1&origin=${sLat},${sLng}&destination=${cLat},${cLng}`
+        : `https://www.google.com/maps/dir/?api=1&destination=${cLat},${cLng}`
+      : customerAddr?.address
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+            customerAddr.address
+          )}`
+        : null;
+
+  const customerName = customerAddr?.name;
+  const customerPhone = customerAddr?.phone;
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5">
       <div className="flex justify-between items-start mb-3">
@@ -349,17 +379,61 @@ function JobCard({ job, actionLoading, showStatus, primaryAction }: JobCardProps
       <div className="space-y-2 text-xs text-gray-500 dark:text-gray-400 mb-4">
         <div className="flex gap-2">
           <span className="text-green-500">📍 Pickup:</span>
-          <span>{(job.pickup_address as { address?: string })?.address ?? "—"}</span>
+          <span>{job.pickup_address?.address ?? "—"}</span>
         </div>
         <div className="flex gap-2">
           <span className="text-blue-500">🏪 Shop:</span>
-          <span>{(job.shop_address as { address?: string })?.address ?? "—"}</span>
+          <span>{shopAddr?.address ?? "—"}</span>
         </div>
         <div className="flex gap-2">
           <span className="text-purple-500">🏠 Return to:</span>
-          <span>{(job.delivery_address as { address?: string })?.address ?? "—"}</span>
+          <span>{job.delivery_address?.address ?? "—"}</span>
         </div>
       </div>
+
+      {(distanceKm != null || navUrl) && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {distanceKm != null && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2.5 py-1 rounded-full">
+              <span className="material-symbols-outlined text-sm">distance</span>
+              {distanceKm.toFixed(1)} km seller → customer
+            </span>
+          )}
+          {navUrl && (
+            <a
+              href={navUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2.5 py-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">navigation</span>
+              Navigate
+            </a>
+          )}
+        </div>
+      )}
+
+      {(customerName || customerPhone) && (
+        <div className="flex items-center justify-between gap-2 text-xs mb-4 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2">
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-700 dark:text-gray-200 truncate">
+              {customerName ?? "Customer"}
+            </p>
+            {customerPhone && (
+              <p className="text-gray-500 dark:text-gray-400 truncate">{customerPhone}</p>
+            )}
+          </div>
+          {customerPhone && (
+            <a
+              href={`tel:${customerPhone}`}
+              className="inline-flex items-center gap-1 shrink-0 font-semibold text-green-700 dark:text-green-400 hover:underline"
+            >
+              <span className="material-symbols-outlined text-base">call</span>
+              Call
+            </a>
+          )}
+        </div>
+      )}
 
       {job.special_instructions && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 text-xs rounded-lg px-3 py-2 mb-4">
