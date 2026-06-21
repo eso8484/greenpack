@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { calculateFeeBreakdown } from "@/lib/utils";
+import { buildDeliveryNodes } from "@/lib/delivery";
 
 export async function POST(
   _request: Request,
@@ -158,9 +159,6 @@ export async function POST(
     if (fetchError) throw fetchError;
 
     if (fullOrder?.needs_delivery && fullOrder.customer_info) {
-      const deliveryAddress = fullOrder.customer_info.address || "";
-      const instructions = fullOrder.customer_info.message || "";
-
       // Resolve the final delivery_fee actually persisted on the order
       const finalDeliveryFee =
         backfilledBreakdown?.delivery_fee ?? Number(order.delivery_fee ?? 0);
@@ -168,7 +166,7 @@ export async function POST(
       // Detect whether this order contains a pickup_return service (two-leg delivery)
       const { data: orderItems, error: orderItemsError } = await supabase
         .from("order_items")
-        .select("item_type, item_id")
+        .select("item_type, item_id, shop_id")
         .eq("order_id", order.id);
 
       if (orderItemsError) {
@@ -200,14 +198,28 @@ export async function POST(
         }
       }
 
-      const pickupAddress = {
-        address: deliveryAddress,
-        instructions,
-      };
-      const dropoffAddress = {
-        address: deliveryAddress,
-        instructions,
-      };
+      // Fetch the shop so the courier sees its coords + name + phone.
+      const shopId = (orderItems ?? []).find((it) => it.shop_id)?.shop_id as
+        | string
+        | undefined;
+      let shopRow = null;
+      if (shopId) {
+        const { data } = await supabase
+          .from("shops")
+          .select("name, lat, lng, location, contact")
+          .eq("id", shopId)
+          .single();
+        shopRow = data;
+      }
+
+      // Build address nodes with coords (customer coords from checkout, or
+      // geocoded as a fallback) so couriers get distance + navigation.
+      const { customerNode, shopNode } = await buildDeliveryNodes(
+        fullOrder.customer_info,
+        shopRow
+      );
+      const pickupAddress = customerNode;
+      const dropoffAddress = customerNode;
 
       let deliveryError: unknown = null;
       if (hasPickupReturn) {
@@ -216,6 +228,7 @@ export async function POST(
           {
             order_id: order.id,
             pickup_address: pickupAddress,
+            shop_address: shopNode,
             delivery_address: dropoffAddress,
             courier_fee: perLegFee,
             leg: "pickup",
@@ -225,6 +238,7 @@ export async function POST(
           {
             order_id: order.id,
             pickup_address: pickupAddress,
+            shop_address: shopNode,
             delivery_address: dropoffAddress,
             courier_fee: perLegFee,
             leg: "return",
@@ -237,6 +251,7 @@ export async function POST(
         const { error } = await supabase.from("deliveries").insert({
           order_id: order.id,
           pickup_address: pickupAddress,
+          shop_address: shopNode,
           delivery_address: dropoffAddress,
           courier_fee: finalDeliveryFee,
           leg: "single",

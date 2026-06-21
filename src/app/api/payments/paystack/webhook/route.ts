@@ -2,6 +2,7 @@ import { createHmac } from "crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { safeEqual } from "@/lib/security";
+import { buildDeliveryNodes } from "@/lib/delivery";
 
 function isValidPaystackSignature(payload: string, signature: string, secret: string) {
   const expected = createHmac("sha512", secret).update(payload).digest("hex");
@@ -112,13 +113,12 @@ export async function POST(request: Request) {
             error: fetchError,
           });
         } else if (fullOrder?.needs_delivery && fullOrder.customer_info) {
-          const deliveryAddress = fullOrder.customer_info.address || "";
           const courierFee = Number(fullOrder.delivery_fee ?? 0);
 
           // Detect pickup_return services so we create two legs with split fee.
           const { data: orderItems } = await admin
             .from("order_items")
-            .select("item_type, item_id")
+            .select("item_type, item_id, shop_id")
             .eq("order_id", order.id);
 
           const serviceIds = (orderItems ?? [])
@@ -134,17 +134,35 @@ export async function POST(request: Request) {
             hasPickupReturn = (svc ?? []).some((s) => s.service_type === "pickup_return");
           }
 
-          const pickup = {
-            address: deliveryAddress,
-            instructions: fullOrder.customer_info.message || "",
-          };
-          const dropoff = pickup;
+          // Fetch the shop so the courier sees its coords + name + phone.
+          const shopId = (orderItems ?? []).find((it) => it.shop_id)?.shop_id as
+            | string
+            | undefined;
+          let shopRow = null;
+          if (shopId) {
+            const { data } = await admin
+              .from("shops")
+              .select("name, lat, lng, location, contact")
+              .eq("id", shopId)
+              .single();
+            shopRow = data;
+          }
+
+          // Build address nodes with coords (customer coords from checkout, or
+          // geocoded as a fallback) so couriers get distance + navigation.
+          const { customerNode, shopNode } = await buildDeliveryNodes(
+            fullOrder.customer_info,
+            shopRow
+          );
+          const pickup = customerNode;
+          const dropoff = customerNode;
 
           const { error: deliveryError } = hasPickupReturn
             ? await admin.from("deliveries").insert([
                 {
                   order_id: order.id,
                   pickup_address: pickup,
+                  shop_address: shopNode,
                   delivery_address: dropoff,
                   courier_fee: Math.round((courierFee / 2) * 100) / 100,
                   leg: "pickup",
@@ -154,6 +172,7 @@ export async function POST(request: Request) {
                 {
                   order_id: order.id,
                   pickup_address: pickup,
+                  shop_address: shopNode,
                   delivery_address: dropoff,
                   courier_fee: Math.round((courierFee / 2) * 100) / 100,
                   leg: "return",
@@ -164,6 +183,7 @@ export async function POST(request: Request) {
             : await admin.from("deliveries").insert({
                 order_id: order.id,
                 pickup_address: pickup,
+                shop_address: shopNode,
                 delivery_address: dropoff,
                 courier_fee: courierFee,
                 leg: "single",
