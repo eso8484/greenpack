@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import Button from "@/components/ui/Button";
@@ -9,7 +9,9 @@ import Input from "@/components/ui/Input";
 import OTPInput from "@/components/auth/OTPInput";
 import PasswordStrength, { isPasswordStrong } from "@/components/auth/PasswordStrength";
 import { categories } from "@/lib/data/categories";
-import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete";
+import AddressAutocomplete, {
+  type ResolvedAddress,
+} from "@/components/ui/AddressAutocomplete";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -104,7 +106,6 @@ export default function VendorRegisterPage() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [locating, setLocating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
@@ -127,17 +128,11 @@ export default function VendorRegisterPage() {
     }, 1000);
   }, []);
 
-  // ── Address autocomplete + forward geocode ───────────────────────────────
+  // ── Address autocomplete ─────────────────────────────────────────────────
 
-  const addressRef = useRef<HTMLInputElement>(null);
-
-  const handleAddressResolved = (r: {
-    address: string;
-    city?: string;
-    state?: string;
-    lat: number;
-    lng: number;
-  }) => {
+  // Selecting a suggestion in the AddressAutocomplete fills the address fields
+  // and pins precise coords — no device GPS, no separate "find on map" step.
+  const handleAddressResolved = (r: ResolvedAddress) => {
     setShop((prev) => ({
       ...prev,
       address: r.address || prev.address,
@@ -147,181 +142,6 @@ export default function VendorRegisterPage() {
       lng: r.lng,
       gpsAccuracy: null,
     }));
-    toast.success("Address pinned from Google. Please confirm the city/state are right.");
-  };
-
-  const { enabled: autocompleteEnabled } = useAddressAutocomplete(
-    addressRef,
-    handleAddressResolved
-  );
-
-  /** Forward-geocode the typed address (uses Google when GOOGLE_MAPS_API_KEY is set). */
-  const handleFindAddress = async () => {
-    const q = shop.address.trim();
-    if (!q) {
-      toast.error("Type your address first, then tap Find.");
-      return;
-    }
-    setLocating(true);
-    try {
-      const params = new URLSearchParams({ address: q });
-      if (shop.city.trim()) params.set("city", shop.city.trim());
-      if (shop.state.trim()) params.set("state", shop.state.trim());
-      const res = await fetch(`/api/geocode/forward?${params.toString()}`);
-      const payload = (await res.json()) as {
-        success?: boolean;
-        data?: { address?: string; city?: string; state?: string; lat: number; lng: number } | null;
-      };
-      if (!payload.success || !payload.data) {
-        toast.error(
-          "Couldn't locate that address. Add more detail (street, area, city) and try again."
-        );
-        return;
-      }
-      const { address, city, state, lat, lng } = payload.data;
-      setShop((prev) => ({
-        ...prev,
-        address: address ?? prev.address,
-        city: city ?? prev.city,
-        state: state ?? prev.state,
-        lat: lat ?? prev.lat,
-        lng: lng ?? prev.lng,
-        gpsAccuracy: null,
-      }));
-      toast.success("Address located. Please confirm the pin is right.");
-    } catch {
-      toast.error("Network error while locating the address.");
-    } finally {
-      setLocating(false);
-    }
-  };
-
-  // ── Geolocation ────────────────────────────────────────────────────────────
-
-  const handleUseMyLocation = () => {
-    if (!("geolocation" in navigator)) {
-      toast.error("This browser does not support location detection.");
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        const accM = Math.round(accuracy);
-
-        // When the fix is too imprecise we never trust a reverse-geocoded
-        // address — it can be hundreds of meters off and look correct
-        // (this is what produced "address auto-fills my university in
-        // another state" reports: the underlying WiFi/IP geolocation was
-        // pointing at the wrong cell tower entirely). Only fill the coords
-        // and ask the user to type the address themselves.
-        const ACCURACY_TRUST_THRESHOLD_M = 120;
-        const trustGeocode = accuracy <= ACCURACY_TRUST_THRESHOLD_M;
-
-        if (!trustGeocode) {
-          setShop((prev) => ({
-            ...prev,
-            address: "",
-            city: "",
-            state: "",
-            lat: latitude,
-            lng: longitude,
-            gpsAccuracy: accM,
-          }));
-          toast.warning(
-            `GPS is only accurate to ±${accM}m — type your address and tap "Find this address" for an exact pin.`,
-            { duration: 7000 }
-          );
-          setLocating(false);
-          return;
-        }
-
-        try {
-          const res = await fetch(
-            `/api/geocode/reverse?lat=${latitude}&lng=${longitude}`
-          );
-          const payload = (await res.json()) as {
-            success?: boolean;
-            data?: {
-              lat: number;
-              lng: number;
-              address?: string;
-              city?: string;
-              state?: string;
-            } | null;
-          };
-
-          if (!payload.success || !payload.data) {
-            // Coords captured; address must be entered manually.
-            setShop((prev) => ({
-              ...prev,
-              address: "",
-              city: "",
-              state: "",
-              lat: latitude,
-              lng: longitude,
-              gpsAccuracy: accM,
-            }));
-            toast.success("GPS coordinates captured. Please enter the address manually.");
-            return;
-          }
-
-          const { address, city, state, lat, lng } = payload.data;
-          // Clear fields first to defeat any autocomplete race before setting
-          // the geocoded values.
-          setShop((prev) => ({
-            ...prev,
-            address: "",
-            city: "",
-            state: "",
-            lat: null,
-            lng: null,
-            gpsAccuracy: null,
-          }));
-          // Now set the geocoded result
-          setShop((prev) => ({
-            ...prev,
-            address: address ?? prev.address,
-            city: city ?? prev.city,
-            state: state ?? prev.state,
-            lat: lat ?? latitude,
-            lng: lng ?? longitude,
-            gpsAccuracy: accM,
-          }));
-          toast.success(
-            `Location detected (±${accM}m). Please verify the address is correct.`
-          );
-        } catch (err) {
-          console.error("Reverse geocode failed", err);
-          setShop((prev) => ({
-            ...prev,
-            lat: latitude,
-            lng: longitude,
-            gpsAccuracy: Math.round(accuracy),
-          }));
-          toast.error("Could not look up your address — GPS coordinates captured.");
-        } finally {
-          setLocating(false);
-        }
-      },
-      (err) => {
-        setLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error(
-            "Location permission denied. Please enter your address manually."
-          );
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
-          toast.error(
-            "Location unavailable. Check that GPS is enabled, then try again."
-          );
-        } else {
-          toast.error(
-            "Location request timed out. Please enter your address manually."
-          );
-        }
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
   };
 
   // ── Validation helpers ─────────────────────────────────────────────────────
@@ -993,69 +813,27 @@ export default function VendorRegisterPage() {
                   Couriers calculate distance from the exact pin — please verify your location.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleUseMyLocation}
-                disabled={locating}
-                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 disabled:opacity-60 transition-colors"
-              >
-                <span className="material-symbols-outlined text-base">
-                  {locating ? "progress_activity" : "my_location"}
-                </span>
-                {locating ? "Detecting precise location..." : "Use My Current Location"}
-              </button>
             </div>
 
             <div className="space-y-4">
-              {/* Street address — extra autofill-defeat attributes */}
-              <div className="space-y-1">
-                <label
-                  htmlFor="vendorAddress"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Street Address <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    id="vendorAddress"
-                    ref={addressRef}
-                    type="text"
-                    required
-                    autoComplete="off"
-                    name="vendor-street-address"
-                    data-1p-ignore
-                    value={shop.address}
-                    onChange={(e) => updateShop("address", e.target.value)}
-                    placeholder="e.g. 12 Bode Thomas Street"
-                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder:text-gray-400 transition-colors focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
-                  />
-                  {shop.lat != null && shop.lng != null && (
-                    <span
-                      title="GPS coordinates verified"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-semibold"
-                    >
-                      <span className="material-symbols-outlined text-base">verified</span>
-                      Verified
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 flex-wrap pt-1">
-                  <button
-                    type="button"
-                    onClick={handleFindAddress}
-                    disabled={locating}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 dark:text-green-400 hover:underline disabled:opacity-60"
-                  >
-                    <span className="material-symbols-outlined text-sm">search</span>
-                    Find this address on the map
-                  </button>
-                  {autocompleteEnabled && (
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      or start typing for Google suggestions
-                    </span>
-                  )}
-                </div>
-              </div>
+              <AddressAutocomplete
+                id="vendorAddress"
+                name="vendor-street-address"
+                label="Street Address"
+                required
+                placeholder="Start typing your business address…"
+                value={shop.address}
+                resolved={shop.lat != null && shop.lng != null}
+                onChange={(value) => updateShop("address", value)}
+                onClearResolved={() =>
+                  setShop((prev) =>
+                    prev.lat == null && prev.lng == null
+                      ? prev
+                      : { ...prev, lat: null, lng: null, gpsAccuracy: null }
+                  )
+                }
+                onResolve={handleAddressResolved}
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <Input

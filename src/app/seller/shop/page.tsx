@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import ImageUpload from "@/components/ui/ImageUpload";
 import ImageGalleryUpload from "@/components/ui/ImageGalleryUpload";
+import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 import { categories } from "@/lib/data/categories";
 
 /** Generate a URL-safe slug from a shop name. */
@@ -165,86 +166,12 @@ export default function ShopEditorPage() {
     }));
   };
 
-  const [locating, setLocating] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
   /**
-   * Browser geolocation → coords → reverse geocode → fill the address fields.
-   * Used by the "Use My Current Location" button; ensures the saved shop
-   * coordinates are exactly where the vendor is standing (so courier distance
-   * calc is accurate) and the address text matches.
-   */
-  const handleUseMyLocation = () => {
-    if (!("geolocation" in navigator)) {
-      toast.error("This browser does not support location detection");
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(
-            `/api/geocode/reverse?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
-          );
-          const payload = (await res.json()) as {
-            success?: boolean;
-            data?: {
-              lat: number;
-              lng: number;
-              address?: string;
-              city?: string;
-              state?: string;
-            } | null;
-          };
-
-          if (!payload.success || !payload.data) {
-            // Still capture the raw coords — manual address is fine.
-            setForm((prev) => ({
-              ...prev,
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-            }));
-            toast.success("Coordinates captured. Please enter the address manually.");
-            return;
-          }
-
-          const { address, city, state, lat, lng } = payload.data;
-          setForm((prev) => ({
-            ...prev,
-            address: address ?? prev.address,
-            city: city ?? prev.city,
-            state: state ?? prev.state,
-            lat,
-            lng,
-          }));
-          toast.success("Location detected and address filled in");
-        } catch (err) {
-          console.error("Reverse geocode failed", err);
-          toast.error("Could not look up your address — coordinates only");
-          setForm((prev) => ({
-            ...prev,
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-          }));
-        } finally {
-          setLocating(false);
-        }
-      },
-      (err) => {
-        setLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error("Location permission denied. Please enter address manually.");
-        } else {
-          toast.error("Unable to determine your location");
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
-  /**
    * Forward geocode the typed address. Lets the vendor confirm the shop
-   * appears at the right pin before saving — without leaving the form.
+   * appears at the right pin before saving — a fallback when they type an
+   * address manually instead of picking a suggestion.
    */
   const handleVerifyAddress = async () => {
     const address = form.address.trim();
@@ -511,26 +438,33 @@ export default function ShopEditorPage() {
                 your location.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleUseMyLocation}
-              disabled={locating}
-              className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 disabled:opacity-60 transition-colors"
-            >
-              <span className="material-symbols-outlined text-base">
-                {locating ? "progress_activity" : "my_location"}
-              </span>
-              {locating ? "Detecting..." : "Use My Current Location"}
-            </button>
           </div>
           <div className="space-y-4">
-            <Input
+            <AddressAutocomplete
               id="address"
               label="Street Address"
-              placeholder="e.g. 12 Aminu Kano Crescent, Wuse 2"
-              value={form.address}
-              onChange={(event) => updateField("address", event.target.value)}
               required
+              placeholder="Start typing your business address…"
+              value={form.address}
+              resolved={form.lat != null && form.lng != null}
+              onChange={(value) => updateField("address", value)}
+              onClearResolved={() =>
+                setForm((prev) =>
+                  prev.lat == null && prev.lng == null
+                    ? prev
+                    : { ...prev, lat: null, lng: null }
+                )
+              }
+              onResolve={(r) =>
+                setForm((prev) => ({
+                  ...prev,
+                  address: r.address,
+                  city: r.city ?? prev.city,
+                  state: r.state ?? prev.state,
+                  lat: r.lat,
+                  lng: r.lng,
+                }))
+              }
             />
             <div className="grid grid-cols-2 gap-4">
               <Input

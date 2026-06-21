@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ContactForm from "@/components/checkout/ContactForm";
 import OrderReview from "@/components/checkout/OrderReview";
+import type { ResolvedAddress } from "@/components/ui/AddressAutocomplete";
 import { useCart } from "@/hooks/useCart";
 import Button from "@/components/ui/Button";
 import Link from "next/link";
@@ -36,11 +37,12 @@ export default function CheckoutPage() {
   // can't re-run verification for the same reference.
   const verifiedReferenceRef = useRef<string | null>(null);
 
-  // Geolocation state
+  // Customer coordinates come from the address the customer selects in the
+  // ContactForm autocomplete (no device GPS). They drive the delivery-fee
+  // distance calculation.
   const [customerLat, setCustomerLat] = useState<number | null>(null);
   const [customerLng, setCustomerLng] = useState<number | null>(null);
-  const [geoDenied, setGeoDenied] = useState(false);
-  const [geoChecked, setGeoChecked] = useState(false);
+  const [addressSelected, setAddressSelected] = useState(false);
 
   // Delivery quote state
   const [quotes, setQuotes] = useState<ShopDeliveryQuote[]>([]);
@@ -65,35 +67,22 @@ export default function CheckoutPage() {
     return Array.from(ids);
   }, [items]);
 
-  // 1) Request geolocation on mount
-  useEffect(() => {
-    if (!hasProducts) {
-      setGeoChecked(true);
-      return;
-    }
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setGeoDenied(true);
-      setGeoChecked(true);
-      toast.warning("Enable location to calculate delivery fee");
-      return;
-    }
+  // Handlers wired to the ContactForm address autocomplete. Selecting a
+  // suggestion gives us precise coords; editing the text afterwards clears them
+  // so a stale fee can't be used.
+  const handleAddressResolved = (r: ResolvedAddress) => {
+    setCustomerLat(r.lat);
+    setCustomerLng(r.lng);
+    setAddressSelected(true);
+  };
+  const handleAddressCleared = () => {
+    setCustomerLat(null);
+    setCustomerLng(null);
+    setAddressSelected(false);
+    setQuotes([]);
+  };
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCustomerLat(pos.coords.latitude);
-        setCustomerLng(pos.coords.longitude);
-        setGeoChecked(true);
-      },
-      () => {
-        setGeoDenied(true);
-        setGeoChecked(true);
-        toast.warning("Enable location to calculate delivery fee");
-      },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60_000 }
-    );
-  }, [hasProducts]);
-
-  // 2) Fetch delivery-fee per shop once we have coords + shop ids
+  // Fetch delivery-fee per shop once we have coords + shop ids
   useEffect(() => {
     if (!hasProducts) {
       setQuotes([]);
@@ -182,12 +171,11 @@ export default function CheckoutPage() {
   // Reason the Pay button should be disabled (if any)
   const payDisabledReason: string | null = (() => {
     if (!hasProducts) return null;
+    if (!addressSelected)
+      return "Enter your delivery address and pick it from the suggestions to calculate delivery.";
     if (anyBlocked) return "Delivery only available within Abuja for now";
-    if (geoDenied)
-      return "We need your location to calculate delivery fee. Please enable location and refresh.";
     if (deliveryError) return deliveryError;
     if (isCalculatingDelivery) return "Calculating delivery fee...";
-    if (!geoChecked) return "Checking your location...";
     if (quotes.length === 0 && productShopIds.length > 0)
       return "Delivery fee not yet calculated";
     return null;
@@ -277,7 +265,14 @@ export default function CheckoutPage() {
           subtotal,
           delivery_fee: hasProducts ? deliveryFee : 0,
           delivery_distance_km: hasProducts ? deliveryDistanceKm : null,
-          customer_info: info,
+          customer_info: {
+            ...info,
+            // Persist the coords from the selected address so couriers can see
+            // distance + navigate without re-geocoding.
+            ...(customerLat != null && customerLng != null
+              ? { lat: customerLat, lng: customerLng }
+              : {}),
+          },
           needs_delivery: hasProducts,
           payment_provider: "paystack",
           payment_currency: "NGN",
@@ -426,6 +421,9 @@ export default function CheckoutPage() {
             isSubmitting={isSubmitting}
             disabled={payDisabled}
             disabledReason={payDisabledReason}
+            addressRequired={hasProducts}
+            onAddressResolved={handleAddressResolved}
+            onAddressCleared={handleAddressCleared}
           />
         </div>
         <div className="w-full lg:w-80 shrink-0">
