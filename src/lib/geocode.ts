@@ -155,56 +155,23 @@ function photonToResult(f: PhotonFeature): GeocodeResult | null {
 }
 
 /**
- * Address text → up to `limit` candidate matches, for type-ahead suggestions.
- * Order of preference: Google (if a key is set) → Photon (OSM data served by an
- * autocomplete engine, Abuja-biased) → Nominatim (last-resort fallback).
- * Photon is primary because Nominatim's full-text search returns nothing for
- * partial local names (e.g. "master"), while Photon fuzzy-matches and ranks by
- * the Abuja location bias. Always returns an array (empty on no match / error).
+ * Keyless OSM type-ahead: Photon (autocomplete engine, Abuja-biased) →
+ * Nominatim (last-resort). Photon is primary because Nominatim's full-text
+ * search returns nothing for partial local names (e.g. "master"), while Photon
+ * fuzzy-matches and ranks by the Abuja location bias. Always returns an array.
+ *
+ * This is the FALLBACK for suggestAddresses() when no Google key is set. We do
+ * NOT use the Google Geocoding API for suggestions — Geocoding collapses a
+ * partial query to its nearest whole match (usually just "Nigeria"), which is
+ * why type-ahead looked broken. Google type-ahead lives in suggestAddresses().
  */
 export async function searchAddresses(
   query: string,
-  limit = 5,
-  country = "Nigeria"
+  limit = 5
 ): Promise<GeocodeResult[]> {
   const q = query.trim();
   if (!q) return [];
   const boundedLimit = Math.min(Math.max(limit, 1), 10);
-
-  const googleKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (googleKey) {
-    try {
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-        `${q}, ${country}`
-      )}&region=ng&key=${googleKey}`;
-      const res = await fetch(url, { next: { revalidate: 0 } });
-      if (res.ok) {
-        const data = await res.json();
-        const results = Array.isArray(data?.results) ? data.results : [];
-        const mapped = results
-          .slice(0, boundedLimit)
-          .map((top: Record<string, unknown>): GeocodeResult | null => {
-            const geometry = top.geometry as { location?: { lat?: number; lng?: number } } | undefined;
-            const loc = geometry?.location;
-            if (!loc || typeof loc.lat !== "number" || typeof loc.lng !== "number") return null;
-            const components = top.address_components as unknown[] | undefined;
-            return {
-              lat: loc.lat,
-              lng: loc.lng,
-              formatted: top.formatted_address as string | undefined,
-              address: top.formatted_address as string | undefined,
-              city: pickComponent(components, ["locality", "administrative_area_level_2"]),
-              state: pickComponent(components, ["administrative_area_level_1"]),
-              country: pickComponent(components, ["country"]),
-            };
-          })
-          .filter((r: GeocodeResult | null): r is GeocodeResult => r !== null);
-        if (mapped.length > 0) return mapped;
-      }
-    } catch (err) {
-      console.warn("Google address search failed, falling back:", err);
-    }
-  }
 
   // Primary free provider: Photon. Type-ahead engine + Abuja bias.
   try {
@@ -270,6 +237,193 @@ export async function searchAddresses(
   } catch (err) {
     console.error("Nominatim address search failed:", err);
     return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Google Places (New) — proper type-ahead. Autocomplete returns predictions
+// (placeId + labels, NO coords); coords are resolved on selection via Place
+// Details. A session token groups the keystrokes + final details call into one
+// billing session. Requires "Places API (New)" enabled AND allowed on the
+// server key (GOOGLE_MAPS_API_KEY).
+// ---------------------------------------------------------------------------
+
+const PLACES_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete";
+const PLACE_DETAILS_BASE = "https://places.googleapis.com/v1/places";
+
+export interface AddressSuggestion {
+  /** Google prediction id — resolve coords via getPlaceDetails(). */
+  placeId?: string;
+  /** Present only for the OSM fallback, where coords are known upfront. */
+  lat?: number;
+  lng?: number;
+  /** One-line label filled into the field on selection. */
+  formatted: string;
+  /** Structured two-line display (Google). */
+  mainText?: string;
+  secondaryText?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+}
+
+interface PlacesAutocompleteResponse {
+  suggestions?: Array<{
+    placePrediction?: {
+      placeId?: string;
+      text?: { text?: string };
+      structuredFormat?: {
+        mainText?: { text?: string };
+        secondaryText?: { text?: string };
+      };
+    };
+  }>;
+}
+
+/**
+ * Type-ahead address suggestions. Primary source is Google Places Autocomplete
+ * (New) — the API built for type-ahead. Falls back to OSM (Photon → Nominatim)
+ * when no key is set or Google returns nothing. Always returns an array.
+ */
+export async function suggestAddresses(
+  query: string,
+  limit = 5,
+  sessionToken?: string
+): Promise<AddressSuggestion[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const boundedLimit = Math.min(Math.max(limit, 1), 10);
+
+  const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (googleKey) {
+    try {
+      const res = await fetch(PLACES_AUTOCOMPLETE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": googleKey,
+          "X-Goog-FieldMask": [
+            "suggestions.placePrediction.placeId",
+            "suggestions.placePrediction.text.text",
+            "suggestions.placePrediction.structuredFormat.mainText.text",
+            "suggestions.placePrediction.structuredFormat.secondaryText.text",
+          ].join(","),
+        },
+        body: JSON.stringify({
+          input: q,
+          includedRegionCodes: ["ng"],
+          languageCode: "en",
+          // Bias toward Abuja so local estates/streets rank first.
+          locationBias: {
+            circle: {
+              center: { latitude: BIAS_LAT, longitude: BIAS_LON },
+              radius: 50000.0,
+            },
+          },
+          ...(sessionToken ? { sessionToken } : {}),
+        }),
+        next: { revalidate: 0 },
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as PlacesAutocompleteResponse;
+        const out: AddressSuggestion[] = [];
+        for (const s of data.suggestions ?? []) {
+          const p = s.placePrediction;
+          if (!p?.placeId) continue;
+          const main = p.structuredFormat?.mainText?.text;
+          const secondary = p.structuredFormat?.secondaryText?.text;
+          const formatted =
+            p.text?.text || [main, secondary].filter(Boolean).join(", ");
+          if (!formatted) continue;
+          out.push({ placeId: p.placeId, formatted, mainText: main, secondaryText: secondary });
+          if (out.length >= boundedLimit) break;
+        }
+        if (out.length > 0) return out;
+      } else {
+        console.warn("Places Autocomplete failed:", res.status);
+      }
+    } catch (err) {
+      console.warn("Places Autocomplete error, falling back to OSM:", err);
+    }
+  }
+
+  // Keyless fallback — Photon/Nominatim already return coordinates inline.
+  const osm = await searchAddresses(q, boundedLimit);
+  return osm.map((r) => ({
+    lat: r.lat,
+    lng: r.lng,
+    formatted: r.formatted || r.address || "",
+    city: r.city,
+    state: r.state,
+    country: r.country,
+  }));
+}
+
+interface PlaceDetailsResponse {
+  location?: { latitude?: number; longitude?: number };
+  formattedAddress?: string;
+  addressComponents?: Array<{
+    longText?: string;
+    shortText?: string;
+    types?: string[];
+  }>;
+}
+
+function pickNewComponent(
+  components: PlaceDetailsResponse["addressComponents"],
+  types: string[]
+): string | undefined {
+  if (!Array.isArray(components)) return undefined;
+  for (const c of components) {
+    if (Array.isArray(c.types) && c.types.some((t) => types.includes(t))) {
+      return c.longText ?? c.shortText;
+    }
+  }
+  return undefined;
+}
+
+/** Resolve a Places prediction id → coordinates + canonical address parts. */
+export async function getPlaceDetails(
+  placeId: string,
+  sessionToken?: string
+): Promise<GeocodeResult | null> {
+  const id = placeId.trim();
+  if (!id) return null;
+  const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!googleKey) return null;
+
+  try {
+    const url =
+      `${PLACE_DETAILS_BASE}/${encodeURIComponent(id)}` +
+      (sessionToken ? `?sessionToken=${encodeURIComponent(sessionToken)}` : "");
+    const res = await fetch(url, {
+      headers: {
+        "X-Goog-Api-Key": googleKey,
+        "X-Goog-FieldMask": "location,formattedAddress,addressComponents",
+      },
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) {
+      console.warn("Place Details failed:", res.status);
+      return null;
+    }
+    const data = (await res.json()) as PlaceDetailsResponse;
+    const lat = data.location?.latitude;
+    const lng = data.location?.longitude;
+    if (typeof lat !== "number" || typeof lng !== "number") return null;
+    return {
+      lat,
+      lng,
+      formatted: data.formattedAddress,
+      address: data.formattedAddress,
+      city: pickNewComponent(data.addressComponents, ["locality", "administrative_area_level_2", "sublocality"]),
+      state: pickNewComponent(data.addressComponents, ["administrative_area_level_1"]),
+      country: pickNewComponent(data.addressComponents, ["country"]),
+    };
+  } catch (err) {
+    console.error("Place Details error:", err);
+    return null;
   }
 }
 

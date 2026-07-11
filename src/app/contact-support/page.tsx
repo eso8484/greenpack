@@ -379,6 +379,13 @@ export default function ContactSupportPage() {
 
   const timers = useRef<number[]>([]);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  // Mirror of `messages` so async handlers (handoff transcript push) can read
+  // the latest list without a stale closure. Updated in an effect (never during
+  // render) to satisfy the rules of refs.
+  const messagesRef = useRef<Message[]>(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const clearPendingAssistantReplies = useCallback(() => {
     timers.current.forEach((timer) => window.clearTimeout(timer));
@@ -476,7 +483,21 @@ export default function ContactSupportPage() {
     }
 
     if (ticketMessages && ticketMessages.length > 0) {
-      setMessages(ticketMessages.map(mapApiMessage));
+      const serverMessages = ticketMessages.map(mapApiMessage);
+      // MERGE, never replace. The old code overwrote the local list with the
+      // server's, which erased any message not yet persisted — most visibly the
+      // whole assistant conversation right after a live-agent handoff. Instead
+      // we keep every local message in place and append only server messages we
+      // aren't already showing (e.g. new agent replies). Dedupe by a
+      // sender+text signature so the transcript we pushed at handoff, and
+      // messages we just sent, don't appear twice.
+      setMessages((prev) => {
+        const sig = (m: Message) => `${m.sender}|${m.text.trim()}`;
+        const seen = new Set(prev.map(sig));
+        const additions = serverMessages.filter((m) => !seen.has(sig(m)));
+        if (additions.length === 0) return prev;
+        return [...prev, ...additions];
+      });
     }
   }, [fetchTicket, fetchTicketMessages]);
 
@@ -599,6 +620,12 @@ export default function ContactSupportPage() {
       },
     ]);
 
+    // Snapshot the assistant conversation BEFORE creating the ticket, so the
+    // handoff carries the full transcript to the live agent (industry best
+    // practice: the customer must never lose or repeat what they already told
+    // the bot). We persist every prior user/assistant/system line to the ticket.
+    const transcript = messagesRef.current;
+
     const ensured = await ensureTicket("Live-agent handoff requested from support widget.");
     if (!ensured.ticketId) {
       setMode("assistant");
@@ -612,6 +639,25 @@ export default function ContactSupportPage() {
         },
       ]);
       return;
+    }
+
+    // Push the pre-handoff transcript onto the ticket so the agent sees the
+    // whole context. Only when the ticket was created FRESH at this handoff —
+    // if it already existed, each user/assistant line was persisted as it was
+    // sent, so re-sending would duplicate them. Map local sender roles to the
+    // API's accepted sender_type values; sent sequentially to preserve order.
+    if (ensured.createdWithFirstMessage) {
+      for (const m of transcript) {
+        if (m.sender === "agent") continue; // agent lines originate server-side
+        if (!m.text?.trim()) continue;
+        const senderType =
+          m.sender === "user" ? "customer" : m.sender === "assistant" ? "assistant" : "system";
+        try {
+          await persistMessage(ensured.ticketId, m.text, senderType);
+        } catch {
+          /* best-effort — a failed line shouldn't abort the handoff */
+        }
+      }
     }
 
     await syncTicketState(ensured.ticketId);

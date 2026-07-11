@@ -52,6 +52,19 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
+  // getUser() may have refreshed the access token, in which case setAll wrote
+  // NEW auth cookies onto `supabaseResponse`. Any response we return instead of
+  // that object (every redirect/rewrite below) MUST carry those cookies over,
+  // or the browser keeps the old (now-rotated) token and the very next request
+  // looks logged-out — the intermittent "bounced to /login while signed in"
+  // bug. This helper copies the refreshed cookies onto a redirect/rewrite.
+  const withAuthCookies = (response: NextResponse) => {
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie);
+    });
+    return response;
+  };
+
   // Redirect signed-in users away from guest-only auth pages
   const isGuestOnlyPath = AUTH_ONLY_GUEST.some((route) => pathname === route || pathname.startsWith(`${route}/`));
   if (isGuestOnlyPath && user) {
@@ -67,7 +80,7 @@ export async function middleware(request: NextRequest) {
     else if (profile?.role === "admin") url.pathname = "/admin";
     else url.pathname = "/browse";
     url.search = "";
-    return NextResponse.redirect(url);
+    return withAuthCookies(NextResponse.redirect(url));
   }
 
   // Check auth-required routes
@@ -76,7 +89,7 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(url);
+    return withAuthCookies(NextResponse.redirect(url));
   }
 
   // Check role-required routes
@@ -92,13 +105,13 @@ export async function middleware(request: NextRequest) {
       if (hideIfUnauthorized) {
         const url = request.nextUrl.clone();
         url.pathname = "/not-found";
-        return NextResponse.rewrite(url, { status: 404 });
+        return withAuthCookies(NextResponse.rewrite(url, { status: 404 }));
       }
 
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(url);
+      return withAuthCookies(NextResponse.redirect(url));
     }
 
     // Fetch role from profiles
@@ -113,10 +126,18 @@ export async function middleware(request: NextRequest) {
       if (hideIfUnauthorized) {
         const url = request.nextUrl.clone();
         url.pathname = "/not-found";
-        return NextResponse.rewrite(url, { status: 404 });
+        return withAuthCookies(NextResponse.rewrite(url, { status: 404 }));
       }
 
-      return NextResponse.redirect(new URL("/", request.url));
+      // A signed-in user without the right role shouldn't silently land on a
+      // dashboard that isn't theirs. Send seller-area visitors to vendor
+      // registration (become a vendor) rather than the generic homepage, so
+      // the path to *their own* seller account is obvious.
+      if (roleRoute.startsWith("/seller")) {
+        return withAuthCookies(NextResponse.redirect(new URL("/vendor/register", request.url)));
+      }
+
+      return withAuthCookies(NextResponse.redirect(new URL("/", request.url)));
     }
   }
 

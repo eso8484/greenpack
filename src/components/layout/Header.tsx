@@ -98,7 +98,7 @@ export default function Header() {
                     href="/seller/dashboard"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors whitespace-nowrap"
+                    className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"
                   >
                     Seller Dashboard ↗
                   </Link>
@@ -107,7 +107,7 @@ export default function Header() {
                     href="/sell"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm font-semibold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors whitespace-nowrap"
+                    className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"
                   >
                     Become a Vendor ↗
                   </Link>

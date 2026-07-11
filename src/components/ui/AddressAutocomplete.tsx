@@ -31,12 +31,18 @@ export interface ResolvedAddress {
 }
 
 interface Suggestion {
-  address: string;
+  /** Google Places prediction id — coords resolved on select via /details. */
+  placeId?: string;
+  address?: string;
   city?: string;
   state?: string;
-  lat: number;
-  lng: number;
+  /** Present only for OSM fallback results (coords known upfront). */
+  lat?: number;
+  lng?: number;
   formatted?: string;
+  /** Structured two-line display (Google). */
+  mainText?: string;
+  secondaryText?: string;
 }
 
 interface AddressAutocompleteProps {
@@ -63,6 +69,18 @@ interface AddressAutocompleteProps {
 
 const DEBOUNCE_MS = 250;
 const MIN_QUERY = 3;
+
+/** Opaque session token for Google Places (per-session billing). */
+function newSessionToken(): string {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* fall through */
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 export default function AddressAutocomplete({
   id,
@@ -93,6 +111,10 @@ export default function AddressAutocomplete({
   // Set true immediately after a selection so the value-change effect doesn't
   // re-open the dropdown with a fresh query for the text we just filled in.
   const justSelectedRef = useRef(false);
+  // Google Places session token: groups the keystroke autocomplete calls and
+  // the final Place Details call into ONE billing session. Regenerated after
+  // each resolved selection so the next address starts a fresh session.
+  const sessionTokenRef = useRef<string>(newSessionToken());
 
   // Debounced fetch of suggestions whenever the typed value changes.
   useEffect(() => {
@@ -114,7 +136,9 @@ export default function AddressAutocomplete({
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(
-          `/api/geocode/suggest?q=${encodeURIComponent(q)}`,
+          `/api/geocode/suggest?q=${encodeURIComponent(q)}&token=${encodeURIComponent(
+            sessionTokenRef.current
+          )}`,
           { signal: controller.signal }
         );
         const payload = (await res.json()) as {
@@ -158,20 +182,57 @@ export default function AddressAutocomplete({
   }, [open]);
 
   const select = useCallback(
-    (s: Suggestion) => {
+    async (s: Suggestion) => {
       justSelectedRef.current = true;
-      const display = s.formatted || s.address;
+      const display = s.formatted || s.address || "";
       onChange(display);
-      onResolve({
-        address: display,
-        city: s.city,
-        state: s.state,
-        lat: s.lat,
-        lng: s.lng,
-      });
       setOpen(false);
       setSuggestions([]);
       setActiveIndex(-1);
+
+      // OSM fallback results already carry coordinates — resolve immediately.
+      if (typeof s.lat === "number" && typeof s.lng === "number") {
+        onResolve({ address: display, city: s.city, state: s.state, lat: s.lat, lng: s.lng });
+        sessionTokenRef.current = newSessionToken();
+        return;
+      }
+
+      // Google prediction: fetch exact coords via Place Details, reusing the
+      // same session token so autocomplete + details bill as one session.
+      if (s.placeId) {
+        setLoading(true);
+        try {
+          const res = await fetch(
+            `/api/geocode/details?placeId=${encodeURIComponent(
+              s.placeId
+            )}&token=${encodeURIComponent(sessionTokenRef.current)}`
+          );
+          const payload = (await res.json()) as {
+            success?: boolean;
+            data?: { lat: number; lng: number; formatted?: string; city?: string; state?: string } | null;
+          };
+          const d = payload.success ? payload.data : null;
+          if (d && typeof d.lat === "number" && typeof d.lng === "number") {
+            const finalAddress = d.formatted || display;
+            onChange(finalAddress);
+            onResolve({
+              address: finalAddress,
+              city: d.city ?? s.city,
+              state: d.state ?? s.state,
+              lat: d.lat,
+              lng: d.lng,
+            });
+          }
+          // If details fail, the field keeps the typed text — manual entry still
+          // works; we just don't have confirmed coords.
+        } catch {
+          /* network error — leave field as manual entry */
+        } finally {
+          setLoading(false);
+          // Start a fresh billing session for the next address.
+          sessionTokenRef.current = newSessionToken();
+        }
+      }
     },
     [onChange, onResolve]
   );
@@ -263,7 +324,7 @@ export default function AddressAutocomplete({
               {suggestions.length > 0 ? (
                 suggestions.map((s, i) => (
                   <li
-                    key={`${s.lat},${s.lng},${i}`}
+                    key={s.placeId ?? `${s.lat},${s.lng},${i}`}
                     role="option"
                     aria-selected={i === activeIndex}
                     // onMouseDown (not onClick) so it fires before the input blur
@@ -283,9 +344,23 @@ export default function AddressAutocomplete({
                     <span className="material-symbols-outlined text-base text-green-600 dark:text-green-400 mt-0.5">
                       location_on
                     </span>
-                    <span className="text-gray-700 dark:text-gray-200 leading-snug">
-                      {s.formatted || s.address}
-                    </span>
+                    {s.mainText ? (
+                      <span className="leading-snug">
+                        <span className="text-gray-900 dark:text-white font-medium">
+                          {s.mainText}
+                        </span>
+                        {s.secondaryText && (
+                          <span className="text-gray-500 dark:text-gray-400">
+                            {" "}
+                            {s.secondaryText}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-gray-700 dark:text-gray-200 leading-snug">
+                        {s.formatted || s.address}
+                      </span>
+                    )}
                   </li>
                 ))
               ) : (

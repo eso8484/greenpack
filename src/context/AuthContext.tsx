@@ -36,7 +36,10 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const supabase = createClient();
+  // Memoize the browser client so every method and the auth subscription share
+  // ONE instance. Calling createClient() on each render spawns extra clients
+  // that parse cookies independently — a source of auth-state desync.
+  const [supabase] = useState(() => createClient());
 
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -97,37 +100,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     exchangeOAuthCodeIfPresent();
 
-    // Initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    // Apply a session to state WITHOUT waiting on the profile query. The header
+    // only needs `user` to flip from "Login" to the account menu, so we set it
+    // synchronously the moment a session exists, then load the profile in the
+    // background and merge it in. Previously we awaited fetchProfile() before
+    // setting `user`, so a slow/failed profiles query left the header stuck on
+    // "Login" until a manual refresh — most visible right after Google sign-in.
+    const applySession = (session: Session | null) => {
       if (session?.user) {
-        const profile = await fetchProfile(session.user.id);
-        setState({
+        setState((prev) => ({
+          ...prev,
           user: session.user,
           session,
-          profile,
-          role: (profile?.role as UserRole) ?? "customer",
+          // keep any profile already loaded for this same user; otherwise
+          // default the role optimistically so gated UI can render.
+          role: prev.user?.id === session.user.id ? prev.role : "customer",
           isLoading: false,
+        }));
+        // Background profile load — never blocks the header update.
+        fetchProfile(session.user.id).then((profile) => {
+          setState((prev) => {
+            // Ignore a late response if the user changed/signed out meanwhile.
+            if (prev.user?.id !== session.user.id) return prev;
+            return {
+              ...prev,
+              profile,
+              role: (profile?.role as UserRole) ?? "customer",
+            };
+          });
         });
       } else {
-        setState((prev) => ({ ...prev, isLoading: false }));
+        setState({ user: null, session: null, profile: null, role: null, isLoading: false });
       }
+    };
+
+    // Initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      applySession(session);
     });
 
-    // Auth state changes
+    // Auth state changes (login, logout, token refresh, OAuth return)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          const profile = await fetchProfile(session.user.id);
-          setState({
-            user: session.user,
-            session,
-            profile,
-            role: (profile?.role as UserRole) ?? "customer",
-            isLoading: false,
-          });
-        } else {
-          setState({ user: null, session: null, profile: null, role: null, isLoading: false });
-        }
+      (_event, session) => {
+        applySession(session);
       }
     );
 

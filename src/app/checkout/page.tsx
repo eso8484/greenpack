@@ -191,8 +191,12 @@ export default function CheckoutPage() {
     if (verifiedReferenceRef.current === paymentReference) return;
     verifiedReferenceRef.current = paymentReference;
 
-    let cancelled = false;
-
+    // NOTE: intentionally no `cancelled` cleanup flag here. Verification is
+    // idempotent server-side (a re-verify of an already-paid order just returns
+    // success), so we ALWAYS want to apply the outcome. Previously a Strict-Mode
+    // (dev) unmount/remount set cancelled=true on the in-flight request, the
+    // ref guard blocked the remount from re-fetching, and the resolved result
+    // was discarded — leaving the spinner stuck on "Verifying payment…" forever.
     const verifyPayment = async () => {
       setIsVerifyingPayment(true);
       setPaymentError(null);
@@ -209,32 +213,26 @@ export default function CheckoutPage() {
             typeof payload.error === "string"
               ? payload.error
               : "Payment verification failed";
-          if (!cancelled) {
-            setPaymentError(errorMessage);
-            toast.error(errorMessage);
-          }
+          setPaymentError(errorMessage);
+          toast.error(errorMessage);
+          // Free the guard so a refresh / retry can attempt verification again.
+          verifiedReferenceRef.current = null;
           return;
         }
 
-        if (!cancelled) {
-          setIsSuccess(true);
-          clearCart();
-          toast.success("Payment confirmed. Your order is now in progress.");
-        }
+        setIsSuccess(true);
+        clearCart();
+        toast.success("Payment confirmed. Your order is now in progress.");
       } catch {
-        if (!cancelled) {
-          setPaymentError("Unable to verify payment right now. Please retry shortly.");
-          toast.error("Unable to verify payment right now.");
-        }
+        setPaymentError("Unable to verify payment right now. Please retry shortly.");
+        toast.error("Unable to verify payment right now.");
+        verifiedReferenceRef.current = null;
       } finally {
-        if (!cancelled) setIsVerifyingPayment(false);
+        setIsVerifyingPayment(false);
       }
     };
 
     verifyPayment();
-    return () => {
-      cancelled = true;
-    };
   }, [clearCart, paymentReference]);
 
   const handleSubmit = async (info: CustomerInfo) => {

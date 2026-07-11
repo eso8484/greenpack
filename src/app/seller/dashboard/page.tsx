@@ -188,7 +188,7 @@ export default function SellerDashboard() {
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
           <p className="text-xs text-gray-500 dark:text-gray-400">Revenue</p>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
+          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
             {formatPrice(paidRevenue)}
           </p>
         </div>
