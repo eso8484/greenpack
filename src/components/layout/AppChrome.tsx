@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import SupportWidget from "@/components/support/SupportWidget";
 
 const STANDALONE_PREFIXES = ["/seller", "/admin/support"];
 
@@ -19,6 +20,8 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
       <Header />
       <main className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900">{children}</main>
       <Footer />
+      {/* Global floating support launcher — hides itself on dashboard routes. */}
+      <SupportWidget />
     </>
   );
 }

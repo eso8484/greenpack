@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { notifyAgentsOfQueuedTicket } from "@/lib/support-notifications";
 
 const CreateSupportTicketSchema = z.object({
   issue_summary: z.string().min(3).max(1000),
@@ -118,7 +117,10 @@ export async function POST(request: Request) {
       .insert({
         customer_id: user.id,
         ...ticketInput,
-        status: "queued",
+        // Assistant-first: a new conversation is handled by the bot ("open").
+        // It only enters the live-agent queue when the customer explicitly
+        // escalates (PATCH action:"escalate"), which is what notifies agents.
+        status: "open",
       })
       .select("*")
       .single();
@@ -134,43 +136,6 @@ export async function POST(request: Request) {
       });
 
       if (messageError) throw messageError;
-    }
-
-    const { error: systemMessageError } = await supabase.from("support_messages").insert({
-      ticket_id: ticket.id,
-      sender_type: "system",
-      message: "Ticket created and queued for live support.",
-    });
-
-    if (systemMessageError) throw systemMessageError;
-
-    try {
-      const thresholdRaw = Number(process.env.SUPPORT_QUEUE_DELAY_THRESHOLD ?? "5");
-      const queueDelayThreshold = Number.isNaN(thresholdRaw) ? 5 : Math.max(1, thresholdRaw);
-
-      const { count: queuedCount } = await admin
-        .from("support_tickets")
-        .select("id", { count: "exact", head: true })
-        .in("status", ["queued", "open"]);
-
-      const currentQueued = queuedCount ?? 0;
-
-      if (currentQueued >= queueDelayThreshold) {
-        await supabase.from("support_messages").insert({
-          ticket_id: ticket.id,
-          sender_type: "system",
-          message: `High support demand right now. There are currently ${currentQueued} active queued tickets, so response time may be delayed. A live agent will reply as soon as available.`,
-        });
-      }
-
-      await notifyAgentsOfQueuedTicket({
-        ticketId: ticket.id,
-        issueSummary: ticket.issue_summary,
-        queuedCount: currentQueued,
-      });
-    } catch (sideEffectError) {
-      // Do not fail ticket creation because of queue counting or email side effects.
-      console.error("POST /api/support/tickets side-effect error", sideEffectError);
     }
 
     return NextResponse.json({ success: true, data: ticket }, { status: 201 });

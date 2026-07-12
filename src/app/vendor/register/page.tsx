@@ -97,7 +97,22 @@ const MAX_DOB = new Date(Date.now() - 13 * 365.25 * 24 * 60 * 60 * 1000)
 // ---------------------------------------------------------------------------
 
 export default function VendorRegisterPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, signOut } = useAuth();
+  const [switching, setSwitching] = useState(false);
+
+  // "Switch account" must sign the CURRENT user out before sending them to the
+  // vendor login. Linking straight to /login fails silently: middleware
+  // redirects already-signed-in users away from /login back to their role's
+  // home (customers → /browse), so the customer would just bounce back to
+  // browse instead of getting a chance to log in as a different account.
+  const handleSwitchAccount = async () => {
+    setSwitching(true);
+    try {
+      await signOut();
+    } finally {
+      window.location.assign("/login?mode=vendor&redirect=/vendor/register");
+    }
+  };
 
   const [step, setStep] = useState<Step>("form");
   const [account, setAccount] = useState<AccountForm>(EMPTY_ACCOUNT);
@@ -565,12 +580,14 @@ export default function VendorRegisterPage() {
                     Your shop will be linked to this account.
                   </p>
                 </div>
-                <Link
-                  href="/login?mode=vendor&redirect=/seller/dashboard"
-                  className="text-xs text-green-700 dark:text-green-400 underline hover:no-underline whitespace-nowrap shrink-0"
+                <button
+                  type="button"
+                  onClick={handleSwitchAccount}
+                  disabled={switching}
+                  className="text-xs text-green-700 dark:text-green-400 underline hover:no-underline whitespace-nowrap shrink-0 disabled:opacity-50"
                 >
-                  Switch account
-                </Link>
+                  {switching ? "Switching…" : "Switch account"}
+                </button>
               </div>
             ) : (
               /* Signed-out: account fields */

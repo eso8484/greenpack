@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useSearchParams } from "next/navigation";
@@ -39,41 +38,12 @@ export default function HelpCenterPage() {
   const [selectedCategory, setSelectedCategory] = useState<FAQCategory | null>(
     null
   );
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatExpanded, setChatExpanded] = useState(false);
-  const [chatFrameReady, setChatFrameReady] = useState(false);
-
+  // Deep-link support: /help?chat=1 opens the global support widget.
   useEffect(() => {
     if (searchParams.get("chat") === "1") {
-      setChatOpen(true);
+      window.dispatchEvent(new Event("greenpack:open-support"));
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    if (chatOpen) {
-      setChatFrameReady(false);
-    }
-  }, [chatOpen]);
-
-  useEffect(() => {
-    const onSupportWidgetMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      const messageType = event.data?.type;
-      if (messageType === "GREENPACK_CLOSE_SUPPORT_CHAT") {
-        setChatOpen(false);
-      }
-
-      if (messageType === "GREENPACK_TOGGLE_SUPPORT_CHAT_SIZE") {
-        setChatExpanded((prev) => !prev);
-      }
-    };
-
-    window.addEventListener("message", onSupportWidgetMessage);
-    return () => {
-      window.removeEventListener("message", onSupportWidgetMessage);
-    };
-  }, []);
 
   // Filter FAQs based on search query and selected category
   const filteredFAQs = useMemo(() => {
@@ -305,8 +275,8 @@ export default function HelpCenterPage() {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               Our support team is ready to assist you
             </p>
-            <Link
-              href="/help?chat=1"
+            <button
+              onClick={() => window.dispatchEvent(new Event("greenpack:open-support"))}
               className="inline-flex items-center gap-2 bg-green-500 text-white font-semibold px-8 py-3 rounded-lg shadow-lg shadow-green-500/20 hover:bg-green-600 transition-colors"
             >
               <svg
@@ -323,48 +293,11 @@ export default function HelpCenterPage() {
                 />
               </svg>
               Contact Support
-            </Link>
+            </button>
           </motion.div>
         </div>
       </div>
 
-      <div className="fixed right-4 bottom-4 z-[70] flex flex-col items-end gap-2">
-        {!chatOpen && (
-          <button
-            onClick={() => setChatOpen(true)}
-            aria-label="Open support chat"
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-green-600 text-white shadow-lg shadow-green-700/30 hover:bg-green-700"
-          >
-            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5m-9 7l1.405-1.405A2.032 2.032 0 017.158 19H19a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h2.159c.538 0 1.055.214 1.436.595L10 21z" />
-            </svg>
-          </button>
-        )}
-
-        {chatOpen && (
-          <div
-            className={`relative overflow-hidden rounded-3xl border border-green-200 dark:border-gray-700 bg-[#0f172a] dark:bg-gray-900 shadow-2xl transition-[width,height] duration-300 ${
-              chatExpanded
-                ? "h-[min(540px,calc(100dvh-7rem))] w-[min(740px,calc(100vw-1.5rem))]"
-                : "h-[min(650px,calc(100dvh-7rem))] w-[min(420px,calc(100vw-1.5rem))]"
-            }`}
-          >
-            {!chatFrameReady && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0f172a] dark:bg-gray-900">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
-              </div>
-            )}
-            <iframe
-              title="GreenPack support chat"
-              src="/contact-support?chatOnly=1"
-              onLoad={() => setChatFrameReady(true)}
-              className={`h-full w-full border-0 transition-opacity duration-200 ${
-                chatFrameReady ? "opacity-100" : "opacity-0"
-              }`}
-            />
-          </div>
-        )}
-      </div>
     </div>
   );
 }
