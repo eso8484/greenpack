@@ -34,28 +34,32 @@ function isRecoveryType(value: string | null): value is "recovery" {
 
 function getRecoveryErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
-
   if (message.includes("expired") || message.includes("invalid")) {
     return "This reset link is invalid or expired. Please request a new one.";
   }
-
   if (message.includes("code verifier") || message.includes("pkce") || message.includes("both auth code and code verifier")) {
-    return "This reset link must be opened from the same browser where you requested it. Please request a new link and open it in this browser.";
+    return "This reset link must be opened in the same browser where you requested it. Please request a new link and open it here.";
   }
-
   if (message.includes("timed out") || message.includes("timeout")) {
     return "Validation timed out. Please request a new reset link and try again.";
   }
-
   return "This reset link is invalid, expired, or timed out. Please request a new one.";
 }
 
+/**
+ * Password-reset landing page (traditional flow).
+ *
+ * The emailed link (from /api/auth/reset/request) establishes a recovery
+ * session when opened. We then show a "set a new password" form; on submit we
+ * update the password, sign the recovery session out, and send the user to
+ * /login so they sign in fresh with the NEW password.
+ */
 export default function ResetPasswordPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const [status, setStatus] = useState<RecoveryStatus>("verifying");
-  const [statusMessage, setStatusMessage] = useState("Validating your password reset link...");
+  const [statusMessage, setStatusMessage] = useState("Validating your password reset link…");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -64,24 +68,23 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     if (status !== "verifying") return;
-
     const watchdog = setTimeout(() => {
+      if (resolvedRef.current) return;
+      resolvedRef.current = true;
       setStatus("error");
-      setStatusMessage("We could not validate this link in time. Please request a new reset link.");
+      setStatusMessage("We couldn't validate this link in time. Please request a new reset link.");
     }, RECOVERY_TIMEOUT_MS + 1000);
-
     return () => clearTimeout(watchdog);
   }, [status]);
 
   useEffect(() => {
-    const activateRecoverySession = async () => {
+    const activate = async () => {
       const resolveReady = () => {
         if (resolvedRef.current) return;
         resolvedRef.current = true;
         setStatus("ready");
         setStatusMessage("Set a new password for your account.");
       };
-
       const resolveError = (message: string) => {
         if (resolvedRef.current) return;
         resolvedRef.current = true;
@@ -90,37 +93,27 @@ export default function ResetPasswordPage() {
       };
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (!session?.user) return;
-
-        if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        if (session?.user && (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN")) {
           resolveReady();
         }
       });
 
       try {
-        const currentUrl = new URL(window.location.href);
-        const code = currentUrl.searchParams.get("code");
-        const tokenHash = currentUrl.searchParams.get("token_hash");
-        const queryType = currentUrl.searchParams.get("type");
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+        const tokenHash = url.searchParams.get("token_hash");
+        const queryType = url.searchParams.get("type");
         const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
         const hashType = hashParams.get("type");
 
-        const hasActiveSession = async () => {
-          const { data } = await withTimeout(
-            supabase.auth.getSession(),
-            RECOVERY_TIMEOUT_MS,
-            "Session check timed out"
-          );
+        const hasSession = async () => {
+          const { data } = await withTimeout(supabase.auth.getSession(), RECOVERY_TIMEOUT_MS, "Session check timed out");
           return Boolean(data.session?.user);
         };
 
-        let recovered = false;
-
-        if (await hasActiveSession()) {
-          recovered = true;
-        }
+        let recovered = await hasSession();
 
         if (!recovered && code) {
           const { error } = await withTimeout(
@@ -128,35 +121,23 @@ export default function ResetPasswordPage() {
             RECOVERY_TIMEOUT_MS,
             "Recovery link validation timed out"
           );
-          if (error) {
-            // If another listener already exchanged this single-use code,
-            // continue as long as recovery session is active.
-            if (!(await hasActiveSession())) {
-              throw error;
-            }
-          }
+          if (error && !(await hasSession())) throw error;
           recovered = true;
         } else if (!recovered && accessToken && refreshToken && isRecoveryType(hashType)) {
           const { error } = await withTimeout(
-            supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            }),
+            supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }),
             RECOVERY_TIMEOUT_MS,
             "Recovery session setup timed out"
           );
-          if (error && !(await hasActiveSession())) throw error;
+          if (error && !(await hasSession())) throw error;
           recovered = true;
         } else if (!recovered && tokenHash && isRecoveryType(queryType)) {
           const { error } = await withTimeout(
-            supabase.auth.verifyOtp({
-              token_hash: tokenHash,
-              type: "recovery",
-            }),
+            supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" }),
             RECOVERY_TIMEOUT_MS,
             "Recovery OTP validation timed out"
           );
-          if (error && !(await hasActiveSession())) throw error;
+          if (error && !(await hasSession())) throw error;
           recovered = true;
         }
 
@@ -165,11 +146,10 @@ export default function ResetPasswordPage() {
           return;
         }
 
-        currentUrl.searchParams.delete("code");
-        currentUrl.searchParams.delete("type");
-        currentUrl.searchParams.delete("token_hash");
-        window.history.replaceState({}, "", currentUrl.pathname);
-
+        url.searchParams.delete("code");
+        url.searchParams.delete("type");
+        url.searchParams.delete("token_hash");
+        window.history.replaceState({}, "", url.pathname);
         resolveReady();
       } catch (error) {
         resolveError(getRecoveryErrorMessage(error));
@@ -178,7 +158,7 @@ export default function ResetPasswordPage() {
       }
     };
 
-    activateRecoverySession();
+    activate();
   }, [supabase]);
 
   const onSubmit = async (event: React.FormEvent) => {
@@ -189,7 +169,6 @@ export default function ResetPasswordPage() {
       setFormError("Password must be at least 8 characters.");
       return;
     }
-
     if (password !== confirmPassword) {
       setFormError("Passwords do not match.");
       return;
@@ -197,15 +176,18 @@ export default function ResetPasswordPage() {
 
     setSubmitting(true);
     const { error } = await supabase.auth.updateUser({ password });
-    setSubmitting(false);
-
     if (error) {
+      setSubmitting(false);
       setFormError(error.message);
       return;
     }
 
+    // End the recovery session so the user signs in fresh with the NEW
+    // password (matches the expectation: "then I log in with my new password").
+    await supabase.auth.signOut();
+    setSubmitting(false);
     setStatus("success");
-    setStatusMessage("Password updated successfully. You can now sign in.");
+    setStatusMessage("Password updated. Please sign in with your new password.");
     toast.success("Password updated successfully");
   };
 
@@ -259,7 +241,7 @@ export default function ResetPasswordPage() {
               )}
 
               <Button type="submit" size="lg" className="w-full" disabled={submitting}>
-                {submitting ? "Updating..." : "Update Password"}
+                {submitting ? "Updating…" : "Update Password"}
               </Button>
             </form>
           )}
@@ -277,21 +259,18 @@ export default function ResetPasswordPage() {
 
           {status === "error" && (
             <div className="space-y-4">
-              <Button size="lg" className="w-full" onClick={() => router.push("/login")}>Back to Sign In</Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full"
-                onClick={() => router.push("/login?forgot=1")}
-              >
+              <Button size="lg" className="w-full" onClick={() => router.push("/login?forgot=1")}>
                 Request New Reset Link
+              </Button>
+              <Button size="lg" variant="outline" className="w-full" onClick={() => router.push("/login")}>
+                Back to Sign In
               </Button>
             </div>
           )}
 
           <div className="mt-4 text-center">
             <Link href="/login" className="text-sm text-green-600 dark:text-green-400 hover:underline">
-              {"<- Back to sign in"}
+              {"← Back to sign in"}
             </Link>
           </div>
         </div>

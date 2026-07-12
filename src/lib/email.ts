@@ -19,10 +19,13 @@ type SendInput = {
   subject: string;
   html: string;
   text?: string;
+  /** Optional sender override (e.g. a no-reply address for auth emails). */
+  from?: string;
 };
 
-function resolvedFrom(): string {
+function resolvedFrom(override?: string): string {
   return (
+    override ||
     process.env.EMAIL_FROM ||
     process.env.SUPPORT_EMAIL_FROM ||
     `Green Pack Delight <noreply@greenpackdelight.com>`
@@ -41,7 +44,7 @@ async function sendViaResend(input: SendInput): Promise<boolean> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: resolvedFrom(),
+        from: resolvedFrom(input.from),
         to: [input.to],
         subject: input.subject,
         html: input.html,
@@ -100,7 +103,7 @@ async function sendViaSmtp(input: SendInput): Promise<boolean> {
     });
 
     await transporter.sendMail({
-      from: resolvedFrom(),
+      from: resolvedFrom(input.from),
       to: input.to,
       subject: input.subject,
       html: input.html,

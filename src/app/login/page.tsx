@@ -17,22 +17,6 @@ type LoginStage = "credentials" | "otp";
 
 const RESET_EMAIL_COOLDOWN_MS = 60000;
 
-function getFriendlyResetError(message: string): string {
-  const normalized = message.toLowerCase();
-  if (normalized.includes("email rate limit exceeded") || normalized.includes("over_email_send_rate_limit")) {
-    return "Supabase email sending limit has been reached for this project. This limit applies project-wide (not per email). Please wait and try again later, or configure custom SMTP and increase Auth rate limits.";
-  }
-
-  if (normalized.includes("security purposes") && normalized.includes("60")) {
-    return "Please wait about 60 seconds before requesting another reset link for this account.";
-  }
-
-  if (normalized.includes("rate limit") || normalized.includes("too many")) {
-    return "Password reset is currently rate-limited by Supabase. This can be per-user, per-IP, or project-wide depending on your Auth setup.";
-  }
-  return message;
-}
-
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const { signIn } = useAuth();
@@ -290,19 +274,26 @@ export default function LoginPage() {
     if (!forgotEmail.trim() || forgotSecondsLeft > 0) return;
     setForgotLoading(true);
     setError("");
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setForgotLoading(false);
-    if (error) {
-      setError(getFriendlyResetError(error.message));
-      if (error.message.toLowerCase().includes("rate limit") || error.message.toLowerCase().includes("too many")) {
+    try {
+      // Custom flow: our own endpoint emails a branded sign-in link from
+      // no-reply@greenpackdelight.com (via Resend). It always returns success
+      // so account existence isn't leaked.
+      const res = await fetch("/api/auth/reset/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      if (res.status === 429) {
+        setError("Too many requests. Please wait a moment and try again.");
+        setForgotCooldownUntil(Date.now() + RESET_EMAIL_COOLDOWN_MS);
+      } else {
+        setForgotSent(true);
         setForgotCooldownUntil(Date.now() + RESET_EMAIL_COOLDOWN_MS);
       }
-    } else {
-      setForgotSent(true);
-      setForgotCooldownUntil(Date.now() + RESET_EMAIL_COOLDOWN_MS);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setForgotLoading(false);
     }
   };
 
