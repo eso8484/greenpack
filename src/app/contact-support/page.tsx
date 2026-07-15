@@ -1004,11 +1004,11 @@ export default function ContactSupportPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">support@greenpackdelight.com</p>
             </a>
             <a
-              href="tel:+2348000000000"
+              href="tel:+2348140119893"
               className="rounded-xl border border-green-200 dark:border-green-800 bg-white dark:bg-gray-900 p-4 hover:-translate-y-0.5 transition-transform"
             >
               <p className="font-semibold text-gray-900 dark:text-white">Call Center</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">+234 800 000 0000</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">+234 814 011 9893</p>
             </a>
             <button
               onClick={queueForLiveAgent}

@@ -99,7 +99,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-8 mb-3">11. Governing Law</h2>
-            <p>These Terms shall be governed by and construed in accordance with the laws of the Federal Republic of Nigeria. Any disputes arising from these terms shall be resolved in the courts of Lagos State, Nigeria.</p>
+            <p>These Terms shall be governed by and construed in accordance with the laws of the Federal Republic of Nigeria. Any disputes arising from these terms shall be resolved in the courts of the Federal Capital Territory (Abuja), Nigeria.</p>
           </section>
 
           <section>
@@ -107,7 +107,7 @@ export default function TermsPage() {
             <p>If you have questions about these Terms, please contact us at:</p>
             <p className="mt-2">
               Email: <a href="mailto:support@greenpackdelight.com" className="text-green-600 dark:text-green-400 hover:underline">support@greenpackdelight.com</a><br />
-              Phone: +234 800 GREEN PACK
+              Phone: +234 814 011 9893
             </p>
           </section>
         </div>

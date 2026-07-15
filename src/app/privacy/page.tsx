@@ -139,7 +139,7 @@ export default function PrivacyPage() {
             <p className="mt-2">
               <strong>Green Pack Delight</strong><br />
               Email: <a href="mailto:privacy@greenpackdelight.com" className="text-green-600 dark:text-green-400 hover:underline">privacy@greenpackdelight.com</a><br />
-              Phone: +234 800 GREEN PACK<br />
+              Phone: +234 814 011 9893<br />
               Data Protection Officer: <a href="mailto:dpo@greenpackdelight.com" className="text-green-600 dark:text-green-400 hover:underline">dpo@greenpackdelight.com</a>
             </p>
           </section>

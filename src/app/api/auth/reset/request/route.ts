@@ -8,7 +8,7 @@ const RequestSchema = z.object({
   email: z.string().email(),
 });
 
-const RESET_FROM = "Green Pack Delight <no-reply@greenpackdelight.com>";
+const RESET_FROM = "Green Pack Delight Limited <no-reply@greenpackdelight.com>";
 
 function siteUrl() {
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
