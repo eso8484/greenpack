@@ -921,7 +921,7 @@ export default function VendorRegisterPage() {
               />
               <Input
                 id="shopContactEmail"
-                label="Contact Email"
+                label="Business Contact Email"
                 type="email"
                 required
                 autoComplete="off"
@@ -930,6 +930,9 @@ export default function VendorRegisterPage() {
                 onChange={(e) => updateShop("email", e.target.value)}
                 placeholder="shop@example.com"
               />
+              <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Shown to customers. It can be different from the email you use to sign in.
+              </p>
               <Input
                 id="shopWhatsapp"
                 label="WhatsApp (Optional)"

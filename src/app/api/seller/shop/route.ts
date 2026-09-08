@@ -36,6 +36,23 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
+    const { data: shop, error } = await supabase
+      .from("shops")
+      .select("*")
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    // Return an existing shop even if a previous onboarding attempt created it
+    // but failed before promoting the profile to vendor. This lets the owner
+    // recover and edit their business details instead of being trapped on an
+    // empty form that can never save.
+    if (shop) {
+      return NextResponse.json({ success: true, data: shop });
+    }
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -46,23 +63,12 @@ export async function GET() {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 
-    const { data: shop, error } = await supabase
-      .from("shops")
-      .select("*")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) throw error;
     if (!shop) {
       return NextResponse.json(
         { success: false, error: "No shop profile found for this seller" },
         { status: 404 }
       );
     }
-
-    return NextResponse.json({ success: true, data: shop });
   } catch (err) {
     console.error("GET /api/seller/shop", err);
     return NextResponse.json(
@@ -102,6 +108,39 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: parsed.error.flatten().fieldErrors },
         { status: 400 }
+      );
+    }
+
+    // A customer may use their existing GreenPack login to become a vendor;
+    // it is one account, not a second account with the same email. Promote the
+    // profile *before* inserting the shop. Previously this happened after the
+    // insert, so a missing/failed admin update left an orphan shop owned by a
+    // customer and every later Save appeared to fail.
+    if (profile.role === "customer") {
+      const admin = createAdminClient();
+      const { error: roleError } = await admin
+        .from("profiles")
+        .update({ role: "vendor", updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+
+      if (roleError) {
+        console.error("Failed to activate vendor role before shop creation", roleError);
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "We couldn't activate your vendor account. No shop was created; please try again.",
+          },
+          { status: 500 }
+        );
+      }
+    } else if (!["vendor", "admin"].includes(profile.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This account cannot be converted to a vendor account.",
+        },
+        { status: 403 }
       );
     }
 
@@ -158,19 +197,6 @@ export async function POST(request: Request) {
       .single();
 
     if (shopError) throw shopError;
-
-    // Flip role from customer to vendor if not already vendor/admin.
-    // Uses the admin client because RLS + the guard_profile_role_change trigger
-    // (migration 009) block self-promotion via the user-scoped client.
-    if (profile.role === "customer") {
-      const admin = createAdminClient();
-      const { error: roleError } = await admin
-        .from("profiles")
-        .update({ role: "vendor", updated_at: new Date().toISOString() })
-        .eq("id", user.id);
-
-      if (roleError) throw roleError;
-    }
 
     return NextResponse.json({ success: true, data: shop }, { status: 201 });
   } catch (err) {

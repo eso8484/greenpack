@@ -65,15 +65,56 @@ export async function PUT(
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-
-    // Fetch existing shop to compare location & determine if we need to (re)geocode
-    const { data: existing } = await supabase
+    // Confirm ownership before any role transition. This also supplies the
+    // previous location for the geocoding comparison later in the handler.
+    const { data: existing, error: existingError } = await supabase
       .from("shops")
       .select("location, lat, lng")
       .eq("id", shopId)
       .eq("owner_id", user.id)
       .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (!existing) {
+      return NextResponse.json({ success: false, error: "Shop not found or not yours" }, { status: 404 });
+    }
+
+    // Recover shops created by an earlier onboarding attempt that did not get
+    // as far as flipping the account role. The authenticated owner is allowed
+    // to edit this shop already; promoting before the edit makes the account
+    // and shop consistent again instead of leaving the seller stranded.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ success: false, error: "Profile not found" }, { status: 404 });
+    }
+
+    if (profile.role === "customer") {
+      const admin = createAdminClient();
+      const { error: roleError } = await admin
+        .from("profiles")
+        .update({ role: "vendor", updated_at: new Date().toISOString() })
+        .eq("id", user.id);
+
+      if (roleError) {
+        console.error("Failed to activate vendor role before shop update", roleError);
+        return NextResponse.json(
+          { success: false, error: "We couldn't activate your vendor account. Please try again." },
+          { status: 500 }
+        );
+      }
+    } else if (!["vendor", "admin"].includes(profile.role)) {
+      return NextResponse.json(
+        { success: false, error: "This account cannot manage a vendor shop." },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
 
     const { data, error } = await supabase
       .from("shops")

@@ -93,25 +93,14 @@ export default function Header() {
                   </svg>
                   Help
                 </Link>
-                {profile?.role === "vendor" || profile?.role === "admin" ? (
-                  <Link
-                    href="/seller/dashboard"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"
-                  >
-                    Seller Dashboard ↗
-                  </Link>
-                ) : (
-                  <Link
-                    href="/sell"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"
-                  >
-                    Become a Vendor ↗
-                  </Link>
-                )}
+                <Link
+                  href="/sell"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"
+                >
+                  Become a Vendor ↗
+                </Link>
                 {profile?.role === "courier" || profile?.role === "admin" ? (
                   <Link
                     href="/courier/dashboard"
