@@ -3,9 +3,9 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  paystackCreateSubaccount,
-  paystackResolveAccount,
-} from "@/lib/paystack";
+  flutterwaveCreateSubaccount,
+  flutterwaveResolveAccount,
+} from "@/lib/flutterwave";
 
 const PayoutSchema = z.object({
   bankCode: z.string().min(1, "Bank code is required"),
@@ -36,7 +36,7 @@ export async function GET() {
     const { data: shop, error } = await supabase
       .from("shops")
       .select(
-        "id, name, paystack_subaccount_code, settlement_bank_code, settlement_account_number, settlement_account_name"
+        "id, name, flutterwave_subaccount_id, settlement_bank_code, settlement_account_number, settlement_account_name"
       )
       .eq("owner_id", user.id)
       .order("created_at", { ascending: true })
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, phone")
       .eq("id", user.id)
       .single();
 
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 
     const { data: shop, error: shopError } = await supabase
       .from("shops")
-      .select("id, name")
+      .select("id, name, contact")
       .eq("owner_id", user.id)
       .order("created_at", { ascending: true })
       .limit(1)
@@ -108,17 +108,35 @@ export async function POST(request: Request) {
     }
 
     // Resolve the account so we have a verified holder name
-    const resolved = await paystackResolveAccount(
+    const resolved = await flutterwaveResolveAccount(
       parsed.data.accountNumber,
       parsed.data.bankCode
     );
 
-    // Create the Paystack subaccount — vendor keeps 97% per transaction.
-    const subaccount = await paystackCreateSubaccount({
-      business_name: shop.name,
-      settlement_bank: parsed.data.bankCode,
-      account_number: parsed.data.accountNumber,
-      percentage_charge: 97,
+    const shopPhone =
+      shop.contact &&
+      typeof shop.contact === "object" &&
+      "phone" in shop.contact &&
+      typeof shop.contact.phone === "string"
+        ? shop.contact.phone
+        : null;
+    const businessMobile = shopPhone || profile.phone;
+    if (!businessMobile) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Add a contact phone number to your shop or profile before setting up payouts.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Flutterwave subaccounts receive the vendor's share of each checkout.
+    const subaccount = await flutterwaveCreateSubaccount({
+      businessName: shop.name,
+      accountBank: parsed.data.bankCode,
+      accountNumber: parsed.data.accountNumber,
+      businessMobile,
     });
 
     // Use admin client: settlement fields are guarded by a BEFORE UPDATE trigger
@@ -128,7 +146,7 @@ export async function POST(request: Request) {
     const { data: updatedShop, error: updateError } = await admin
       .from("shops")
       .update({
-        paystack_subaccount_code: subaccount.subaccount_code,
+        flutterwave_subaccount_id: subaccount.subaccount_id,
         settlement_bank_code: parsed.data.bankCode,
         settlement_account_number: parsed.data.accountNumber,
         settlement_account_name: resolved.account_name,
@@ -137,7 +155,7 @@ export async function POST(request: Request) {
       .eq("id", shop.id)
       .eq("owner_id", user.id)
       .select(
-        "id, paystack_subaccount_code, settlement_bank_code, settlement_account_number, settlement_account_name"
+        "id, flutterwave_subaccount_id, settlement_bank_code, settlement_account_number, settlement_account_name"
       )
       .single();
 

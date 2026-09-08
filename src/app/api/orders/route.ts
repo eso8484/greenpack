@@ -33,20 +33,8 @@ const CreateOrderSchema = z.object({
     lng: z.number().finite().optional(),
   }),
   needs_delivery: z.boolean().optional(),
-  payment_provider: z.enum(["paystack", "flutterwave"]).optional(),
-  payment_reference: z.string().max(120).optional(),
-  payment_currency: z.string().max(3).optional(),
   notes: z.string().optional(),
   items: z.array(OrderItemSchema).min(1),
-  delivery: z
-    .object({
-      pickup_address: z.record(z.string(), z.unknown()),
-      delivery_address: z.record(z.string(), z.unknown()),
-      courier_fee: z.number(),
-      pickup_time: z.string().optional(),
-      special_instructions: z.string().optional(),
-    })
-    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -66,7 +54,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { items, delivery, ...orderData } = parsed.data;
+    const { items, ...orderData } = parsed.data;
 
     // SECURITY: recompute every line-item price server-side from the canonical
     // products/services row. Client-supplied `price` is ignored to prevent
@@ -141,6 +129,8 @@ export async function POST(request: Request) {
         subtotal: verifiedSubtotal,
         delivery_fee: verifiedDeliveryFee,
         customer_id: user.id,
+        payment_provider: "flutterwave",
+        payment_currency: "NGN",
       })
       .select()
       .single();

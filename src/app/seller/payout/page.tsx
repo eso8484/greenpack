@@ -11,7 +11,7 @@ interface Bank {
 }
 
 interface PayoutDetails {
-  paystack_subaccount_code: string | null;
+  flutterwave_subaccount_id: string | null;
   settlement_bank_code: string | null;
   settlement_account_number: string | null;
   settlement_account_name: string | null;
@@ -57,7 +57,7 @@ export default function SellerPayoutPage() {
             const data = payoutJson.data as PayoutDetails;
             setExisting(data);
             // If no subaccount yet, start in edit mode automatically
-            if (!data.paystack_subaccount_code) {
+            if (!data.flutterwave_subaccount_id) {
               setEditMode(true);
             }
           }
@@ -143,7 +143,7 @@ export default function SellerPayoutPage() {
     return <div className="text-sm text-gray-500 dark:text-gray-400">Loading payout details...</div>;
   }
 
-  const hasExisting = existing?.paystack_subaccount_code;
+  const hasExisting = existing?.flutterwave_subaccount_id;
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -185,7 +185,7 @@ export default function SellerPayoutPage() {
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-gray-400">Subaccount</span>
               <span className="font-mono text-xs text-gray-600 dark:text-gray-300">
-                {existing?.paystack_subaccount_code ?? "—"}
+                {existing?.flutterwave_subaccount_id ?? "—"}
               </span>
             </div>
           </div>

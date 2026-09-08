@@ -44,7 +44,7 @@ export default function CartSummary() {
       </Link>
       <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
         <span className="material-symbols-outlined text-[14px]">lock</span>
-        Secure checkout via Paystack
+        Secure checkout via Flutterwave
       </p>
     </Card>
   );

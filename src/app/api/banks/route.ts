@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { paystackListBanks } from "@/lib/paystack";
+import { flutterwaveListBanks } from "@/lib/flutterwave";
 
 // Cache the bank list for 24 hours — the list rarely changes.
 export const revalidate = 86400;
 
 export async function GET() {
   try {
-    const banks = await paystackListBanks();
+    const banks = await flutterwaveListBanks();
 
     return NextResponse.json(
       { success: true, data: banks },

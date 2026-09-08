@@ -190,11 +190,6 @@ export function calculateFeeBreakdown(
   };
 }
 
-// Paystack works in kobo (1 NGN = 100 kobo)
-export function nairaToKobo(naira: number): number {
-  return Math.round(naira * 100);
-}
-
 // Tiny green-tinted SVG blur placeholder for Next.js Image blurDataURL
 export const BLUR_PLACEHOLDER =
   "data:image/svg+xml;base64," +

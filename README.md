@@ -29,6 +29,29 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Flutterwave payments
+
+GreenPack uses Flutterwave Standard for hosted checkout, vendor split payments,
+and courier payouts. Configure these server-only environment variables in your
+deployment and local `.env.local` file:
+
+```env
+FLW_SECRET_KEY=FLWSECK_...
+FLW_SECRET_HASH=<the secret hash configured in Flutterwave webhooks>
+```
+
+In the Flutterwave dashboard, configure this webhook URL and set the same
+secret hash:
+
+```text
+https://your-domain.com/api/payments/flutterwave/webhook
+```
+
+Apply `supabase/migrations/016_flutterwave_payment_provider.sql` before going
+live. Existing vendors must add their payout bank account again to receive a
+Flutterwave subaccount; couriers must re-save their payout account so it is
+verified with Flutterwave.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

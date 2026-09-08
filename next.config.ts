@@ -5,8 +5,8 @@ import type { NextConfig } from "next";
  *
  * The CSP intentionally allows the third parties this app actually uses:
  *   - Supabase (auth/db/storage)         → connect-src, img-src
- *   - Paystack (checkout redirect)       → connect/frame/form-action
- *   - Google Fonts (Material Symbols)    → style-src + font-src
+ *   - Flutterwave (checkout redirect)    → frame/form-action
+ *   - Self-hosted fonts                  → style-src + font-src ('self')
  *   - Nominatim/Google geocoding         → connect-src
  *   - placehold.co + remote shop images  → img-src https:
  *
@@ -18,12 +18,12 @@ import type { NextConfig } from "next";
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com data:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.paystack.co https://nominatim.openstreetmap.org https://maps.googleapis.com",
-  "frame-src 'self' https://www.google.com https://maps.google.com https://*.paystack.co https://checkout.paystack.com",
-  "form-action 'self' https://checkout.paystack.com",
+  "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://nominatim.openstreetmap.org https://maps.googleapis.com",
+  "frame-src 'self' https://www.google.com https://maps.google.com https://checkout.flutterwave.com",
+  "form-action 'self' https://checkout.flutterwave.com",
   "frame-ancestors 'self'",
   "object-src 'none'",
   "base-uri 'self'",

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { paystackResolveAccount } from "@/lib/paystack";
+import { flutterwaveResolveAccount } from "@/lib/flutterwave";
 
 const ResolveSchema = z.object({
   accountNumber: z.string().regex(/^\d{10}$/, "Account number must be 10 digits"),
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const resolved = await paystackResolveAccount(
+    const resolved = await flutterwaveResolveAccount(
       parsed.data.accountNumber,
       parsed.data.bankCode
     );

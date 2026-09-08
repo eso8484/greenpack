@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { paystackInitiateTransfer } from "@/lib/paystack";
+import { flutterwaveInitiateTransfer } from "@/lib/flutterwave";
+import { markOrderCourierPaidIfSettled } from "@/lib/payment-fulfillment";
 import {
   notifyCustomerCourierAssigned,
   notifyVendorItemArrived,
@@ -193,7 +194,7 @@ export async function PUT(
     // Courier auto-payout on delivered. Runs in the same request because the
     // courier is right here finishing the job. Failures are logged, not thrown
     // — the delivery is already marked delivered and a retry can be triggered
-    // by an admin if needed. Idempotent on the per-delivery Paystack reference.
+    // by an admin if needed. Idempotent on the per-delivery Flutterwave reference.
     if (status === "delivered") {
       try {
         await settleCourierPayout(delivery.id as string);
@@ -265,9 +266,10 @@ export async function POST(
 // ─── Courier payout helper ────────────────────────────────────────────────────
 
 /**
- * Transfer the courier's earnings via Paystack and stamp `paid_to_courier_at`.
+ * Transfer the courier's earnings via Flutterwave and stamp `paid_to_courier_at`
+ * only after Flutterwave confirms the transfer succeeded.
  *
- * Idempotent: uses a deterministic Paystack reference (`gpkc_<delivery_id>`)
+ * Idempotent: uses a deterministic Flutterwave reference (`gpf_c_<delivery_id>`)
  * and skips if `paid_to_courier_at` is already set. If this delivery is the
  * last unpaid leg of the parent order, the order's `courier_paid_at` is also
  * stamped so vendors can see the order is fully settled.
@@ -280,7 +282,7 @@ async function settleCourierPayout(deliveryId: string): Promise<void> {
 
   const { data: delivery, error: deliveryError } = await admin
     .from("deliveries")
-    .select("id, order_id, courier_id, courier_fee, status, leg, paid_to_courier_at")
+    .select("id, order_id, courier_id, courier_fee, status, leg, paid_to_courier_at, flutterwave_payout_reference")
     .eq("id", deliveryId)
     .single();
 
@@ -303,7 +305,7 @@ async function settleCourierPayout(deliveryId: string): Promise<void> {
       .from("deliveries")
       .update({ paid_to_courier_at: new Date().toISOString() })
       .eq("id", deliveryId);
-    await maybeStampOrderCourierPaid(admin, delivery.order_id as string);
+    await markOrderCourierPaidIfSettled(delivery.order_id as string);
     return;
   }
   if (!delivery.courier_id) {
@@ -312,73 +314,56 @@ async function settleCourierPayout(deliveryId: string): Promise<void> {
 
   const { data: courier, error: courierError } = await admin
     .from("profiles")
-    .select("paystack_recipient_code, full_name")
+    .select("bank_code, account_number, flutterwave_payout_verified_at")
     .eq("id", delivery.courier_id)
     .single();
 
   if (courierError) throw courierError;
-  if (!courier?.paystack_recipient_code) {
+  if (
+    !courier?.bank_code ||
+    !courier.account_number ||
+    !courier.flutterwave_payout_verified_at
+  ) {
     throw new Error(
-      `Courier ${delivery.courier_id} has no paystack_recipient_code — they must complete /courier/payout setup`
+      `Courier ${delivery.courier_id} has no Flutterwave payout account — they must complete /courier/payout setup`
     );
   }
 
-  // Idempotency reference. Paystack will reject duplicates so even a double-
-  // invocation cannot double-pay.
-  const reference = `gpkc_${deliveryId.replace(/-/g, "")}`;
+  // Store the deterministic reference before initiating the transfer. The
+  // Flutterwave webhook uses it to mark this delivery paid asynchronously.
+  const reference =
+    delivery.flutterwave_payout_reference ??
+    `gpf_c_${deliveryId.replace(/-/g, "")}`;
+  if (!delivery.flutterwave_payout_reference) {
+    const { error: referenceError } = await admin
+      .from("deliveries")
+      .update({ flutterwave_payout_reference: reference })
+      .eq("id", deliveryId)
+      .is("flutterwave_payout_reference", null);
+    if (referenceError) throw referenceError;
+  }
 
-  const transfer = await paystackInitiateTransfer({
+  const transfer = await flutterwaveInitiateTransfer({
     amountNaira: fee,
-    recipientCode: courier.paystack_recipient_code,
-    reason: `GreenPack delivery ${deliveryId.slice(0, 8).toUpperCase()}`,
+    accountBank: courier.bank_code,
+    accountNumber: courier.account_number,
+    narration: `GreenPack delivery ${deliveryId.slice(0, 8).toUpperCase()}`,
     reference,
   });
 
-  console.info("Courier payout initiated", {
+  console.info("Flutterwave courier payout initiated", {
     deliveryId,
-    transferCode: transfer.transfer_code,
+    transferId: transfer.id,
+    transferStatus: transfer.status,
     amountNaira: fee,
   });
 
-  await admin
-    .from("deliveries")
-    .update({ paid_to_courier_at: new Date().toISOString() })
-    .eq("id", deliveryId);
-
-  await maybeStampOrderCourierPaid(admin, delivery.order_id as string);
-}
-
-/**
- * If every delivery row for this order has been paid, stamp the order's
- * `courier_paid_at` so vendors and admins can see settlement is complete.
- */
-async function maybeStampOrderCourierPaid(
-  admin: ReturnType<typeof createAdminClient>,
-  orderId: string
-): Promise<void> {
-  const { data: legs, error } = await admin
-    .from("deliveries")
-    .select("paid_to_courier_at")
-    .eq("order_id", orderId);
-
-  if (error) {
-    console.error("Failed to inspect delivery legs for order settlement", {
-      orderId,
-      error,
-    });
-    return;
+  if (transfer.status.toUpperCase() === "SUCCESSFUL") {
+    await admin
+      .from("deliveries")
+      .update({ paid_to_courier_at: new Date().toISOString() })
+      .eq("id", deliveryId)
+      .is("paid_to_courier_at", null);
+    await markOrderCourierPaidIfSettled(delivery.order_id as string);
   }
-
-  if (!legs || legs.length === 0) return;
-  const allPaid = legs.every((l) => l.paid_to_courier_at);
-  if (!allPaid) return;
-
-  await admin
-    .from("orders")
-    .update({
-      courier_paid_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", orderId)
-    .is("courier_paid_at", null);
 }

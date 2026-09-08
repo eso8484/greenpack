@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { calculateFeeBreakdown, nairaToKobo } from "@/lib/utils";
-import { PAYSTACK_BASE_URL } from "@/lib/constants";
+import { calculateFeeBreakdown } from "@/lib/utils";
+import { flutterwaveCreatePaymentLink } from "@/lib/flutterwave";
 
 const InitializeSchema = z.object({
   orderId: z.string().uuid(),
   email: z.string().email(),
+  customerName: z.string().trim().min(1).max(120).optional(),
+  phoneNumber: z.string().trim().min(3).max(30).optional(),
 });
 
 export async function POST(request: Request) {
   try {
-    const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
-    if (!paystackSecret) {
+    if (!process.env.FLW_SECRET_KEY) {
       return NextResponse.json(
-        { success: false, error: "PAYSTACK_SECRET_KEY is not configured" },
+        { success: false, error: "FLW_SECRET_KEY is not configured" },
         { status: 503 }
       );
     }
@@ -23,13 +24,11 @@ export async function POST(request: Request) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-
     if (!user) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const parsed = InitializeSchema.safeParse(body);
+    const parsed = InitializeSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
         { success: false, error: parsed.error.flatten().fieldErrors },
@@ -39,20 +38,15 @@ export async function POST(request: Request) {
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select(
-        "id, customer_id, total_amount, payment_status, delivery_fee, subtotal"
-      )
+      .select("id, customer_id, total_amount, payment_status, delivery_fee, subtotal")
       .eq("id", parsed.data.orderId)
       .single();
-
     if (orderError || !order) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
     }
-
     if (order.customer_id !== user.id) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
-
     if (order.payment_status === "paid") {
       return NextResponse.json(
         { success: false, error: "Order is already paid" },
@@ -60,47 +54,41 @@ export async function POST(request: Request) {
       );
     }
 
-    // Load order items to determine shops (split is per-transaction in Paystack)
     const { data: items, error: itemsError } = await supabase
       .from("order_items")
       .select("shop_id, price, quantity")
       .eq("order_id", order.id);
-
     if (itemsError) throw itemsError;
-    if (!items || items.length === 0) {
+    if (!items?.length) {
       return NextResponse.json(
         { success: false, error: "Order has no items" },
         { status: 400 }
       );
     }
 
-    const shopIds = Array.from(new Set(items.map((it) => it.shop_id)));
-    if (shopIds.length > 1) {
+    const shopIds = Array.from(new Set(items.map((item) => item.shop_id)));
+    if (shopIds.length !== 1) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            "Order contains items from multiple shops. Please check out one shop at a time.",
+          error: "Order contains items from multiple shops. Please check out one shop at a time.",
         },
         { status: 400 }
       );
     }
 
-    const shopId = shopIds[0];
     const { data: shop, error: shopError } = await supabase
       .from("shops")
-      .select("id, paystack_subaccount_code")
-      .eq("id", shopId)
+      .select("id, flutterwave_subaccount_id")
+      .eq("id", shopIds[0])
       .single();
-
     if (shopError || !shop) {
       return NextResponse.json(
         { success: false, error: "Shop not found for this order" },
         { status: 404 }
       );
     }
-
-    if (!shop.paystack_subaccount_code) {
+    if (!shop.flutterwave_subaccount_id) {
       return NextResponse.json(
         {
           success: false,
@@ -110,23 +98,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Compute fee breakdown
     const itemsSubtotal = items.reduce(
-      (sum, it) => sum + Number(it.price) * Number(it.quantity ?? 1),
+      (sum, item) => sum + Number(item.price) * Number(item.quantity ?? 1),
       0
     );
     const deliveryFee = Number(order.delivery_fee ?? 0);
-    // Prefer stored subtotal if it exists; otherwise fall back to items sum or (total - delivery)
     const subtotal =
       Number(order.subtotal) > 0
         ? Number(order.subtotal)
         : itemsSubtotal > 0
           ? itemsSubtotal
           : Math.max(0, Number(order.total_amount) - deliveryFee);
-
     const breakdown = calculateFeeBreakdown(subtotal, deliveryFee);
+    if (!Number.isFinite(breakdown.total) || breakdown.total <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Order amount is invalid for payment" },
+        { status: 400 }
+      );
+    }
 
-    // Persist breakdown on the order BEFORE calling Paystack
+    // Keep the full checkout calculation before asking the payment provider to
+    // create a link. It is re-validated on the return/webhook verification.
     const { error: preUpdateError } = await supabase
       .from("orders")
       .update({
@@ -139,100 +131,66 @@ export async function POST(request: Request) {
       })
       .eq("id", order.id)
       .eq("customer_id", user.id);
-
     if (preUpdateError) throw preUpdateError;
 
-    const amount = nairaToKobo(breakdown.total);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return NextResponse.json(
-        { success: false, error: "Order amount is invalid for payment" },
-        { status: 400 }
-      );
-    }
-
-    // Platform retains (platform_fee + delivery_fee) via transaction_charge;
-    // Paystack settles the remainder to the vendor's subaccount.
-    const transactionChargeKobo = nairaToKobo(
-      breakdown.platformFee + breakdown.deliveryFee
-    );
-
-    const reference = `gpk_${order.id.replace(/-/g, "")}_${Date.now()}`;
+    const reference = `gpf_${order.id.replace(/-/g, "")}_${Date.now()}`;
     const callbackUrl = `${new URL(request.url).origin}/checkout`;
-
-    const paystackResponse = await fetch(
-      `${PAYSTACK_BASE_URL}/transaction/initialize`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${paystackSecret}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: parsed.data.email,
-          amount,
-          currency: "NGN",
-          reference,
-          callback_url: callbackUrl,
-          subaccount: shop.paystack_subaccount_code,
-          bearer: "account",
-          transaction_charge: transactionChargeKobo,
-          metadata: {
-            order_id: order.id,
-            customer_id: order.customer_id,
-            shop_id: shop.id,
-            subtotal: breakdown.subtotal,
-            delivery_fee: breakdown.deliveryFee,
-            platform_fee: breakdown.platformFee,
-            vendor_payout: breakdown.vendorPayout,
-            courier_payout: breakdown.courierPayout,
-            total: breakdown.total,
-          },
-        }),
-      }
-    );
-
-    const paystackPayload = await paystackResponse.json();
-    if (!paystackResponse.ok || !paystackPayload.status || !paystackPayload.data) {
-      return NextResponse.json(
+    const platformAndDeliveryFee = breakdown.platformFee + breakdown.deliveryFee;
+    const payment = await flutterwaveCreatePaymentLink({
+      txRef: reference,
+      amount: breakdown.total,
+      currency: "NGN",
+      redirectUrl: callbackUrl,
+      customer: {
+        email: parsed.data.email,
+        name: parsed.data.customerName,
+        phoneNumber: parsed.data.phoneNumber,
+      },
+      // Flutterwave sends the subaccount the remainder after this commission;
+      // the platform retains its fee plus the delivery fee for courier payout.
+      subaccounts: [
         {
-          success: false,
-          error:
-            typeof paystackPayload.message === "string"
-              ? paystackPayload.message
-              : "Failed to initialize Paystack transaction",
+          id: shop.flutterwave_subaccount_id,
+          transaction_charge_type: "flat",
+          transaction_charge: platformAndDeliveryFee,
         },
-        { status: 502 }
-      );
-    }
+      ],
+      meta: {
+        order_id: order.id,
+        customer_id: order.customer_id,
+        shop_id: shop.id,
+        subtotal: breakdown.subtotal,
+        delivery_fee: breakdown.deliveryFee,
+        platform_fee: breakdown.platformFee,
+        vendor_payout: breakdown.vendorPayout,
+        courier_payout: breakdown.courierPayout,
+        total: breakdown.total,
+      },
+    });
 
     const { error: updateError } = await supabase
       .from("orders")
       .update({
-        payment_provider: "paystack",
+        payment_provider: "flutterwave",
         payment_currency: "NGN",
         payment_reference: reference,
         payment_metadata: {
-          paystack_access_code: paystackPayload.data.access_code,
-          subaccount: shop.paystack_subaccount_code,
-          transaction_charge_kobo: transactionChargeKobo,
+          flutterwave_payment_link: payment.link,
+          flutterwave_subaccount_id: shop.flutterwave_subaccount_id,
+          platform_and_delivery_fee: platformAndDeliveryFee,
         },
         updated_at: new Date().toISOString(),
       })
       .eq("id", order.id)
       .eq("customer_id", user.id);
-
     if (updateError) throw updateError;
 
     return NextResponse.json({
       success: true,
-      data: {
-        authorization_url: paystackPayload.data.authorization_url as string,
-        access_code: paystackPayload.data.access_code as string,
-        reference: paystackPayload.data.reference as string,
-      },
+      data: { authorization_url: payment.link, reference },
     });
   } catch (err) {
-    console.error("POST /api/payments/paystack/initialize", err);
+    console.error("POST /api/payments/flutterwave/initialize", err);
     return NextResponse.json(
       { success: false, error: "Failed to initialize payment" },
       { status: 500 }

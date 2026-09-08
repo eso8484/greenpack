@@ -11,11 +11,11 @@ export const ITEMS_PER_PAGE = 12;
 export const EMAIL_LOGO_URL = "https://www.greenpackdelight.com/logo.png";
 
 // === Payment & Delivery Constants ===
-// Platform takes 3% of subtotal; vendor gets the rest via Paystack subaccount.
+// Platform takes 3% of subtotal; vendor gets the rest via Flutterwave split.
 export const PLATFORM_FEE_PERCENT = 3;
 export const VENDOR_PAYOUT_PERCENT = 100 - PLATFORM_FEE_PERCENT; // 97
 
-// Nigerian Naira amounts (NOT kobo). Convert to kobo at Paystack boundary.
+// Nigerian Naira amounts.
 export const DELIVERY_BASE_FEE = 2000;     // ₦2,000 flat base
 export const DELIVERY_RATE_PER_KM = 500;   // ₦500 per kilometre
 export const DELIVERY_MIN_FEE = 2000;      // never below base
@@ -28,6 +28,3 @@ export const ALLOWED_DELIVERY_STATE_ALIASES = [
   "abuja",
   "federal capital territory",
 ];
-
-// Paystack
-export const PAYSTACK_BASE_URL = "https://api.paystack.co";

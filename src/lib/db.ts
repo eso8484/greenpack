@@ -31,7 +31,7 @@ function mapShop(row: any): Shop {
       lat: row.lat != null ? Number(row.lat) : undefined,
       lng: row.lng != null ? Number(row.lng) : undefined,
     },
-    paystack_subaccount_code: row.paystack_subaccount_code ?? null,
+    flutterwave_subaccount_id: row.flutterwave_subaccount_id ?? null,
     settlement_bank_code: row.settlement_bank_code ?? null,
     settlement_account_number: row.settlement_account_number ?? null,
     settlement_account_name: row.settlement_account_name ?? null,

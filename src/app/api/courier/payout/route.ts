@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import {
-  paystackCreateTransferRecipient,
-  paystackResolveAccount,
-} from "@/lib/paystack";
+import { flutterwaveResolveAccount } from "@/lib/flutterwave";
 
 const PayoutSchema = z.object({
   bankCode: z.string().min(1, "Bank code is required"),
@@ -26,7 +23,7 @@ export async function GET() {
     const { data: profile, error } = await supabase
       .from("profiles")
       .select(
-        "role, bank_name, bank_code, account_number, account_name, paystack_recipient_code"
+        "role, bank_name, bank_code, account_number, account_name, flutterwave_payout_verified_at"
       )
       .eq("id", user.id)
       .single();
@@ -77,17 +74,10 @@ export async function POST(request: Request) {
     }
 
     // Verify the account belongs to a real holder
-    const resolved = await paystackResolveAccount(
+    const resolved = await flutterwaveResolveAccount(
       parsed.data.accountNumber,
       parsed.data.bankCode
     );
-
-    // Create a transfer recipient so we can later disburse earnings
-    const recipient = await paystackCreateTransferRecipient({
-      name: resolved.account_name || profile.full_name || "Courier",
-      account_number: parsed.data.accountNumber,
-      bank_code: parsed.data.bankCode,
-    });
 
     const { data: updatedProfile, error: updateError } = await supabase
       .from("profiles")
@@ -96,12 +86,12 @@ export async function POST(request: Request) {
         bank_code: parsed.data.bankCode,
         account_number: parsed.data.accountNumber,
         account_name: resolved.account_name,
-        paystack_recipient_code: recipient.recipient_code,
+        flutterwave_payout_verified_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", user.id)
       .select(
-        "bank_name, bank_code, account_number, account_name, paystack_recipient_code"
+        "bank_name, bank_code, account_number, account_name, flutterwave_payout_verified_at"
       )
       .single();
 

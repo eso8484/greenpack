@@ -168,7 +168,7 @@ export default function ContactForm({
         className="w-full"
         disabled={isSubmitting || disabled}
       >
-        {isSubmitting ? "Redirecting to Paystack..." : "Proceed to Secure Payment"}
+        {isSubmitting ? "Redirecting to Flutterwave..." : "Proceed to Secure Payment"}
       </Button>
     </form>
   );

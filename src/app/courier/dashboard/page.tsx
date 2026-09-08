@@ -466,7 +466,7 @@ interface CourierPayout {
   bank_code: string | null;
   account_number: string | null;
   account_name: string | null;
-  paystack_recipient_code: string | null;
+  flutterwave_payout_verified_at: string | null;
 }
 
 function CourierPayoutCard() {
@@ -502,7 +502,14 @@ function CourierPayoutCard() {
         if (payoutRes.ok && payoutJson.success && payoutJson.data && !cancelled) {
           const data = payoutJson.data as CourierPayout;
           setExisting(data);
-          if (!data.paystack_recipient_code) setEditMode(true);
+          if (
+            !data.bank_code ||
+            !data.account_number ||
+            !data.account_name ||
+            !data.flutterwave_payout_verified_at
+          ) {
+            setEditMode(true);
+          }
         } else if (!cancelled) {
           setEditMode(true);
         }
@@ -588,7 +595,10 @@ function CourierPayoutCard() {
     );
   }
 
-  const hasExisting = existing?.paystack_recipient_code;
+  const hasExisting = Boolean(
+    existing?.bank_code && existing.account_number && existing.account_name
+      && existing.flutterwave_payout_verified_at
+  );
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">

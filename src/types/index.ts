@@ -27,7 +27,7 @@ export interface Shop {
     lat?: number;
     lng?: number;
   };
-  paystack_subaccount_code?: string | null;
+  flutterwave_subaccount_id?: string | null;
   settlement_bank_code?: string | null;
   settlement_account_number?: string | null;
   settlement_account_name?: string | null;
@@ -172,6 +172,8 @@ export interface Profile {
 // === ORDER ===
 export type OrderStatus = "pending" | "confirmed" | "processing" | "ready" | "completed" | "cancelled";
 export type PaymentStatus = "unpaid" | "paid" | "refunded";
+// Keep `paystack` only so historical order records remain readable. New orders
+// and all active payment routes use Flutterwave.
 export type PaymentProvider = "paystack" | "flutterwave";
 
 export interface Order {

@@ -49,8 +49,9 @@ export default function CheckoutPage() {
   const [isCalculatingDelivery, setIsCalculatingDelivery] = useState(false);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
 
-  const paymentReference =
-    searchParams.get("reference") ?? searchParams.get("trxref");
+  const paymentReference = searchParams.get("tx_ref");
+  const paymentTransactionId = searchParams.get("transaction_id");
+  const paymentStatus = searchParams.get("status");
 
   // Whether the cart contains any physical product (delivery only applies to products)
   const hasProducts = useMemo(
@@ -184,7 +185,7 @@ export default function CheckoutPage() {
   const payDisabled = payDisabledReason !== null;
 
   useEffect(() => {
-    if (!paymentReference) return;
+    if (!paymentReference || !paymentTransactionId) return;
     // Verify each reference exactly once. Without this guard a changing
     // dependency (or a re-render after clearCart) could re-fire verification
     // in a loop.
@@ -201,11 +202,21 @@ export default function CheckoutPage() {
       setIsVerifyingPayment(true);
       setPaymentError(null);
 
+      if (paymentStatus && paymentStatus.toLowerCase() !== "successful") {
+        setPaymentError("Payment was not completed. You can return to your cart and try again.");
+        setIsVerifyingPayment(false);
+        return;
+      }
+
       try {
-        const response = await fetch(
-          `/api/payments/paystack/verify/${encodeURIComponent(paymentReference)}`,
-          { method: "POST" }
-        );
+        const response = await fetch("/api/payments/flutterwave/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reference: paymentReference,
+            transactionId: paymentTransactionId,
+          }),
+        });
         const payload = await response.json();
 
         if (!response.ok || !payload.success) {
@@ -233,7 +244,7 @@ export default function CheckoutPage() {
     };
 
     verifyPayment();
-  }, [clearCart, paymentReference]);
+  }, [clearCart, paymentReference, paymentStatus, paymentTransactionId]);
 
   const handleSubmit = async (info: CustomerInfo) => {
     if (items.length === 0) return;
@@ -272,8 +283,6 @@ export default function CheckoutPage() {
               : {}),
           },
           needs_delivery: hasProducts,
-          payment_provider: "paystack",
-          payment_currency: "NGN",
           items: items.map((item) => ({
             shop_id: item.shopId,
             item_type: item.type,
@@ -306,12 +315,14 @@ export default function CheckoutPage() {
         throw new Error(message);
       }
 
-      const paymentResponse = await fetch("/api/payments/paystack/initialize", {
+      const paymentResponse = await fetch("/api/payments/flutterwave/initialize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId: orderPayload.data.id,
           email: info.email,
+          customerName: info.fullName,
+          phoneNumber: info.phone,
         }),
       });
 
@@ -346,7 +357,7 @@ export default function CheckoutPage() {
           Verifying payment...
         </h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Please wait while we confirm your Paystack transaction.
+          Please wait while we confirm your Flutterwave transaction.
         </p>
       </div>
     );
