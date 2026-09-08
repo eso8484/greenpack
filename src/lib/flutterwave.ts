@@ -180,6 +180,7 @@ export interface CreateFlutterwaveSubaccountParams {
   accountBank: string;
   accountNumber: string;
   businessName: string;
+  businessEmail: string;
   businessMobile: string;
 }
 
@@ -197,6 +198,7 @@ export async function flutterwaveCreateSubaccount(
       account_bank: params.accountBank,
       account_number: params.accountNumber,
       business_name: params.businessName,
+      business_email: params.businessEmail,
       business_mobile: params.businessMobile,
       country: "NG",
       split_type: "percentage",

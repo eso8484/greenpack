@@ -10,6 +10,8 @@ import {
 const PayoutSchema = z.object({
   bankCode: z.string().min(1, "Bank code is required"),
   accountNumber: z.string().regex(/^\d{10}$/, "Account number must be 10 digits"),
+  businessEmail: z.string().trim().email("Enter a valid business contact email").optional(),
+  business_email: z.string().trim().email("Enter a valid business contact email").optional(),
 });
 
 export async function GET() {
@@ -36,7 +38,7 @@ export async function GET() {
     const { data: shop, error } = await supabase
       .from("shops")
       .select(
-        "id, name, flutterwave_subaccount_id, settlement_bank_code, settlement_account_number, settlement_account_name"
+        "id, name, contact, flutterwave_subaccount_id, settlement_bank_code, settlement_account_number, settlement_account_name"
       )
       .eq("owner_id", user.id)
       .order("created_at", { ascending: true })
@@ -51,7 +53,25 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ success: true, data: shop });
+    const contact =
+      shop.contact && typeof shop.contact === "object" && !Array.isArray(shop.contact)
+        ? shop.contact
+        : {};
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...shop,
+        contact: {
+          ...contact,
+          // A newly created seller may not have a shop contact email yet. The
+          // authenticated account email is valid for the Flutterwave form.
+          email:
+            typeof contact.email === "string" && contact.email.trim()
+              ? contact.email
+              : user.email ?? undefined,
+        },
+      },
+    });
   } catch (err) {
     console.error("GET /api/seller/payout", err);
     return NextResponse.json(
@@ -91,6 +111,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const businessEmail = parsed.data.businessEmail ?? parsed.data.business_email ?? user.email;
+    if (!businessEmail) {
+      return NextResponse.json(
+        { success: false, error: "Enter a business contact email before saving payouts" },
+        { status: 400 }
+      );
+    }
+
     const { data: shop, error: shopError } = await supabase
       .from("shops")
       .select("id, name, contact")
@@ -113,13 +141,12 @@ export async function POST(request: Request) {
       parsed.data.bankCode
     );
 
+    const shopContact =
+      shop.contact && typeof shop.contact === "object" && !Array.isArray(shop.contact)
+        ? { ...shop.contact }
+        : {};
     const shopPhone =
-      shop.contact &&
-      typeof shop.contact === "object" &&
-      "phone" in shop.contact &&
-      typeof shop.contact.phone === "string"
-        ? shop.contact.phone
-        : null;
+      typeof shopContact.phone === "string" ? shopContact.phone : null;
     const businessMobile = shopPhone || profile.phone;
     if (!businessMobile) {
       return NextResponse.json(
@@ -134,6 +161,7 @@ export async function POST(request: Request) {
     // Flutterwave subaccounts receive the vendor's share of each checkout.
     const subaccount = await flutterwaveCreateSubaccount({
       businessName: shop.name,
+      businessEmail,
       accountBank: parsed.data.bankCode,
       accountNumber: parsed.data.accountNumber,
       businessMobile,
@@ -146,6 +174,9 @@ export async function POST(request: Request) {
     const { data: updatedShop, error: updateError } = await admin
       .from("shops")
       .update({
+        // Keep the email displayed to customers in sync with the address used
+        // for Flutterwave subaccount notifications and settlement records.
+        contact: { ...shopContact, email: businessEmail },
         flutterwave_subaccount_id: subaccount.subaccount_id,
         settlement_bank_code: parsed.data.bankCode,
         settlement_account_number: parsed.data.accountNumber,
@@ -164,10 +195,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data: updatedShop });
   } catch (err) {
     console.error("POST /api/seller/payout", err);
+    const message = err instanceof Error ? err.message : "Failed to save payout details";
+    const normalized = message.toLowerCase();
+    if (normalized.includes("business email") || normalized.includes("business_email")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Flutterwave rejected the business email. Use a valid email address for this business, and confirm your Flutterwave account is fully activated for subaccounts.",
+        },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
       {
         success: false,
-        error: err instanceof Error ? err.message : "Failed to save payout details",
+        error: message,
       },
       { status: 500 }
     );

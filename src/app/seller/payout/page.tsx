@@ -15,6 +15,7 @@ interface PayoutDetails {
   settlement_bank_code: string | null;
   settlement_account_number: string | null;
   settlement_account_name: string | null;
+  contact?: { email?: string };
 }
 
 export default function SellerPayoutPage() {
@@ -22,6 +23,7 @@ export default function SellerPayoutPage() {
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
+  const [businessEmail, setBusinessEmail] = useState("");
   const [resolving, setResolving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,7 @@ export default function SellerPayoutPage() {
           if (!cancelled) {
             const data = payoutJson.data as PayoutDetails;
             setExisting(data);
+            setBusinessEmail(data.contact?.email ?? "");
             // If no subaccount yet, start in edit mode automatically
             if (!data.flutterwave_subaccount_id) {
               setEditMode(true);
@@ -111,6 +114,10 @@ export default function SellerPayoutPage() {
       toast.error("Select a bank and verify your account number first");
       return;
     }
+    if (!/^\S+@\S+\.\S+$/.test(businessEmail.trim())) {
+      toast.error("Enter a valid business contact email");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -118,7 +125,11 @@ export default function SellerPayoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ bankCode, accountNumber }),
+        body: JSON.stringify({
+          bankCode,
+          accountNumber,
+          businessEmail: businessEmail.trim(),
+        }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -258,6 +269,20 @@ export default function SellerPayoutPage() {
                     : accountName || "Auto-filled after we verify your account"}
                 </div>
               </div>
+
+              <Input
+                id="businessEmail"
+                label="Business Contact Email"
+                type="email"
+                autoComplete="email"
+                value={businessEmail}
+                onChange={(event) => setBusinessEmail(event.target.value)}
+                placeholder="business@example.com"
+                required
+              />
+              <p className="-mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Required by Flutterwave for your payout subaccount. This is also saved as your shop&apos;s contact email.
+              </p>
 
               <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 text-xs rounded-lg px-3 py-2.5">
                 Green Pack keeps 3% of each transaction as a service fee. The remaining 97%
