@@ -51,7 +51,6 @@ export default function CheckoutPage() {
 
   const paymentReference = searchParams.get("tx_ref");
   const paymentTransactionId = searchParams.get("transaction_id");
-  const paymentStatus = searchParams.get("status");
 
   // Whether the cart contains any physical product (delivery only applies to products)
   const hasProducts = useMemo(
@@ -202,12 +201,6 @@ export default function CheckoutPage() {
       setIsVerifyingPayment(true);
       setPaymentError(null);
 
-      if (paymentStatus && paymentStatus.toLowerCase() !== "successful") {
-        setPaymentError("Payment was not completed. You can return to your cart and try again.");
-        setIsVerifyingPayment(false);
-        return;
-      }
-
       try {
         const response = await fetch("/api/payments/flutterwave/verify", {
           method: "POST",
@@ -244,7 +237,7 @@ export default function CheckoutPage() {
     };
 
     verifyPayment();
-  }, [clearCart, paymentReference, paymentStatus, paymentTransactionId]);
+  }, [clearCart, paymentReference, paymentTransactionId]);
 
   const handleSubmit = async (info: CustomerInfo) => {
     if (items.length === 0) return;

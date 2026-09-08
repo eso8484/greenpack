@@ -28,7 +28,7 @@ function isVerifiedPayment(
   totalAmount: number
 ) {
   return (
-    transaction.status.toLowerCase() === "successful" &&
+    ["successful", "succeeded", "success"].includes(transaction.status.toLowerCase()) &&
     transaction.tx_ref === reference &&
     transaction.currency.toUpperCase() === "NGN" &&
     Math.abs(Number(transaction.amount) - totalAmount) < 0.005
