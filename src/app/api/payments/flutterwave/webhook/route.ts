@@ -17,6 +17,10 @@ interface FlutterwaveWebhookEvent {
   };
 }
 
+function isSuccessfulStatus(status?: string) {
+  return ["successful", "succeeded", "success"].includes((status ?? "").toLowerCase());
+}
+
 function isVerifiedPayment(
   transaction: {
     status: string;
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
     if (event.event === "transfer.completed") {
       return handleTransferCompleted(event);
     }
-    if (event.event !== "charge.completed" || event.data?.status?.toLowerCase() !== "successful") {
+    if (event.event !== "charge.completed" || !isSuccessfulStatus(event.data?.status)) {
       return NextResponse.json({ success: true, ignored: true });
     }
     if (!process.env.FLW_SECRET_KEY) {
@@ -110,7 +114,7 @@ async function handleTransferCompleted(event: FlutterwaveWebhookEvent) {
   if (!reference) {
     return NextResponse.json({ success: true, ignored: true });
   }
-  if (event.data?.status?.toUpperCase() !== "SUCCESSFUL") {
+  if (!isSuccessfulStatus(event.data?.status)) {
     return NextResponse.json({ success: true, ignored: true });
   }
 
