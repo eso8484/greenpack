@@ -67,7 +67,8 @@ export async function POST(request: Request) {
         { status: 503 }
       );
     }
-    if (!event.data.id || !event.data.tx_ref) {
+    const chargeData = event.data;
+    if (!chargeData || !chargeData.id || !chargeData.tx_ref) {
       return NextResponse.json(
         { success: false, error: "Missing transaction details" },
         { status: 400 }
@@ -76,18 +77,18 @@ export async function POST(request: Request) {
 
     // Treat webhook data as an alert, not proof: query Flutterwave again before
     // changing an order's status.
-    const transaction = await flutterwaveVerifyTransaction(event.data.id);
+    const transaction = await flutterwaveVerifyTransaction(chargeData.id);
     const admin = createAdminClient();
     const { data: order, error: orderError } = await admin
       .from("orders")
       .select("id, total_amount")
-      .eq("payment_reference", event.data.tx_ref)
+      .eq("payment_reference", chargeData.tx_ref)
       .eq("payment_provider", "flutterwave")
       .single();
     if (orderError || !order) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
     }
-    if (!isVerifiedPayment(transaction, event.data.tx_ref, Number(order.total_amount))) {
+    if (!isVerifiedPayment(transaction, chargeData.tx_ref, Number(order.total_amount))) {
       return NextResponse.json(
         { success: false, error: "Payment could not be confirmed for this order" },
         { status: 409 }
@@ -96,7 +97,7 @@ export async function POST(request: Request) {
 
     await fulfillFlutterwavePayment({
       orderId: order.id,
-      reference: event.data.tx_ref,
+      reference: chargeData.tx_ref,
       transaction,
     });
     return NextResponse.json({ success: true });
