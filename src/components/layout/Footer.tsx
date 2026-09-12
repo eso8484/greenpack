@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { vendorUrl } from "@/lib/hosts";
 
 export default function Footer() {
   return (
@@ -75,7 +76,9 @@ export default function Footer() {
             </li>
             <li>
               <Link
-                href="/sell"
+                href={vendorUrl("/sell")}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="hover:text-green-600 dark:hover:text-green-400 transition-colors"
               >
                 Sell on GreenPack

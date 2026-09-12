@@ -1,4 +1,4 @@
-codex# GreenPack
+# GreenPack
 
 ## Overview
 GreenPack (brand: **Green Pack Delight**) is a Nigerian service and shop discovery platform. Vendors list businesses with video showcases, products, and services (laundry, barbershop, phone repair, fashion, food, etc.). Customers browse, discover, and connect with providers via phone, WhatsApp, or inquiry form. Couriers handle deliveries end-to-end.
@@ -44,7 +44,7 @@ src/
 │   ├── profile/page.tsx            # Customer profile (auth required)
 │   ├── login/page.tsx              # Login
 │   ├── register/page.tsx           # Register (customer)
-│   ├── signup/page.tsx             # Customer signup (?role=vendor redirects to vendor host)
+│   ├── signup/page.tsx             # Signup (vendor/courier onboarding)
 │   ├── sell/page.tsx               # Become a vendor landing
 │   ├── become-courier/page.tsx     # Become a courier landing
 │   ├── vendor/dashboard/page.tsx   # Vendor dashboard (role: vendor/admin)
@@ -92,13 +92,11 @@ src/
 │   │   ├── server.ts # Server Supabase client (createServerClient with cookies)
 │   │   └── admin.ts  # Admin client (service_role key — server-only)
 │   ├── termii.ts     # Termii SMS helpers (sendSMS, notifyCourier*, notifyVendor*, notifyCustomer*)
-│   ├── vendor-identity.ts # Split vendor/customer accounts — the only home for the synthetic-address rule
-│   ├── hosts.ts      # Two-host helpers — isVendorHost(), vendorUrl(), siteUrl()
 │   ├── utils.ts      # formatPrice, filterShops, cn(), BLUR_PLACEHOLDER, etc.
 │   └── constants.ts  # SITE_NAME, CURRENCY, CURRENCY_SYMBOL
 ├── hooks/            # useCart.ts, useSearch.ts
 ├── context/          # CartContext.tsx (useReducer: ADD, REMOVE, UPDATE, CLEAR)
-├── middleware.ts     # Auth + role-based route protection + the closed vendor host
+├── middleware.ts     # Auth + role-based route protection
 └── types/            # index.ts (Shop, Service, Product, Review, CartItem, etc.)
 
 supabase/
@@ -106,12 +104,7 @@ supabase/
     ├── 001_initial_schema.sql                       # profiles, shops, services, products, orders, reviews, deliveries
     └── 002_verification_and_profile_update.sql      # verification_otps, profile fields (DOB, email/phone_verified, terms)
   └── 003_support_tickets.sql                      # support_tickets, support_messages, RLS policies
-  └── … up to 016
-  └── 017_vendor_accounts.sql                      # profiles.email, vendor-only unique index, handle_new_user() email
 ```
-
-`src/lib/vendor-identity.ts` — the one home for the split vendor/customer identity rule (see
-**Vendor Accounts**).
 
 ## Routes
 
@@ -126,9 +119,9 @@ supabase/
 | `/wishlist` | Client | — | Saved/wishlisted shops |
 | `/help` | Client | — | Help Center — FAQ categories, search, accordion Q&A |
 | `/contact-support` | Client | — | Floating support chat widget with assistant triage and live-agent ticket handoff |
-| `/login` | Client | — | Supabase Auth login — `?mode=vendor` selects the vendor lane |
+| `/login` | Client | — | Supabase Auth login |
 | `/register` | Client | — | Customer registration |
-| `/signup` | Client | — | Customer signup — `?role=vendor` sends you to the vendor host's `/vendor/register` |
+| `/signup` | Client | — | Vendor / courier signup onboarding |
 | `/sell` | Server | — | Become a vendor landing page |
 | `/become-courier` | Server | — | Become a courier landing page |
 | `/profile` | Client | ✅ Required | Customer profile management |
@@ -149,212 +142,6 @@ supabase/
   - `/courier/dashboard` → `["courier", "admin"]`
   - `/admin` → `["admin"]`
 - Roles: `customer` | `vendor` | `courier` | `admin`
-
-### Two-Host Setup (vendor subdomain)
-The customer site and the vendor center are **one deployment serving two hostnames**:
-`greenpackdelight.com` and `vendor.greenpackdelight.com`. No separate app, no extra cost.
-
-`src/middleware.ts` detects the vendor host (`isVendorHost` from `src/lib/hosts.ts`, which reads
-the `host` header — **never** `x-forwarded-host`, which clients can append to) and rewrites clean
-vendor URLs onto the existing `/seller/*` routes:
-
-| Vendor-host URL | Renders |
-|---|---|
-| `/` | *redirects* to `/dashboard` |
-| `/dashboard` | `/seller/dashboard` |
-| `/shop` | `/seller/shop` |
-| `/services` | `/seller/services` |
-| `/products` | `/seller/products` |
-| `/payout` | `/seller/payout` |
-| `/onboarding` | `/seller/onboarding` |
-
-`/` is a redirect rather than a rewrite on purpose: serving the dashboard at `/` would make it
-indistinguishable from the customer homepage, and `AppChrome` has only the pathname to go on.
-
-**The vendor host is closed.** `isVendorHostPathAllowed()` in `src/middleware.ts` allows the six
-rewrite targets (matched *exactly* — `/shop/xyz` is the storefront's shop page, not the vendor's
-shop editor), the `/seller/*` routes they rewrite onto, `/sell`, `/vendor/register`, `/login`,
-`/reset-password`, `/api/*`, `/not-found`, `/_next`, and any path whose last segment looks like a
-file. Everything else — `/browse`, `/cart`, `/wishlist`, the customer `/register` and `/signup` —
-redirects to `/dashboard`, which itself bounces a signed-out visitor to `/login?mode=vendor`. So
-there is no customer page on the vendor host, no chrome-less dead end, and no route back to the
-store but the address bar. `/_next` is in the list deliberately: the matcher does **not** exclude
-`/_next/webpack-hmr`, and redirecting it breaks HMR.
-
-**Chrome is decided by host, not path.** `src/app/layout.tsx` reads `headers()`, computes
-`isVendorHost`, and passes `onVendorHost` to `AppChrome` as a prop — not a client-side
-`window.location.hostname` read, which would flash the Header before hydration. `AppChrome`
-short-circuits to bare `children` when it is set. The path lists it keeps are for the **customer**
-host, where `/seller/*` still resolves directly and must not wear storefront chrome either:
-`STANDALONE_PREFIXES = ["/seller", "/admin/support"]` and `STANDALONE_EXACT = ["/vendor/register"]`.
-
-Reading `headers()` costs nothing: the site is already fully dynamic (`db.ts` → `supabase/server.ts`
-→ `await cookies()`), so the root layout's rendering mode is unchanged.
-
-The clean vendor names (`/dashboard`, `/shop`, …) are deliberately **absent** from
-`STANDALONE_EXACT`. They only exist through the vendor host's rewrite, and everything on that host
-renders bare via `onVendorHost` — so listing them would be dead configuration that looks
-load-bearing. They fail together with host detection too: if the host is ever misread, middleware
-stops rewriting `/dashboard` as well and the path never renders.
-
-`usePathname()` reports the **browser** path, not the rewrite target, so it is the *clean* name that
-would match — which is why the host gate, not the path list, is what actually suppresses chrome on
-vendor pages.
-
-The vendor host has **no clean `/register` and no `/signup`**: both are customer routes, and both are
-outside the allow-list, so they redirect to `/dashboard` there. Vendor registration lives at
-**`/vendor/register`** — the same path on both hosts, unambiguous, and chrome-free.
-
-`/seller/*` also still resolves directly, so existing internal links keep working.
-
-**Why this exists:** Supabase session cookies are host-only, so each hostname gets an independent
-session. Logging into the vendor center no longer replaces the customer session.
-
-Rules that keep it working — breaking any of them silently re-couples the two hosts:
-
-1. **Sign-out is always `scope: "local"`, never `"global"`.** Global revokes the refresh token
-   server-side for the whole user, which would sign them out of *both* hosts. Applies to
-   `src/app/seller/layout.tsx` and `src/context/AuthContext.tsx`.
-2. **Cross-host links must be absolute.** Use `vendorUrl()` / `siteUrl()` from `src/lib/hosts.ts`.
-   A bare `/` or `/dashboard` stays on whichever host rendered it.
-3. **"Become a Vendor" / "Sell on GreenPack" links point at the vendor host and open in a new tab**
-   (`vendorUrl("/sell")` + `target="_blank"`). They live in `Header`, `MobileNav`, `Footer`, and
-   `CTABanner` — change all four together or the entry points drift apart.
-4. **The vendor center has no link back to the customer site** — the "← Back to site" button was
-   removed deliberately. The seller header's logo still points at `/`, which on the vendor host
-   resolves to `/dashboard`.
-5. **Vendor-facing links out of a shared page use `vendorUrl()` for both the host and the path.**
-   `src/app/sell/page.tsx` renders on both hosts, so its "Register Your Business" buttons point at
-   `vendorUrl("/vendor/register")` and "Log in to your dashboard" at `vendorUrl("/login?mode=vendor")`.
-   A bare `/vendor/register` would follow whichever host rendered the page, and a bare `/login`
-   opens the **customer** lane — which is exactly the bug those two links previously had.
-6. **Post-login redirects stay on the host that owns the session.** A vendor's cookie only exists on
-   the host they signed in on, so `src/app/login/page.tsx` picks `vendorUrl`'s clean `/dashboard`
-   only when it is already on the vendor host, and `/seller/dashboard` otherwise. Jumping hosts
-   there lands them on a signed-out page.
-
-Vendor sign-out lands on `/login?mode=vendor`, and middleware forces that lane for any `/login`
-request on the vendor host, so a vendor never sees the customer sign-in copy.
-
-**That forcing is a redirect, and it must stay one.** `/login` is a Client Component that reads the
-lane through `useSearchParams()`, which reflects the **browser** URL. A rewrite — the obvious
-"optimization", since it hides the ugly query string — injects `mode=vendor` into the server render
-only; the client then hydrates against the bare `/login`, recomputes `isVendorIntent` as `false`,
-and throws the vendor copy away. The page flashes the right heading and settles on the customer
-one. This is the same trap as `usePathname()` reporting the browser path rather than the rewrite
-target; the rule is that **anything a client component reads off the URL must be delivered by
-redirect, not rewrite.**
-
-**The vendor host also exempts `/login` from the guest-only bounce.** `AUTH_ONLY_GUEST` normally
-sends a signed-in visitor straight to their dashboard, and that is what the customer host still
-does. On the vendor host `/login` is the front door of a closed surface — every other route there
-redirects to `/dashboard` — so bouncing off it would leave signing out as the only way to reach it.
-The visible symptom is a link explicitly labelled "Log in to your dashboard" (on `/sell`) silently
-entering whichever account the cookie already holds, which reads as the site signing you in by
-itself. The exemption is `isVendorLoginPage` in `middleware.ts`; `/register` still bounces.
-
-Auth matching in middleware runs against the **rewritten** path (`effectivePathname`), not the
-incoming one — otherwise `/` on the vendor host doesn't match `ROLE_REQUIRED["/seller/dashboard"]`
-and unauthenticated visitors get the dashboard shell.
-
-Env: `NEXT_PUBLIC_VENDOR_URL` and `NEXT_PUBLIC_SITE_URL` (both optional in production — the
-defaults in `hosts.ts` are the real domains). Locally set them to `http://vendor.localhost:3000`
-and `http://localhost:3000`; `vendor.localhost` is also listed in `allowedDevOrigins` in
-`next.config.ts`.
-
-**Supabase Redirect URLs — all four, and they are not interchangeable:**
-
-```
-http://localhost:3000/**            ← customer lane, local
-http://vendor.localhost:3000/**     ← vendor lane, local
-https://greenpackdelight.com/**     ← customer lane, production
-https://vendor.greenpackdelight.com/**  ← vendor lane, production
-```
-
-Supabase matches the **full origin**, so `localhost` does not cover `vendor.localhost` — they are
-different hosts, and a wildcard on one does not cover the other. Each missing entry costs one lane
-in one environment.
-
-The failure mode is quiet and easy to misread: an unlisted `redirectTo` is **not** rejected.
-GoTrue silently discards it and substitutes the project's **Site URL**, so a Google sign-in started
-on the vendor host comes back to production instead of to the dev server. Nothing errors, no code
-is wrong, and it looks like an OAuth bug in the app. Leave Site URL pointed at production — it is
-the fallback for everything unlisted, and pointing it at localhost would break real sign-ins.
-
-### Vendor Accounts (split identity)
-One email, **two accounts**. A person who shops and sells with `user@example.com` has a customer
-account and a separate vendor account — separate `auth.users` rows, separate passwords, separate
-sessions. `profiles.role` still means exactly what it always did; what changed is that a vendor
-account is no longer a role worn by the customer row.
-
-`auth.users.email` is unique, so two rows cannot both own `user@example.com`. The vendor row is
-therefore keyed on an internal address, while the address the person actually typed lives in
-`profiles.email` (nullable, deliberately **not** unique — unique only among vendors, via a partial
-index):
-
-| | `auth.users.email` | `profiles.email` |
-|---|---|---|
-| Customer account | `user@example.com` | `user@example.com` |
-| Vendor account | `v.<uuid>@vendors.greenpackdelight.com` | `user@example.com` |
-
-`src/lib/vendor-identity.ts` is the **only** place that constructs or interprets a vendor auth
-address. `makeVendorAuthEmail()` mints one, `findVendorIdentity()` resolves a typed email to the
-vendor account registered under it, `createVendorAccount()` builds the pair.
-
-**Never display `user.email` on a vendor surface.** For a vendor it is the internal address. Read
-`profile.email` instead (`/api/profile`, `/api/seller/payout`, `/api/vendor/register`). Customer
-surfaces are unaffected — a customer's two addresses are identical.
-
-Each sign-in path resolves the lane before authenticating, because the typed email is *not* the
-address a vendor signs in with:
-
-- **Password / OTP** — `email-otp/start` and `complete` take `mode`; the vendor lane signs in
-  against `resolveVendorAuthEmail(email)`. The OTP row and the emailed code stay on the typed
-  address, so the code lands in the right inbox.
-- **Password reset** — `reset/request` takes `mode`, generates the recovery link for the vendor
-  row, and redirects to the vendor host so the session lands in the vendor cookie jar. Aimed at an
-  email with no vendor account it stops rather than mailing a link that would reset the *customer*
-  password.
-- **Google** — the interesting one. Google can only ever prove the address; it cannot say "this is
-  the vendor John." `handleGoogleSignIn` passes `mode` to `/api/auth/callback`, which exchanges the
-  code and then, on the vendor lane, resolves the email to a vendor account, signs the Google
-  session out (`scope: "local"`), and mints a vendor session via
-  `generateLink({ type: "magiclink" })` → `verifyOtp({ token_hash, type: "magiclink" })`. No vendor
-  account → sign out and go to `/vendor/register`, never silently granting the customer session on
-  a vendor page. The trust boundary holds: Google asserted control of the address, and we map it to
-  the vendor account registered under it.
-
-**The vendor lane finishes on the vendor host, whatever host the callback was served from.**
-`handleGoogleSignIn` refuses to *start* the round-trip anywhere else — off the vendor host it hands
-the browser to `vendorUrl("/login?mode=vendor")` first — and the callback redirects with
-`new URL(safeNext, VENDOR_ORIGIN)` rather than the request's own `origin`. Both halves are needed,
-and the second is the non-obvious one: `origin` is merely wherever the browser landed, and because
-Supabase session cookies are **host-only**, landing on the wrong host means landing *signed out*.
-The failure is not subtle either — the default `next` is `/dashboard`, which exists only on the
-vendor host, so a vendor-lane callback served from the customer host builds
-`http://localhost:3000/dashboard` and 404s. A vendor-lane callback that still arrives on the
-customer host is a backstop case (stale link, hand-built URL): it signs the just-exchanged customer
-session out and restarts on the vendor host.
-
-Redirect URLs must therefore cover **both** origins — `http://vendor.localhost:3000/**` alongside
-`http://localhost:3000/**` locally. GoTrue matches on the full origin, and an unlisted one is
-**silently substituted with the project's Site URL** (`https://greenpackdelight.com`), which is the
-"Google bounces me to the live site" symptom. There is no error to read. To check what GoTrue
-actually decided, hit `/auth/v1/authorize?provider=google&redirect_to=…` and read the resulting
-`auth.flow_state.referrer` — it stores the sanitized value.
-
-Two smaller consequences:
-
-- `createVendorAccount()` creates the auth row with `user_metadata.contact_email`, and
-  `handle_new_user()` (migration 017) prefers that over `new.email`, so a new profile's
-  `profiles.email` is the visible address from the first write.
-- A **customer account on the same email is not a conflict** when registering as a vendor — that is
-  the feature. Only a second *vendor* account for one email is rejected, in the app layer and by the
-  partial unique index.
-
-Vendors registered before migration 017 keep signing in on their real-email row: the backfill gives
-them a `profiles.email`, so `findVendorIdentity()` finds them, and their `authEmail` comes back as
-the real address. They are not split, and not broken.
 
 ### Database Access Layer (`src/lib/db.ts`)
 Single source of truth for all data queries. Auto-detects Supabase config:
@@ -409,7 +196,7 @@ Server Components by default. Only add `"use client"` when the component needs:
 ### Tables
 | Table | Description |
 |-------|-------------|
-| `profiles` | Extends `auth.users` — role, full_name, phone, avatar_url, DOB, email/phone_verified, terms_accepted, **`email`** (the address the user typed; may repeat across a customer and a vendor row) |
+| `profiles` | Extends `auth.users` — role, full_name, phone, avatar_url, DOB, email/phone_verified, terms_accepted |
 | `shops` | Vendor shop listings — owner_id, slug, category, location (JSONB), contact (JSONB), images (JSONB), video (JSONB), tags, is_verified, is_featured |
 | `services` | Shop services — price, price_type (fixed/from/hourly), duration, is_available |
 | `products` | Shop products — price, original_price, image, in_stock, quantity |
@@ -421,8 +208,7 @@ Server Components by default. Only add `"use client"` when the component needs:
 | `support_messages` | Support chat messages linked to tickets |
 
 ### Triggers
-- `on_auth_user_created` → auto-creates `profiles` row on signup with role from `raw_user_meta_data`, and `email` from `contact_email` (the split vendor's real address) falling back to `new.email`
-- `trg_guard_profile_role` → blocks role changes except by an admin or the service role
+- `on_auth_user_created` → auto-creates `profiles` row on signup with role from `raw_user_meta_data`
 - `trg_cleanup_otps` → deletes expired OTPs (>1hr) on each insert
 
 ## Styling Conventions
@@ -478,18 +264,14 @@ SUPPORT_AGENT_API_KEY=             # Shared secret for backend agent event inges
 | `src/lib/supabase/server.ts` | Server Supabase client |
 | `src/lib/supabase/admin.ts` | Admin/service-role client (server only) |
 | `src/lib/termii.ts` | Termii SMS notification helpers |
-| `src/lib/vendor-identity.ts` | Split vendor/customer account identity — the only place a vendor auth address is built or read |
-| `src/lib/hosts.ts` | Two-host helpers — `isVendorHost()`, `vendorUrl()`, `siteUrl()` |
 | `src/types/index.ts` | All TypeScript interfaces |
 | `src/context/CartContext.tsx` | Cart state provider |
 | `src/hooks/useCart.ts` | Cart hook |
-| `src/middleware.ts` | Auth + role-based route protection + the closed vendor host |
-| `src/components/layout/AppChrome.tsx` | Suppresses storefront Header/Footer on vendor and standalone routes |
+| `src/middleware.ts` | Auth + role-based route protection |
 | `src/app/globals.css` | Global styles, dark mode body, scrollbar |
 | `tailwind.config.ts` | Theme colors, dark mode config, animations |
 | `supabase/migrations/001_initial_schema.sql` | Core DB schema |
 | `supabase/migrations/002_verification_and_profile_update.sql` | OTP + profile fields |
-| `supabase/migrations/017_vendor_accounts.sql` | `profiles.email` + vendor-only uniqueness + trigger email |
 
 ## Goals Folder Workflow
 
@@ -521,4 +303,4 @@ after.
 
 | Skill | Trigger | Description |
 |-------|---------|-------------|
-| `/feature-builder` | "add X to GreenPack", "build a new feature", "implement X" | Plans and implements new features end-to-end following all project conventions. Gathers requirements, explores code, plans, implements, updates CLAUDE.md, and verifies the build. |
+| `/feature-builder` | "add X to GreenPack", "build a new feature", "implement X" | Plans and implements new features end-to-end following all project conventions. Gathers requirements, explores code, plans, implements, updates AGENTS.md, and verifies the build. |

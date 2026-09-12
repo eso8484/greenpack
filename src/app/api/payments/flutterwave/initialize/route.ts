@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateFeeBreakdown } from "@/lib/utils";
-import { flutterwaveCreatePaymentLink } from "@/lib/flutterwave";
+import {
+  flutterwaveCreatePaymentLink,
+  flutterwaveCheckSubaccount,
+} from "@/lib/flutterwave";
 
 const InitializeSchema = z.object({
   orderId: z.string().uuid(),
@@ -95,6 +99,31 @@ export async function POST(request: Request) {
           error: "Vendor is not yet payment-enabled. Please contact support.",
         },
         { status: 400 }
+      );
+    }
+
+    // Second line of defence for orders created before the readiness check
+    // moved into POST /api/orders, and for shops whose subaccount went stale
+    // after the order was written. A non-null id can still point at another
+    // Flutterwave account, which only fails later at payment-link creation.
+    const subaccountCheck = await flutterwaveCheckSubaccount(
+      shop.flutterwave_subaccount_id
+    );
+    if (subaccountCheck.status === "not_found") {
+      await createAdminClient()
+        .from("shops")
+        .update({
+          flutterwave_subaccount_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", shop.id);
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "This vendor's payout account is no longer valid. They need to set up payouts again before this shop can take orders.",
+        },
+        { status: 409 }
       );
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import Button from "@/components/ui/Button";
@@ -114,16 +114,72 @@ export default function VendorRegisterPage() {
     }
   };
 
+  // Landing here from the Google callback means the address has no vendor
+  // account yet: the callback proved the email, then sent them here to create
+  // one rather than leaving them signed in as the customer account that shares
+  // it. Say so, and carry the address over so they don't retype it.
+  const [noVendorNotice, setNoVendorNotice] = useState(false);
+
   const [step, setStep] = useState<Step>("form");
   const [account, setAccount] = useState<AccountForm>(EMPTY_ACCOUNT);
   const [shop, setShop] = useState<ShopForm>(EMPTY_SHOP);
   const [slugTouched, setSlugTouched] = useState(false);
+
+  // Read from window.location in an effect rather than useSearchParams: this is
+  // a client-side prefill that only matters after mount, and it keeps the page
+  // out of a Suspense boundary.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("email")?.trim();
+    if (fromQuery) {
+      // Functional updates, and only when empty, so the prefill can never
+      // overwrite something already typed.
+      setAccount((prev) => (prev.email ? prev : { ...prev, email: fromQuery }));
+      setShop((prev) => (prev.email ? prev : { ...prev, email: fromQuery }));
+    }
+    if (params.get("notice") === "no_vendor_account") setNoVendorNotice(true);
+  }, []);
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
+
+  // A signed-in visitor may already own a shop. This page is the destination
+  // for every "Become a Vendor" link, so without this check a vendor who
+  // follows one lands on a create-shop form whose only possible outcome is a
+  // 409 — which reads as "it dropped me into my existing vendor account".
+  //
+  // The result is tagged with the user id it was fetched for rather than reset
+  // when `user` clears: resetting meant calling setState synchronously in the
+  // effect body, and tagging is what actually keeps a previous account's shop
+  // from flashing up for the next one.
+  const [shopOwner, setShopOwner] = useState<{ userId: string; name: string } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const userId = user.id;
+    (async () => {
+      try {
+        const res = await fetch("/api/seller/shop", { credentials: "include" });
+        if (!res.ok) return; // 403 customer / 404 no shop — treat as no shop
+        const payload = await res.json();
+        if (!cancelled && payload?.data?.name) {
+          setShopOwner({ userId, name: payload.data.name });
+        }
+      } catch {
+        // Non-fatal: fall through to the normal form.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const existingShop =
+    shopOwner && user && shopOwner.userId === user.id ? shopOwner : null;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -533,6 +589,77 @@ export default function VendorRegisterPage() {
   const isSignedIn = !!user;
   const onSubmit = isSignedIn ? handleSignedInSubmit : handleSignedOutSubmit;
 
+  // Already a vendor: explain the situation rather than offering a form that
+  // cannot succeed. Because an email maps to exactly one account and one role,
+  // "switch account" is the only route to registering a different business.
+  if (isSignedIn && existingShop) {
+    return (
+      <div className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900 px-4 py-12">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-8">
+            <Link href="/" className="inline-flex items-center gap-2 mb-6">
+              <div className="bg-green-500 p-1.5 rounded-lg">
+                <span className="material-symbols-outlined text-white text-xl">eco</span>
+              </div>
+              <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
+                Green Pack Delight
+              </span>
+            </Link>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center">
+              <span className="material-symbols-outlined text-3xl">storefront</span>
+            </div>
+            <h1 className="text-2xl font-black text-gray-900 dark:text-white mb-3">
+              You&apos;re already a vendor
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 mb-2">
+              This account is already registered as a vendor with the shop{" "}
+              <span className="font-semibold text-gray-700 dark:text-gray-300">
+                {existingShop.name}
+              </span>
+              .
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
+              You&apos;re signed in as{" "}
+              <span className="font-semibold">{user?.email}</span>. This email already
+              has a vendor account, so this page can&apos;t register a second business
+              under it.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/seller/dashboard">
+                <button className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-green-500/20 transition-all hover:scale-105 active:scale-95 cursor-pointer">
+                  Go to Seller Dashboard
+                </button>
+              </Link>
+              <Link href="/seller/shop">
+                <button className="w-full sm:w-auto bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold px-6 py-3 rounded-xl border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all cursor-pointer">
+                  Edit your shop
+                </button>
+              </Link>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Want to register a different business?
+              </p>
+              <button
+                type="button"
+                onClick={handleSwitchAccount}
+                disabled={switching}
+                className="text-sm font-semibold text-green-600 dark:text-green-400 underline hover:no-underline disabled:opacity-50 cursor-pointer"
+              >
+                {switching ? "Switching…" : "Sign out and use another account →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f6f8f7] dark:bg-gray-900 px-4 py-12">
       <div className="max-w-2xl mx-auto">
@@ -558,6 +685,19 @@ export default function VendorRegisterPage() {
           </p>
         </div>
 
+        {noVendorNotice && (
+          <div className="mb-6 flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+            <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 mt-0.5">
+              info
+            </span>
+            <p className="text-sm text-amber-800 dark:text-amber-300">
+              You don&apos;t have a vendor account yet, so we couldn&apos;t sign you in
+              to the vendor centre. Register your business below and we&apos;ll set one
+              up for this email.
+            </p>
+          </div>
+        )}
+
         <form onSubmit={onSubmit} className="space-y-6" autoComplete="off">
           {/* ── Account section ── */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
@@ -577,7 +717,9 @@ export default function VendorRegisterPage() {
                     <span className="font-bold">{user.email}</span>
                   </p>
                   <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                    Your shop will be linked to this account.
+                    You&apos;ll get a separate vendor account for this email, with its
+                    own password. Your customer account stays exactly as it is — one
+                    email can hold both.
                   </p>
                 </div>
                 <button

@@ -27,7 +27,7 @@ const CSP = [
   "frame-ancestors 'self'",
   "object-src 'none'",
   "base-uri 'self'",
-  "upgrade-insecure-requests",
+  ...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [
@@ -51,10 +51,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Permit the LAN address used to preview the dev server from a phone.
+  // Permit the LAN address used to preview the dev server from a phone, and the
+  // vendor subdomain used to exercise the two-host session split locally.
   // Without this, Next.js blocks dev CSS/HMR resources cross-origin and the
   // page appears as unstyled headings or partially loaded content.
-  allowedDevOrigins: ["192.168.0.100"],
+  allowedDevOrigins: ["192.168.0.100", "vendor.localhost"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

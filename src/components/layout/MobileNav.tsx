@@ -4,6 +4,7 @@ import Link from "next/link";
 import SearchBar from "./SearchBar";
 import { categories } from "@/lib/data/categories";
 import { useAuth } from "@/hooks/useAuth";
+import { vendorUrl } from "@/lib/hosts";
 import { useRouter } from "next/navigation";
 
 interface MobileNavProps {
@@ -167,7 +168,7 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
         {/* Become a Vendor / Courier CTAs */}
         <div className="px-4 pb-4 space-y-2">
           <Link
-            href="/sell"
+            href={vendorUrl("/sell")}
             target="_blank"
             rel="noopener noreferrer"
             onClick={onClose}

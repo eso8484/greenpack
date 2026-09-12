@@ -12,6 +12,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { geocodeAddress } from "@/lib/geocode";
 import { verifyOtp } from "@/lib/otp";
+import { isVendorHost } from "@/lib/hosts";
+import { createVendorAccount, normalizeEmail } from "@/lib/vendor-identity";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 // ---------------------------------------------------------------------------
@@ -113,11 +115,28 @@ export async function POST(request: Request) {
   const { account, shop } = parsed.data;
 
   // 2. Normalize email
-  const email = account.email.toLowerCase().trim();
+  const email = normalizeEmail(account.email);
 
   const admin = createAdminClient();
 
-  // 3. Verify + consume the OTP (constant-time compare, brute-force capped).
+  // 3. Refuse a duplicate shop slug BEFORE creating anything. The account and
+  //    the OTP are both single-use, so discovering the clash after creating the
+  //    account would burn the code and leave a vendor row the user can neither
+  //    reach nor reuse — the retry would then fail with "already exists".
+  const { data: slugOwner } = await admin
+    .from("shops")
+    .select("id")
+    .eq("slug", shop.slug)
+    .maybeSingle();
+
+  if (slugOwner) {
+    return NextResponse.json(
+      { success: false, error: "That shop URL is taken — pick a different slug." },
+      { status: 409 }
+    );
+  }
+
+  // 4. Verify + consume the OTP (constant-time compare, brute-force capped).
   //    Consuming up front prevents two parallel submissions from both passing,
   //    and the helper enforces single-use.
   const otpResult = await verifyOtp({
@@ -139,101 +158,41 @@ export async function POST(request: Request) {
     );
   }
 
-  // 4. Create the auth user (email pre-confirmed since we just verified it)
-  const { data: authData, error: authError } =
-    await admin.auth.admin.createUser({
-      email,
-      password: account.password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: account.fullName,
-        role: "vendor",
-      },
-    });
+  // 5. Create the vendor account.
+  //    This is an account of its own, not a role on the customer row: it gets a
+  //    separate auth row, so a customer who registers here keeps their own
+  //    password and their own session. See src/lib/vendor-identity.ts. The
+  //    email already being a customer account is deliberately not a conflict.
+  const vendorResult = await createVendorAccount({
+    email,
+    password: account.password,
+    fullName: account.fullName,
+    phone: normalizePhone(account.phone),
+    dateOfBirth: account.dateOfBirth ?? null,
+    // Conditionally add location columns (migration 010). Harmless if the
+    // migration hasn't run — the update retries without them below.
+    profileExtra: {
+      ...(shop.location?.address?.trim()
+        ? { address: shop.location.address.trim() }
+        : {}),
+      ...(shop.location?.city?.trim() ? { city: shop.location.city.trim() } : {}),
+      ...(shop.location?.state?.trim() ? { state: shop.location.state.trim() } : {}),
+    },
+  });
 
-  if (authError) {
-    if (
-      authError.message.toLowerCase().includes("already") ||
-      authError.message.toLowerCase().includes("exist")
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "This email is already registered. Please sign in instead.",
-        },
-        { status: 409 }
-      );
-    }
-    console.error("POST /api/vendor/register — createUser error:", authError);
+  if (!vendorResult.ok) {
     return NextResponse.json(
-      { success: false, error: authError.message },
-      { status: 500 }
+      { success: false, error: vendorResult.message },
+      { status: vendorResult.reason === "email_in_use" ? 409 : 500 }
     );
   }
 
-  if (!authData.user) {
-    return NextResponse.json(
-      { success: false, error: "Failed to create user account" },
-      { status: 500 }
-    );
-  }
-
-  const userId = authData.user.id;
-
-  // 5. Update the auto-created profile row
-  const normalizedPhone = normalizePhone(account.phone);
-
-  const profileUpdate: Record<string, unknown> = {
-    full_name: account.fullName,
-    phone: normalizedPhone,
-    role: "vendor", // critical — override the default 'customer' role
-    date_of_birth: account.dateOfBirth ?? null,
-    email_verified: true,
-    phone_verified: false,
-    terms_accepted: true,
-    terms_accepted_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  // Conditionally add location columns (migration 010). If migration hasn't
-  // run yet we retry without them so profile core fields always land.
-  const loc = shop.location ?? {};
-  if (loc.address?.trim()) profileUpdate.address = loc.address.trim();
-  if (loc.city?.trim()) profileUpdate.city = loc.city.trim();
-  if (loc.state?.trim()) profileUpdate.state = loc.state.trim();
-
-  const { error: profileError } = await admin
-    .from("profiles")
-    .update(profileUpdate)
-    .eq("id", userId);
-
-  if (profileError) {
-    console.error("POST /api/vendor/register — profile update error:", profileError);
-    // Retry without optional location columns (migration 010 may not be applied)
-    if (
-      profileUpdate.address !== undefined ||
-      profileUpdate.city !== undefined ||
-      profileUpdate.state !== undefined
-    ) {
-      const fallback = { ...profileUpdate };
-      delete fallback.address;
-      delete fallback.city;
-      delete fallback.state;
-      const { error: fallbackError } = await admin
-        .from("profiles")
-        .update(fallback)
-        .eq("id", userId);
-      if (fallbackError) {
-        console.error("POST /api/vendor/register — profile fallback error:", fallbackError);
-        // Non-fatal — user exists; shop creation can still proceed
-      }
-    }
-  }
+  const { userId, authEmail } = vendorResult;
 
   // 6. Geocode from address if explicit coords not provided
   let lat = shop.lat ?? null;
   let lng = shop.lng ?? null;
+  const loc = shop.location ?? {};
   if ((lat == null || lng == null) && (loc.address || loc.city)) {
     try {
       const geo = await geocodeAddress(
@@ -273,46 +232,36 @@ export async function POST(request: Request) {
     });
 
   if (shopError) {
-    // Duplicate slug — user-recoverable, don't orphan the account
-    if (shopError.message.includes("shops_slug_key")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "That shop URL is taken — pick a different slug.",
-        },
-        { status: 409 }
-      );
-    }
-
-    // Any other DB error: demote the user to 'customer' so they have a valid
-    // account and can retry the shop creation form rather than being stuck as
-    // a vendor without a shop. Deleting the auth user would force them to
-    // re-verify their email, which is a worse experience.
+    // The pre-flight check above rules out a duplicate slug in practice, but a
+    // concurrent registration can still lose the race. The account is real and
+    // usable either way — the seller dashboard has a "create your shop" path —
+    // so report the clash and leave the account alone.
     console.error("POST /api/vendor/register — shop insert error:", shopError);
-    try {
-      await admin
-        .from("profiles")
-        .update({ role: "customer", updated_at: new Date().toISOString() })
-        .eq("id", userId);
-    } catch (demoteErr) {
-      console.error(
-        "POST /api/vendor/register — role demotion after shop failure:",
-        demoteErr
-      );
-    }
+
+    const clashed = shopError.message.includes("shops_slug_key");
     return NextResponse.json(
-      { success: false, error: "Failed to create shop: " + shopError.message },
-      { status: 500 }
+      {
+        success: false,
+        error: clashed
+          ? "That shop URL is taken — pick a different slug."
+          : "Your account was created, but the shop could not be saved: " +
+            shopError.message,
+      },
+      { status: clashed ? 409 : 500 }
     );
   }
 
   // 8. Sign the user in to set session cookies on the response.
-  // Uses the server client (SSR-aware, writes cookies via Next.js cookies()).
-  // Failure here is non-fatal — the client can fall back to /login.
+  //    Note the address: for an account created here it is the internal vendor
+  //    address, NOT the one the user typed. Signing in with `email` would
+  //    authenticate their *customer* account, which is the bug this whole
+  //    change exists to fix.
+  //    Uses the server client (SSR-aware, writes cookies via Next.js cookies()).
+  //    Failure here is non-fatal — the client can fall back to /login.
   try {
     const serverClient = await createClient();
     await serverClient.auth.signInWithPassword({
-      email,
+      email: authEmail,
       password: account.password,
     });
   } catch (signInErr) {
@@ -322,6 +271,13 @@ export async function POST(request: Request) {
     );
   }
 
-  // 9. Success
-  return NextResponse.json({ success: true, role: "vendor", redirect: "/seller/dashboard" });
+  // 9. Success. The dashboard has two addresses — the clean one the vendor host
+  //    rewrites, and the /seller path it rewrites it to. Send the browser to
+  //    whichever matches the host it is actually on.
+  const onVendorHost = isVendorHost(request.headers.get("host"));
+  return NextResponse.json({
+    success: true,
+    role: "vendor",
+    redirect: onVendorHost ? "/dashboard" : "/seller/dashboard",
+  });
 }

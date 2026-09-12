@@ -25,7 +25,14 @@ export async function GET() {
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true, data: { ...data, email: user.email } });
+    // `data.email` is the address the person typed. The session's `user.email`
+    // is NOT the same thing for a vendor: their account is filed under an
+    // internal address that must never be shown (see src/lib/vendor-identity.ts).
+    // The fallback covers accounts created before migration 017.
+    return NextResponse.json({
+      success: true,
+      data: { ...data, email: data.email ?? user.email },
+    });
   } catch (err) {
     console.error("GET /api/profile", err);
     return NextResponse.json({ success: false, error: "Failed to fetch profile" }, { status: 500 });

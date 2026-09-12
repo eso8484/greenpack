@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateNumericOtp } from "@/lib/security";
+import { resolveVendorAuthEmail } from "@/lib/vendor-identity";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import {
   sendTransactionalEmail,
@@ -49,6 +50,19 @@ export async function POST(request: Request) {
     const loginMode: "customer" | "vendor" = mode === "vendor" ? "vendor" : "customer";
     const normalizedEmail = email.trim().toLowerCase();
 
+    // ─── Step 0: which account is this lane asking for? ──────────────────────
+    // A vendor account is its own auth row, filed under an internal address
+    // rather than the one typed (see src/lib/vendor-identity.ts) — so the vendor
+    // lane must authenticate against that address, or it would resolve to the
+    // customer account sharing the same visible email. Everything user-facing
+    // below (the OTP row, the email we send) stays on the typed address.
+    //
+    // No resolution means no vendor account for this email; the sign-in below
+    // then falls through to the mismatch handling rather than failing obscurely.
+    const authEmail =
+      (loginMode === "vendor" ? await resolveVendorAuthEmail(normalizedEmail) : null) ??
+      normalizedEmail;
+
     // ─── Step 1: validate credentials without leaving a live session ────────
     // We deliberately use the server client so any session it sets goes into
     // the response cookies — and we then sign out so those cookies are
@@ -57,13 +71,29 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const { data: signInData, error: signInError } =
       await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
+        email: authEmail,
         password,
       });
 
     if (signInError || !signInData.user) {
-      // Don't leak which of "user not found" vs "bad password" — both return
-      // the same friendly message.
+      // Wrong credentials, OR the customer lane aimed at an email that only has
+      // a vendor account. The latter is not a wrong password — the person owns
+      // that email — so say what actually happened instead of a blank refusal
+      // that reads like a bug.
+      if (loginMode === "customer" && (await resolveVendorAuthEmail(normalizedEmail))) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "This email has a vendor account but no customer account here. Sign in at the vendor centre, or create a customer account with a different email.",
+            code: "CUSTOMER_ACCOUNT_MISSING",
+          },
+          { status: 403 }
+        );
+      }
+
+      // Otherwise don't leak which of "user not found" vs "bad password" — both
+      // return the same friendly message.
       return NextResponse.json(
         { success: false, error: "Invalid email or password" },
         { status: 401 }
@@ -96,7 +126,7 @@ export async function POST(request: Request) {
           {
             success: false,
             error:
-              "This email is registered as a vendor. To shop as a customer, create a separate customer account (you can use a different email).",
+              "This email is a vendor account, not a customer one. You can create a customer account with the same email — the two are kept separate.",
             code: "ROLE_MISMATCH_VENDOR",
           },
           { status: 403 }
@@ -106,7 +136,7 @@ export async function POST(request: Request) {
         {
           success: false,
           error:
-            "This email is a customer account. To register a business, click \"Become a Vendor\" on the home page.",
+            "This email has a customer account, not a vendor one. Register your business to create a separate vendor account for it.",
           code: "ROLE_MISMATCH_CUSTOMER",
         },
         { status: 403 }

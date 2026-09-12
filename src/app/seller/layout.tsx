@@ -6,6 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
+// The vendor host rewrites its clean URLs (`/products`) onto these `/seller/*`
+// routes, so the same page can report either form from usePathname(). Compare
+// with the prefix stripped so the active-link highlight survives both.
+const normalizePath = (path: string) => path.replace(/^\/seller/, "") || "/";
+
 const sidebarLinks = [
     {
         label: "Dashboard",
@@ -60,10 +65,12 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
     const handleLogout = async () => {
         try {
             const supabase = createClient();
-            // Global scope invalidates the refresh token server-side, matching
-            // the AuthContext signOut behaviour so vendor logouts behave like
-            // public-site logouts.
-            await supabase.auth.signOut({ scope: "global" });
+            // Local scope, never global. The vendor center runs on its own
+            // hostname with its own host-only session cookie, so a vendor
+            // logout must not revoke the refresh token server-side — that would
+            // also sign the same person out of the customer site, which is
+            // exactly the coupling the subdomain split exists to remove.
+            await supabase.auth.signOut({ scope: "local" });
             if (typeof window !== "undefined") {
                 try {
                     const purge = (storage: Storage) => {
@@ -85,7 +92,9 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
         } catch (err) {
             console.error("Logout failed:", err);
         }
-        router.replace("/login");
+        // Vendor sign-out belongs on the vendor sign-in screen, not the customer
+        // one. ?mode=vendor puts the login page in its vendor lane.
+        router.replace("/login?mode=vendor");
         router.refresh();
     };
 
@@ -113,12 +122,6 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
                         </span>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Link
-                            href="/"
-                            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-                        >
-                            ← Back to site
-                        </Link>
                         <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
                             S
                         </div>
@@ -131,7 +134,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
                 <aside className="hidden md:flex md:w-60 lg:w-64 flex-col fixed top-16 bottom-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
                     <nav className="flex-1 px-3 py-6 space-y-1">
                         {sidebarLinks.map((link) => {
-                            const isActive = pathname === link.href;
+                            const isActive = normalizePath(pathname) === normalizePath(link.href);
                             return (
                                 <Link
                                     key={link.href}
@@ -167,7 +170,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
                 <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
                     <div className="flex justify-around py-2">
                         {sidebarLinks.map((link) => {
-                            const isActive = pathname === link.href;
+                            const isActive = normalizePath(pathname) === normalizePath(link.href);
                             return (
                                 <Link
                                     key={link.href}

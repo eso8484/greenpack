@@ -11,6 +11,7 @@ import OTPInput from "@/components/auth/OTPInput";
 import AuthBackdrop from "@/components/auth/AuthBackdrop";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
+import { isVendorHost, vendorUrl } from "@/lib/hosts";
 
 type LoginMethod = "email" | "phone";
 type LoginStage = "credentials" | "otp";
@@ -57,10 +58,12 @@ export default function LoginPage() {
     modeParam === "vendor" || (redirect?.startsWith("/seller") ?? false);
   const loginMode: "customer" | "vendor" = isVendorIntent ? "vendor" : "customer";
 
-  const signupHref = isVendorIntent
-    ? `/signup?role=vendor&redirect=${encodeURIComponent(redirect ?? "/seller/shop")}`
-    : "/signup";
-  const vendorSignupHref = `/signup?role=vendor&redirect=${encodeURIComponent(redirect && isVendorIntent ? redirect : "/seller/shop")}`;
+  // Vendor registration lives on the vendor host only, and absolute on purpose:
+  // a bare /vendor/register would follow whichever host rendered this page, and
+  // the session it creates has to land in the vendor cookie jar.
+  const vendorSignupHref = vendorUrl("/vendor/register");
+
+  const signupHref = isVendorIntent ? vendorSignupHref : "/signup";
   const forgotMode = searchParams.get("forgot") === "1";
   const forgotEmailFromQuery = searchParams.get("email") ?? "";
 
@@ -171,9 +174,14 @@ export default function LoginPage() {
 
     toast.success("Welcome back!");
 
+    // Stay on the host that owns this session — cookies are host-only, so
+    // sending a vendor to the clean vendor URL from the customer host would
+    // land them on a signed-out page.
+    const onVendorHost = isVendorHost(window.location.host);
+
     let target = "/browse";
     if (redirect) target = redirect;
-    else if (role === "vendor") target = "/seller/dashboard";
+    else if (role === "vendor") target = onVendorHost ? "/dashboard" : "/seller/dashboard";
     else if (role === "courier") target = "/courier/dashboard";
     else if (role === "admin") target = "/admin";
 
@@ -204,9 +212,12 @@ export default function LoginPage() {
 
       toast.success("Welcome back!");
 
+      // Same host rule as the phone path above.
+      const onVendorHost = isVendorHost(window.location.host);
+
       let target = "/browse";
       if (redirect) target = redirect;
-      else if (data.role === "vendor") target = "/seller/dashboard";
+      else if (data.role === "vendor") target = onVendorHost ? "/dashboard" : "/seller/dashboard";
       else if (data.role === "courier") target = "/courier/dashboard";
       else if (data.role === "admin") target = "/admin";
 
@@ -246,12 +257,46 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError("");
+
+    // A vendor session only exists on the vendor host. Supabase session cookies
+    // are host-only, so beginning the vendor round-trip here would mint the
+    // session into the *customer* cookie jar, and then have nowhere valid to
+    // land: `/dashboard` is not a route on this host (404), and
+    // `/seller/dashboard` would silently serve the vendor centre from the
+    // storefront's host. Hand the whole round-trip to the host that owns it, so
+    // the session is created in the right jar and the address bar ends up on the
+    // vendor subdomain where the vendor can actually see it.
+    if (loginMode === "vendor" && !isVendorHost(window.location.host)) {
+      const url = new URL(vendorUrl("/login"));
+      url.searchParams.set("mode", "vendor");
+      if (redirect) url.searchParams.set("redirect", redirect);
+      window.location.href = url.toString();
+      return;
+    }
+
     const supabase = createClient();
+
+    // The lane has to travel with the OAuth round-trip. Google cannot tell us
+    // which account the person meant — it only proves the address — so the
+    // callback resolves it using `mode`. Without it, a vendor signing in with
+    // Google lands in the customer account sharing their email.
+    const callback = new URL("/api/auth/callback", window.location.origin);
+    callback.searchParams.set("mode", loginMode);
+    callback.searchParams.set(
+      "next",
+      redirect ?? (loginMode === "vendor" ? "/dashboard" : "/browse")
+    );
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/api/auth/callback?next=${redirect ?? "/browse"}`,
+        redirectTo: callback.toString(),
         skipBrowserRedirect: true,
+        // Force Google to show its account chooser. Without this, a browser
+        // still signed in to Google re-issues the existing account silently,
+        // which makes "Sign out" look like it did nothing — the user is let
+        // straight back in without re-entering anything.
+        queryParams: { prompt: "select_account" },
       },
     });
     if (error) {
@@ -278,10 +323,14 @@ export default function LoginPage() {
       // Custom flow: our own endpoint emails a branded sign-in link from
       // no-reply@greenpackdelight.com (via Resend). It always returns success
       // so account existence isn't leaked.
+      //
+      // `mode` matters here: a vendor's password lives on a different account
+      // than their customer one, so the reset has to target the lane that asked
+      // — otherwise it would change the wrong password.
       const res = await fetch("/api/auth/reset/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: forgotEmail.trim() }),
+        body: JSON.stringify({ email: forgotEmail.trim(), mode: loginMode }),
       });
       if (res.status === 429) {
         setError("Too many requests. Please wait a moment and try again.");

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveVendorAuthEmail } from "@/lib/vendor-identity";
 
 /**
  * Step 2 of OTP-gated email login.
@@ -56,10 +57,18 @@ export async function POST(request: Request) {
     }
 
     // ─── Complete sign-in (now writes session cookies) ─────────────────────
+    // Resolve the lane to the right account first: a vendor account lives on its
+    // own auth row under an internal address, so signing in with the typed email
+    // here would authenticate the customer account sharing it. Mirrors the
+    // resolution in /start.
+    const authEmail =
+      (loginMode === "vendor" ? await resolveVendorAuthEmail(normalizedEmail) : null) ??
+      normalizedEmail;
+
     const supabase = await createClient();
     const { data: signInData, error: signInError } =
       await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
+        email: authEmail,
         password,
       });
 

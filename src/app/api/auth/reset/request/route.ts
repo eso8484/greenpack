@@ -3,9 +3,14 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendTransactionalEmail } from "@/lib/email";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { isVendorHost, vendorUrl } from "@/lib/hosts";
+import { resolveVendorAuthEmail } from "@/lib/vendor-identity";
 
 const RequestSchema = z.object({
   email: z.string().email(),
+  // Which lane asked for the reset. Absent means the customer lane, matching
+  // every caller that predates the split.
+  mode: z.enum(["customer", "vendor"]).optional(),
 });
 
 const RESET_FROM = "Green Pack Delight Limited <no-reply@greenpackdelight.com>";
@@ -82,21 +87,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "A valid email is required." }, { status: 400 });
     }
 
+    // Which lane asked? The vendor centre and the storefront share an email
+    // address but not an account — a vendor has its own auth row — so a reset
+    // has to target the right one or it would change the wrong password.
+    const loginMode: "customer" | "vendor" = parsed.data.mode ?? "customer";
+    const useVendorHost =
+      loginMode === "vendor" || isVendorHost(request.headers.get("host"));
+
     const email = parsed.data.email.trim().toLowerCase();
     const admin = createAdminClient();
-    const redirectTo = `${siteUrl()}/reset-password`;
+    const redirectTo = useVendorHost
+      ? vendorUrl("/reset-password")
+      : `${siteUrl()}/reset-password`;
+
+    // The account whose password actually changes. Falls back to the typed
+    // address, which is correct for a customer and for vendors registered before
+    // migration 017.
+    const vendorAuthEmail =
+      loginMode === "vendor" ? await resolveVendorAuthEmail(email) : null;
+
+    // The vendor lane aimed at an email with no vendor account. Sending the
+    // recovery link anyway would reset the *customer* account's password — the
+    // exact mix-up this is here to prevent. Return the same shape as an unknown
+    // address so nothing is revealed either way.
+    if (loginMode === "vendor" && !vendorAuthEmail) {
+      return NextResponse.json({
+        success: true,
+        message: "If a vendor account exists for that email, a reset link is on its way.",
+      });
+    }
+
+    const authEmail = vendorAuthEmail ?? email;
 
     // generateLink returns the action link WITHOUT sending an email. For an
     // unknown email it errors; we swallow that and still return success so the
     // response is identical for existing and non-existing accounts.
     const { data, error } = await admin.auth.admin.generateLink({
       type: "recovery",
-      email,
+      email: authEmail,
       options: { redirectTo },
     });
 
     const actionLink = data?.properties?.action_link;
     if (!error && actionLink) {
+      // Always delivered to the address the person typed, even when the
+      // account itself is filed under an internal one.
       await sendTransactionalEmail({
         to: email,
         from: RESET_FROM,

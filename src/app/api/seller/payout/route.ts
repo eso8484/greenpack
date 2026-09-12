@@ -27,7 +27,7 @@ export async function GET() {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, email")
       .eq("id", user.id)
       .single();
 
@@ -57,6 +57,12 @@ export async function GET() {
       shop.contact && typeof shop.contact === "object" && !Array.isArray(shop.contact)
         ? shop.contact
         : {};
+
+    // Prefer the address on the profile. The session's `user.email` is an
+    // internal address for a vendor account and must never reach Flutterwave or
+    // be shown to the seller (see src/lib/vendor-identity.ts).
+    const accountEmail = profile.email ?? user.email ?? undefined;
+
     return NextResponse.json({
       success: true,
       data: {
@@ -68,7 +74,7 @@ export async function GET() {
           email:
             typeof contact.email === "string" && contact.email.trim()
               ? contact.email
-              : user.email ?? undefined,
+              : accountEmail,
         },
       },
     });
@@ -94,7 +100,7 @@ export async function POST(request: Request) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, phone")
+      .select("role, phone, email")
       .eq("id", user.id)
       .single();
 
@@ -111,7 +117,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const businessEmail = parsed.data.businessEmail ?? parsed.data.business_email ?? user.email;
+    const businessEmail =
+      parsed.data.businessEmail ?? parsed.data.business_email ?? profile.email ?? user.email;
     if (!businessEmail) {
       return NextResponse.json(
         { success: false, error: "Enter a business contact email before saving payouts" },
@@ -203,6 +210,20 @@ export async function POST(request: Request) {
           success: false,
           error:
             "Flutterwave rejected the business email. Use a valid email address for this business, and confirm your Flutterwave account is fully activated for subaccounts.",
+        },
+        { status: 400 }
+      );
+    }
+    if (normalized.includes("invalid account")) {
+      // Flutterwave answers "invalid account" for any pair it cannot resolve.
+      // The most common cause in development is a sandbox key: it only
+      // resolves Flutterwave's own test accounts, so every real Nigerian
+      // account number fails here.
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Flutterwave couldn't resolve that account number with the selected bank. Check both and try again. Note: while the platform is on a sandbox (test) Flutterwave key, only Flutterwave's test accounts will resolve — real account numbers need a live key.",
         },
         { status: 400 }
       );

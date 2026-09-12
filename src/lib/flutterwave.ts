@@ -207,6 +207,91 @@ export async function flutterwaveCreateSubaccount(
   });
 }
 
+export type FlutterwaveSubaccountCheck =
+  | { status: "valid"; subaccount: FlutterwaveSubaccount }
+  | { status: "not_found" }
+  | { status: "unavailable"; message: string };
+
+const SUBACCOUNT_PAGE_SIZE = 100;
+// A single merchant accumulates one subaccount per shop, so this ceiling is
+// far above any real account. Hitting it means something is unusual, and the
+// caller is told "unavailable" rather than "gone" — see below.
+const SUBACCOUNT_MAX_PAGES = 10;
+
+interface FlutterwaveListResponse<T> {
+  status: string;
+  message?: string;
+  data?: T[] | null;
+}
+
+/**
+ * Confirm a stored subaccount still exists for the merchant behind the current
+ * secret key.
+ *
+ * Subaccount IDs are scoped to the Flutterwave account that created them, so a
+ * key switch (sandbox ↔ live, or a different merchant) leaves stale IDs in the
+ * database that look valid — non-null — but are rejected later when the payment
+ * link is created. Callers must distinguish a definite "not found" from a
+ * provider outage: only the former means the stored ID is genuinely dead.
+ *
+ * Deliberately does NOT use `GET /subaccounts/:id`. That endpoint answers
+ * `400 {"message":"Subaccount not found"}` even for a subaccount that exists
+ * and is returned by the list endpoint, so trusting it reports every live
+ * subaccount as dead — which would block checkout for correctly-configured
+ * shops and clear their stored IDs. The list endpoint is authoritative, so we
+ * page through it and look for the ID.
+ */
+export async function flutterwaveCheckSubaccount(
+  subaccountId: string
+): Promise<FlutterwaveSubaccountCheck> {
+  try {
+    for (let page = 1; page <= SUBACCOUNT_MAX_PAGES; page++) {
+      const response = await fetch(
+        `${FLUTTERWAVE_BASE_URL}/subaccounts?page=${page}&size=${SUBACCOUNT_PAGE_SIZE}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${getSecret()}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const payload = (await response.json()) as FlutterwaveListResponse<FlutterwaveSubaccount>;
+      if (!response.ok || payload.status !== "success") {
+        return {
+          status: "unavailable",
+          message:
+            payload.message ?? `Flutterwave request failed (status ${response.status})`,
+        };
+      }
+
+      // A merchant with no subaccounts answers with `data: null`, not `[]`.
+      const pageItems = Array.isArray(payload.data) ? payload.data : [];
+      const match = pageItems.find((s) => s.subaccount_id === subaccountId);
+      if (match) return { status: "valid", subaccount: match };
+
+      // A short page means we reached the end of the merchant's list, so the
+      // ID genuinely is not theirs.
+      if (pageItems.length < SUBACCOUNT_PAGE_SIZE) {
+        return { status: "not_found" };
+      }
+    }
+
+    // Scanned the ceiling without finding it. Report inconclusive rather than
+    // "not_found" so callers never clear a possibly-live ID on a technicality.
+    return {
+      status: "unavailable",
+      message: `Scanned ${SUBACCOUNT_PAGE_SIZE * SUBACCOUNT_MAX_PAGES} subaccounts without finding ${subaccountId}`,
+    };
+  } catch (err) {
+    return {
+      status: "unavailable",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 // ─── Courier transfers ─────────────────────────────────────────────────────
 
 export interface FlutterwaveTransfer {

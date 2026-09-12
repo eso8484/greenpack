@@ -62,6 +62,25 @@ export async function POST(request: Request) {
     // — both are coerced to customer.
     const safeRole: "customer" | "vendor" = role === "vendor" ? "vendor" : "customer";
 
+    // Vendor accounts are created by POST /api/vendor/register, which is what
+    // the one remaining vendor signup form (/vendor/register) calls. That route
+    // creates the account with its own auth row (see src/lib/vendor-identity.ts)
+    // and — critically — signs it in. This endpoint creates accounts on the
+    // address the user typed and lets the client sign in with it, which for a
+    // vendor would authenticate their *customer* account instead. Refuse rather
+    // than create a half-wired vendor. The /signup page redirects ?role=vendor
+    // before it ever gets here; this is the backstop.
+    if (safeRole === "vendor") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Vendor accounts are registered at /vendor/register.",
+          code: "VENDOR_SIGNUP_MOVED",
+        },
+        { status: 400 }
+      );
+    }
+
     const supabase = createAdminClient();
 
     // Create user via admin API (email already confirmed since we verified it ourselves)
@@ -120,6 +139,9 @@ export async function POST(request: Request) {
     // are nullable per migration 010 — if the migration hasn't been applied
     // yet they'll silently fail (logged below) without blocking signup.
     const profileUpdate: Record<string, unknown> = {
+      // The address the user typed, alongside auth.users.email. Identical for a
+      // customer; for a vendor the two diverge (see migration 017).
+      email: normalizedEmail,
       full_name: fullName,
       phone: normalizedPhone,
       role: safeRole,

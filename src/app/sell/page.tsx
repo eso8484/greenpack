@@ -1,5 +1,12 @@
 import Link from "next/link";
+import { vendorUrl } from "@/lib/hosts";
 
+// Every link out of this page is vendor-side, so it is built with vendorUrl()
+// rather than a bare path. A relative "/vendor/register" would keep whatever
+// host the page happened to render on — including the customer site, where it
+// reads as part of the storefront. An absolute vendor URL is unambiguous from
+// either host, which is what keeps this page's register/login flow inside the
+// vendor area.
 export default function SellPage() {
     return (
         <div className="min-h-screen bg-[#f6f8f7] dark:bg-[#122017]">
@@ -28,7 +35,7 @@ export default function SellPage() {
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <Link href="/vendor/register">
+                        <Link href={vendorUrl("/vendor/register")}>
                             <button className="bg-green-500 hover:bg-green-600 text-white font-bold px-10 py-4 rounded-xl shadow-xl shadow-green-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer text-base">
                                 Register Your Business
                             </button>
@@ -205,7 +212,7 @@ export default function SellPage() {
                         Join hundreds of businesses already thriving on GreenPack. It&apos;s
                         free to get started.
                     </p>
-                    <Link href="/vendor/register" className="relative z-10">
+                    <Link href={vendorUrl("/vendor/register")} className="relative z-10">
                         <button className="bg-green-500 hover:bg-green-600 text-white font-bold px-10 py-4 rounded-xl shadow-xl shadow-green-500/25 transition-all hover:scale-105 active:scale-95 cursor-pointer text-base">
                             Register Your Business Now
                         </button>
@@ -213,8 +220,11 @@ export default function SellPage() {
 
                     <p className="mt-6 text-sm text-gray-500 relative z-10">
                         Already registered?{" "}
+                        {/* A bare /login is the customer lane. Vendors sign in
+                            with ?mode=vendor, which is also what middleware
+                            forces for any /login request on the vendor host. */}
                         <Link
-                            href="/login"
+                            href={vendorUrl("/login?mode=vendor")}
                             className="text-green-400 hover:underline font-semibold"
                         >
                             Log in to your dashboard →

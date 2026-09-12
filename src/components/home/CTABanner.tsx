@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { vendorUrl } from "@/lib/hosts";
 
 export default function CTABanner() {
   return (
@@ -24,7 +25,9 @@ export default function CTABanner() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/sell"
+              href={vendorUrl("/sell")}
+              target="_blank"
+              rel="noopener noreferrer"
               className="bg-white text-gray-900 hover:bg-green-50 font-bold px-9 py-4 rounded-xl shadow-xl transition-all"
             >
               List your business

@@ -182,10 +182,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Optimistically clear local auth state so UI updates immediately.
     setState({ user: null, session: null, profile: null, role: null, isLoading: false });
 
-    // 1. Global sign-out invalidates the refresh token on the server so other
-    //    tabs / devices are dropped too. Without this users could be silently
-    //    re-authenticated on the next page load via a leftover refresh token.
-    const { error } = await supabase.auth.signOut({ scope: "global" });
+    // 1. Local sign-out clears this browser's session only. It deliberately
+    //    does NOT use `global`, which revokes the refresh token server-side for
+    //    the whole user: the vendor center runs on its own hostname with its own
+    //    host-only cookie, so a global sign-out here would also drop the vendor
+    //    session on the subdomain. Keeping the two hosts independent is the
+    //    entire point of the split.
+    const { error } = await supabase.auth.signOut({ scope: "local" });
 
     // 2. Belt-and-braces: explicitly purge any Supabase auth keys that might
     //    have survived in browser storage. The Supabase SDK uses keys prefixed
@@ -213,7 +216,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!error) return { error: null };
 
-    // Fallback in case global scope fails due network/session edge-cases.
+    // Retry once: the first call can fail on a transient network error, and a
+    // leftover session here would let the user appear signed in again.
     const { error: localError } = await supabase.auth.signOut({ scope: "local" });
     return { error: localError?.message ?? error.message };
   };

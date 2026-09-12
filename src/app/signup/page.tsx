@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
+import { vendorUrl } from "@/lib/hosts";
 import PasswordStrength, {
   isPasswordStrong,
 } from "@/components/auth/PasswordStrength";
@@ -14,20 +15,25 @@ import AuthBackdrop from "@/components/auth/AuthBackdrop";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
 
 type Step = "form" | "verify-email" | "complete";
-type SignupRole = "customer" | "vendor";
 
 export default function SignUpPage() {
   const { signIn } = useAuth();
   const searchParams = useSearchParams();
 
-  // Vendor vs customer signup is distinguished by ?role=vendor on the URL.
-  // The /sell page's "Register Your Business" CTAs send users here so the
-  // vendor onboarding path is visibly different from the customer one.
-  const roleParam = searchParams.get("role");
-  const signupRole: SignupRole = roleParam === "vendor" ? "vendor" : "customer";
-  const isVendorSignup = signupRole === "vendor";
+  // This page registers customers only. Vendor registration lives on the vendor
+  // host — one form, one host, so the session it creates lands in the vendor
+  // cookie jar alongside the vendor's other sessions. A stray ?role=vendor (an
+  // old link, a bookmark, a cached /sell page) is bounced there rather than
+  // silently creating a customer account under a vendor's email.
+  const isVendorSignup = searchParams.get("role") === "vendor";
+  const vendorRegisterUrl = vendorUrl("/vendor/register");
 
-  // Allow callers to specify where to land after signup (e.g. /seller/shop).
+  useEffect(() => {
+    // replace(), not assign(): there is nothing useful to come back to here.
+    if (isVendorSignup) window.location.replace(vendorRegisterUrl);
+  }, [isVendorSignup, vendorRegisterUrl]);
+
+  // Allow callers to specify where to land after signup (e.g. /profile).
   // Only same-origin relative paths are accepted — protects against open-redirect.
   const rawRedirect = searchParams.get("redirect");
   const redirectPath = useMemo(() => {
@@ -37,7 +43,7 @@ export default function SignUpPage() {
     return rawRedirect;
   }, [rawRedirect]);
 
-  const defaultDestination = isVendorSignup ? "/seller/shop" : "/browse";
+  const defaultDestination = "/browse";
 
   const [step, setStep] = useState<Step>("form");
   const [form, setForm] = useState({
@@ -159,7 +165,7 @@ export default function SignUpPage() {
           fullName: form.fullName,
           dateOfBirth: form.dateOfBirth,
           code,
-          role: signupRole,
+          role: "customer",
           address: form.address || undefined,
           city: form.city || undefined,
           state: form.state || undefined,
@@ -176,11 +182,7 @@ export default function SignUpPage() {
       }
 
       setStep("complete");
-      toast.success(
-        isVendorSignup
-          ? "Vendor account created — let's set up your shop!"
-          : "Account created successfully!"
-      );
+      toast.success("Account created successfully!");
 
       const { error: signInError } = await signIn(form.email, form.password);
       if (signInError) {
@@ -234,6 +236,10 @@ export default function SignUpPage() {
       options: {
         redirectTo: `${window.location.origin}/api/auth/callback?next=/profile`,
         skipBrowserRedirect: true,
+        // Always show Google's account chooser — see the note in
+        // src/app/login/page.tsx. Suppressing it silently re-uses whichever
+        // Google account the browser already holds.
+        queryParams: { prompt: "select_account" },
       },
     });
 

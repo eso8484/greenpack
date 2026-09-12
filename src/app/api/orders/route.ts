@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { flutterwaveCheckSubaccount } from "@/lib/flutterwave";
 import { z } from "zod";
 
 const OrderItemSchema = z.object({
@@ -115,6 +117,79 @@ export async function POST(request: Request) {
         name: source.name,
         price: canonicalPrice,
       });
+    }
+
+    // ── Payment readiness ────────────────────────────────────────────────────
+    // A shop can only take an order once its vendor holds a live Flutterwave
+    // subaccount. This check used to live in
+    // /api/payments/flutterwave/initialize, which runs *after* the order row
+    // exists — so an unpayable shop still produced a pending/unpaid order and
+    // the customer hit a payment error instead of a checkout error. Validate
+    // first and write nothing that cannot be paid.
+    const shopIds = Array.from(new Set(verifiedItems.map((item) => item.shop_id)));
+    const { data: orderShops, error: orderShopsError } = await supabase
+      .from("shops")
+      .select("id, name, flutterwave_subaccount_id")
+      .in("id", shopIds);
+    if (orderShopsError) throw orderShopsError;
+
+    const shopById = new Map((orderShops ?? []).map((shop) => [shop.id, shop]));
+    const unpayable: string[] = [];
+    let missingShop = false;
+
+    for (const id of shopIds) {
+      const shop = shopById.get(id);
+      if (!shop) {
+        missingShop = true;
+        continue;
+      }
+      if (!shop.flutterwave_subaccount_id) {
+        unpayable.push(shop.name);
+        continue;
+      }
+      // Non-null is not the same as valid. A subaccount created under a
+      // different Flutterwave account still reads as set but is rejected at
+      // payment time, so confirm it against the provider.
+      const check = await flutterwaveCheckSubaccount(shop.flutterwave_subaccount_id);
+      if (check.status === "not_found") {
+        unpayable.push(shop.name);
+        // Clear the dead ID so the shop is honestly reported as not
+        // payment-enabled and its vendor is prompted to redo payout setup.
+        // Admin client: shops are owner-writable only under RLS.
+        await createAdminClient()
+          .from("shops")
+          .update({
+            flutterwave_subaccount_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", shop.id);
+      }
+      // status "unavailable" means the provider is unreachable — fall through
+      // and let initialize surface it rather than blocking checkout outright.
+    }
+
+    if (missingShop) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "A shop in your cart is no longer available. Please remove it and try again.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (unpayable.length > 0) {
+      const label = unpayable.join(", ");
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            unpayable.length === 1
+              ? `${label} can't accept payments yet — the vendor still needs to finish payout setup, so this order wasn't placed.`
+              : `These shops can't accept payments yet: ${label}. Remove them from your cart to continue.`,
+        },
+        { status: 409 }
+      );
     }
 
     const verifiedDeliveryFee = Number(orderData.delivery_fee ?? 0);

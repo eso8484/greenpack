@@ -8,11 +8,13 @@ import Badge from "@/components/ui/Badge";
 import { formatPrice } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import OrderDetailsModal from "@/components/profile/OrderDetailsModal";
 import { toast } from "sonner";
 
 interface OrderItem {
   name: string;
   quantity: number;
+  price?: number;
 }
 
 interface CustomerInfoPayload {
@@ -25,6 +27,8 @@ interface ProfileOrder {
   created_at: string;
   status: string;
   total_amount: number;
+  subtotal?: number;
+  delivery_fee?: number;
   order_items?: OrderItem[];
   customer_info?: CustomerInfoPayload;
 }
@@ -45,6 +49,7 @@ export default function ProfilePage() {
   const [editMode, setEditMode] = useState(false);
   const [orders, setOrders] = useState<ProfileOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<ProfileOrder | null>(null);
   const [formData, setFormData] = useState({
     name:
       profile?.full_name ||
@@ -147,17 +152,21 @@ export default function ProfilePage() {
     { id: "settings", label: "Settings" },
   ];
 
-  const getStatusColor = (status: string): "green" | "yellow" | "red" | "default" => {
+  const getStatusColor = (status: string): "green" | "blue" | "red" | "default" => {
     switch (status) {
+      // Confirmed means the order was accepted — that is a success state, not
+      // a pending one, so it reads green alongside completed.
+      case "confirmed":
       case "completed":
         return "green";
+      // In-flight states are informational rather than cautionary, so they get
+      // a neutral blue instead of the amber that signals "needs attention".
       case "pending":
-      case "confirmed":
       case "processing":
       case "ready":
       case "assigned":
       case "picking_up":
-        return "yellow";
+        return "blue";
       case "cancelled":
         return "red";
       default:
@@ -396,7 +405,11 @@ export default function ProfilePage() {
                         {formatPrice(order.total_amount)}
                       </p>
                     </div>
-                    <Button size="sm" variant="secondary">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setSelectedOrder(order)}
+                    >
                       View Details
                     </Button>
                   </div>
@@ -517,6 +530,14 @@ export default function ProfilePage() {
           )}
         </motion.div>
       </div>
+
+      <OrderDetailsModal
+        order={selectedOrder}
+        statusVariant={
+          selectedOrder ? getStatusColor(selectedOrder.status) : "default"
+        }
+        onClose={() => setSelectedOrder(null)}
+      />
     </div>
   );
 }
