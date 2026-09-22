@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { categories } from "@/lib/data/categories";
 
+/**
+ * How many tiles the home grid shows. The taxonomy is far longer than a home
+ * page section can carry without burying everything under it, and the header
+ * already offers "View all" into `/browse` — so this grid is the popular head
+ * of the list, not the whole thing. Raise it only alongside the grid columns.
+ */
+const HOME_CATEGORY_LIMIT = 16;
+
 export default function CategoryNav() {
   return (
     <section className="max-w-7xl mx-auto px-4 md:px-6 pt-14 md:pt-20">
@@ -17,7 +25,7 @@ export default function CategoryNav() {
           href="/browse"
           className="hidden md:inline-flex items-center gap-1 text-sm text-green-600 dark:text-green-400 font-bold group"
         >
-          View all
+          View all {categories.length}
           <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">
             arrow_forward
           </span>
@@ -25,7 +33,7 @@ export default function CategoryNav() {
       </div>
 
       <div className="grid grid-cols-4 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 md:gap-4">
-        {categories.map((cat) => (
+        {categories.slice(0, HOME_CATEGORY_LIMIT).map((cat) => (
           <Link
             key={cat.id}
             href={`/browse?category=${cat.slug}`}

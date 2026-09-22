@@ -75,7 +75,11 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
       <div className="flex gap-8">
         {/* Sidebar - Desktop */}
         <div className="hidden md:block w-64 shrink-0">
-          <div className="sticky top-24">
+          {/* The taxonomy is taller than the viewport, so the sticky column
+              needs its own scroll — a stuck element taller than the screen
+              pins at `top-24` and the categories below the fold become
+              unreachable, since page scroll no longer moves it. */}
+          <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto overscroll-contain">
             <CategorySidebar activeCategory={categorySlug} />
           </div>
         </div>
