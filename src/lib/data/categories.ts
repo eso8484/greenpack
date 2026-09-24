@@ -60,7 +60,7 @@ export const categories: Category[] = [
     name: "Home Services",
     slug: "home-services",
     icon: "🔧",
-    description: "Plumbing, electrical, painting, and home repairs",
+    description: "Painting, handyman jobs, and general home repairs",
     shopCount: 8,
   },
   {
@@ -83,10 +83,10 @@ export const categories: Category[] = [
   // ── Popular ─────────────────────────────────────────────────────────────
   {
     id: "cat-9",
-    name: "Auto Repair & Spare Parts",
+    name: "Mechanics & Auto Repair",
     slug: "auto-repair",
     icon: "🚗",
-    description: "Mechanics, auto electricians, panel beating, and spare parts",
+    description: "Car servicing, diagnostics, panel beating, and spare parts",
     shopCount: 13,
   },
   {
@@ -144,6 +144,37 @@ export const categories: Category[] = [
     icon: "🏠",
     description: "Land, houses, rentals, and property management",
     shopCount: 10,
+  },
+
+  // ── Trades & repairs ────────────────────────────────────────────────────
+  // The trades a customer searches for by name. Each owns its own niche so no
+  // two categories claim the same job: plumbing and electrical moved out of
+  // `cat-6` Home Services (which keeps painting and handyman work), mechanics
+  // is `cat-9`'s own name rather than a second category beside it, and
+  // appliance repair is distinct from `cat-3` gadgets and `cat-15` power.
+  {
+    id: "cat-43",
+    name: "Plumbers & Plumbing Services",
+    slug: "plumbers",
+    icon: "🚰",
+    description: "Pipe fitting, leak repairs, and bathroom and kitchen plumbing",
+    shopCount: 9,
+  },
+  {
+    id: "cat-44",
+    name: "Electricians & Electrical Services",
+    slug: "electricians",
+    icon: "💡",
+    description: "Wiring, sockets, lighting, fault finding, and electrical repairs",
+    shopCount: 8,
+  },
+  {
+    id: "cat-45",
+    name: "Technicians & Appliance Repair",
+    slug: "technicians",
+    icon: "🛠️",
+    description: "AC, fridge, washing machine, TV, and home appliance repair",
+    shopCount: 7,
   },
 
   // ── Building, home & trade ──────────────────────────────────────────────
