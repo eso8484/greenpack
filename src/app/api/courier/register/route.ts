@@ -34,7 +34,7 @@ const AccountSchema = z.object({
 
 const CourierSchema = z.object({
   vehicle_type: z.enum(["bike", "car", "bicycle"]),
-  nin: z.string().length(11, "NIN must be exactly 11 digits"),
+  nin: z.string().regex(/^\d{11}$/, "NIN must be exactly 11 digits"),
   guarantor_name: z.string().min(2).max(255),
   guarantor_phone: z.string().min(10).max(20),
   area_of_operation: z.string().max(255).optional(),

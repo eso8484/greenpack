@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isVendorHost } from "@/lib/hosts";
+import { isCourierHost, isVendorHost } from "@/lib/hosts";
 
 // Routes that require authentication (any role).
 // `/vendor/register` is public — both guests and signed-in users land on the
@@ -89,19 +89,87 @@ function isVendorHostPathAllowed(pathname: string): boolean {
   return lastSegment.includes(".");
 }
 
+// Clean URLs served by the courier hub, mapped onto the routes that implement
+// them. The same internal-rewrite trick as the vendor host above: the address bar
+// keeps the clean form, so the customer site's route prefix never leaks into
+// courier URLs.
+//
+// `/` rewrites to the courier pitch rather than redirecting, which is a
+// deliberate departure from the vendor host. There, serving the dashboard at `/`
+// would make it indistinguishable from the customer homepage; a marketing landing
+// page at `/` has no such ambiguity, and a rewrite keeps the hub's front door at a
+// clean `/`.
+//
+// `/courier/register` is deliberately absent — the application form keeps its own
+// path on both hosts, the same choice the vendor centre made for
+// `/vendor/register`, so it needs no clean alias.
+const COURIER_REWRITES = new Map<string, string>([
+  ["/", "/become-courier"],
+  ["/dashboard", "/courier/dashboard"],
+]);
+
+// What the courier hub is permitted to serve, for the same reason as the vendor
+// allow-list above: chrome is suppressed on this host, so a storefront page served
+// here would render with no header, no navigation, and no route back.
+//
+// `/terms` and `/privacy` are deliberately NOT listed. The application form links
+// them at `siteUrl(...)` instead, so they open the customer site's versions in a
+// new tab; serving them here would only mean rendering them without the chrome
+// that makes them navigable.
+const COURIER_HOST_ALLOWED_EXACT = [
+  ...COURIER_REWRITES.keys(), // "/" and "/dashboard"
+  "/become-courier", // the pitch, still reachable at its own path
+];
+
+const COURIER_HOST_ALLOWED_PREFIXES = [
+  "/courier", // the application form, and the dashboard's real route
+  "/login",
+  "/reset-password",
+  "/api",
+  "/not-found",
+  "/_next", // HMR + data requests; redirecting these breaks the dev server
+];
+
+function isCourierHostPathAllowed(pathname: string): boolean {
+  if (COURIER_HOST_ALLOWED_EXACT.includes(pathname)) return true;
+
+  if (
+    COURIER_HOST_ALLOWED_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    )
+  ) {
+    return true;
+  }
+
+  // A file request (robots.txt, manifest.webmanifest, …) rather than a page.
+  const lastSegment = pathname.slice(pathname.lastIndexOf("/") + 1);
+  return lastSegment.includes(".");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Read `host`, which Vercel normalises. Deliberately NOT `x-forwarded-host`:
   // clients can append to that header, which would let a request to the main
   // site claim to be the vendor host.
-  const onVendorHost = isVendorHost(request.headers.get("host"));
+  const host = request.headers.get("host");
+  const onVendorHost = isVendorHost(host);
+  const onCourierHost = isCourierHost(host);
 
-  // Resolve the vendor host's clean URLs onto the real routes BEFORE any auth
-  // matching runs. Matching against the incoming path instead would let
-  // `/dashboard` slip past ROLE_REQUIRED["/seller/dashboard"] and hand an
+  // Resolve the host's clean URLs onto the real routes BEFORE any auth matching
+  // runs. Matching against the incoming path instead would let `/dashboard` slip
+  // past ROLE_REQUIRED["/seller/dashboard"] (or "/courier/dashboard") and hand an
   // unauthenticated visitor the dashboard shell instead of a login redirect.
-  const rewriteTo = onVendorHost ? VENDOR_REWRITES.get(pathname) : undefined;
+  //
+  // Vendor is tested first. The two hostnames can never both match (different
+  // first labels), but ordering it this way means a misconfigured
+  // NEXT_PUBLIC_COURIER_URL pointing at the vendor host degrades to vendor
+  // behaviour rather than to a host running both rule sets.
+  const rewriteTo = onVendorHost
+    ? VENDOR_REWRITES.get(pathname)
+    : onCourierHost
+      ? COURIER_REWRITES.get(pathname)
+      : undefined;
   const effectivePathname = rewriteTo ?? pathname;
 
   let supabaseResponse = NextResponse.next({ request });
@@ -147,6 +215,10 @@ export async function middleware(request: NextRequest) {
   // customer homepage, which in turn would force the shared chrome component to
   // know which host it is on. Redirecting to the explicit clean path keeps every
   // vendor-host URL unambiguous instead.
+  //
+  // The courier hub has no equivalent block because it *does* have a landing page
+  // — the pitch — so its `/` is rewritten rather than redirected. See
+  // COURIER_REWRITES above.
   if (onVendorHost && pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
@@ -164,22 +236,37 @@ export async function middleware(request: NextRequest) {
     return withAuthCookies(NextResponse.redirect(url));
   }
 
+  // Close the courier hub the same way. `/dashboard` is the destination here too:
+  // it is the one page on this host that produces a useful next step for whoever
+  // arrives — a login form for a guest, the dashboard for a courier.
+  //
+  // Note this runs on the *incoming* pathname, not the rewritten one, so `/` on
+  // this host is judged as `/` (allowed, then rewritten to the pitch below) and is
+  // not swept up here.
+  if (onCourierHost && !isCourierHostPathAllowed(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    url.search = "";
+    return withAuthCookies(NextResponse.redirect(url));
+  }
+
   // Redirect signed-in users away from guest-only auth pages.
   //
-  // The vendor host's `/login` is the one exception. That page is the front door
+  // The closed hosts' `/login` is the one exception. That page is the front door
   // of a closed surface — every other route there redirects to `/dashboard` — so
   // bouncing a signed-in visitor off it leaves signing out as the only way to
   // reach it at all. In practice that makes an explicitly-labelled "Log in to
-  // your dashboard" link on `/sell` silently enter whichever account the cookie
-  // already holds, which reads as the site signing you in by itself. Letting the
-  // form render is the honest outcome; the visitor can still sign in as someone
-  // else, and `/dashboard` is one link away.
+  // your dashboard" link on `/sell` (or `/become-courier`) silently enter
+  // whichever account the cookie already holds, which reads as the site signing
+  // you in by itself. Letting the form render is the honest outcome; the visitor
+  // can still sign in as someone else, and `/dashboard` is one link away.
   //
   // The customer host keeps the conventional behaviour: a signed-in shopper is
   // sent on to the store rather than shown a login form.
   const isGuestOnlyPath = AUTH_ONLY_GUEST.some((route) => effectivePathname === route || effectivePathname.startsWith(`${route}/`));
-  const isVendorLoginPage = onVendorHost && effectivePathname === "/login";
-  if (isGuestOnlyPath && user && !isVendorLoginPage) {
+  const isClosedHostLoginPage =
+    (onVendorHost || onCourierHost) && effectivePathname === "/login";
+  if (isGuestOnlyPath && user && !isClosedHostLoginPage) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -187,10 +274,10 @@ export async function middleware(request: NextRequest) {
       .single();
 
     const url = request.nextUrl.clone();
-    // On the vendor host the dashboard lives at its clean URL, so send vendors
-    // there rather than exposing the /seller prefix in the address bar.
+    // On a closed host the dashboard lives at its clean URL, so send people there
+    // rather than exposing the /seller or /courier prefix in the address bar.
     if (profile?.role === "vendor") url.pathname = onVendorHost ? "/dashboard" : "/seller/dashboard";
-    else if (profile?.role === "courier") url.pathname = "/courier/dashboard";
+    else if (profile?.role === "courier") url.pathname = onCourierHost ? "/dashboard" : "/courier/dashboard";
     else if (profile?.role === "admin") url.pathname = "/admin";
     else url.pathname = "/browse";
     url.search = "";
@@ -278,6 +365,12 @@ export async function middleware(request: NextRequest) {
   //
   // Deliberately after the guest-only check: an already signed-in visitor is
   // redirected away above and should not see a login page at all.
+  //
+  // There is no courier equivalent of this block, and that is the design rather
+  // than an omission. Couriers have no split identity — their courier account is
+  // their customer account, with `profiles.role` flipped to `courier` when an
+  // admin approves the application — so the hub's `/login` is the ordinary
+  // customer lane, already correct as-is.
   if (
     onVendorHost &&
     effectivePathname === "/login" &&
@@ -288,8 +381,8 @@ export async function middleware(request: NextRequest) {
     return withAuthCookies(NextResponse.redirect(url));
   }
 
-  // Rewrite (not redirect) so the vendor host's clean URL stays in the address
-  // bar while the /seller/* route underneath does the rendering.
+  // Rewrite (not redirect) so the host's clean URL stays in the address bar while
+  // the route underneath does the rendering.
   if (rewriteTo) {
     const url = request.nextUrl.clone();
     url.pathname = rewriteTo;

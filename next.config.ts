@@ -52,10 +52,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   // Permit the LAN address used to preview the dev server from a phone, and the
-  // vendor subdomain used to exercise the two-host session split locally.
+  // two subdomains used to exercise the three-host session split locally.
   // Without this, Next.js blocks dev CSS/HMR resources cross-origin and the
   // page appears as unstyled headings or partially loaded content.
-  allowedDevOrigins: ["192.168.0.100", "vendor.localhost"],
+  allowedDevOrigins: ["192.168.0.100", "vendor.localhost", "courier.localhost"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

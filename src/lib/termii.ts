@@ -3,6 +3,8 @@
  * Docs: https://developers.termii.com
  */
 
+import { courierUrl } from "@/lib/hosts";
+
 const TERMII_BASE_URL = "https://api.ng.termii.com/api";
 const TERMII_SENDER_ID = "GreenPack";
 
@@ -42,7 +44,10 @@ export async function notifyCouriersOfJob(
   jobId: string,
   courierPhones: string[]
 ): Promise<void> {
-  const message = `GreenPack: New delivery job available! Job #${jobId.slice(0, 8).toUpperCase()}. Log in to accept: greenpackdelight.com/courier/dashboard`;
+  // The couriers' own hub, not the storefront path. Building it from
+  // courierUrl() keeps the link correct locally and in production, and points
+  // at the clean `/dashboard` rather than the /courier/* route the hub hides.
+  const message = `GreenPack: New delivery job available! Job #${jobId.slice(0, 8).toUpperCase()}. Log in to accept: ${courierUrl("/dashboard")}`;
   await Promise.all(courierPhones.map((phone) => sendSMS(phone, message)));
 }
 

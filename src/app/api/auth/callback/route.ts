@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isVendorHost, vendorUrl, VENDOR_ORIGIN } from "@/lib/hosts";
+import { isCourierHost, isVendorHost, vendorUrl, VENDOR_ORIGIN } from "@/lib/hosts";
 import { findVendorIdentity } from "@/lib/vendor-identity";
 
 /**
@@ -31,9 +31,20 @@ export async function GET(request: NextRequest) {
   // They differ when a vendor-lane callback arrives on the customer host, which
   // is exactly the case that used to mint the session into the wrong cookie jar.
   const onVendorHost = isVendorHost(request.headers.get("host"));
+  const onCourierHost = isCourierHost(request.headers.get("host"));
   const useVendorHost = loginMode === "vendor" || onVendorHost;
 
-  const fallbackNext = useVendorHost ? "/dashboard" : "/";
+  // Both closed hosts land on their dashboard by default. Falling back to `/`
+  // would be wrong on each for its own reason: on the vendor host `/` only
+  // redirects to `/dashboard` anyway, and on the courier host `/` is the
+  // marketing pitch — a signed-in courier dropped on the "become a courier" ad.
+  //
+  // Unlike the vendor lane, there is no courier-lane backstop below and none is
+  // wanted: `origin` is wherever the browser landed, and since a courier
+  // sign-in can only ever be *started* on the hub (there is no `mode=courier`
+  // to carry across hosts), that origin is already the host that owns the
+  // session. Only the vendor lane can be started on the wrong host.
+  const fallbackNext = useVendorHost || onCourierHost ? "/dashboard" : "/";
   const safeNext = next && next.startsWith("/") ? next : fallbackNext;
   // The vendor lane finishes on the vendor host, whatever host the callback was
   // served from. `origin` is wherever the browser happened to land, and for a

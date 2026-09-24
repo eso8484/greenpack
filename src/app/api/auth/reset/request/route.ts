@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendTransactionalEmail } from "@/lib/email";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
-import { isVendorHost, vendorUrl } from "@/lib/hosts";
+import { courierUrl, isCourierHost, isVendorHost, vendorUrl } from "@/lib/hosts";
 import { resolveVendorAuthEmail } from "@/lib/vendor-identity";
 
 const RequestSchema = z.object({
@@ -91,14 +91,23 @@ export async function POST(request: Request) {
     // address but not an account — a vendor has its own auth row — so a reset
     // has to target the right one or it would change the wrong password.
     const loginMode: "customer" | "vendor" = parsed.data.mode ?? "customer";
-    const useVendorHost =
-      loginMode === "vendor" || isVendorHost(request.headers.get("host"));
+    const host = request.headers.get("host");
+    const useVendorHost = loginMode === "vendor" || isVendorHost(host);
+    // The courier hub has no lane of its own — a courier's account is their
+    // customer account — but it is still a separate origin, and GoTrue builds
+    // the session on whichever origin the recovery link points at. Sending a
+    // reset started on the hub to the customer site would create the session
+    // there and leave the hub signed out, which reads as the reset having
+    // silently failed.
+    const useCourierHost = !useVendorHost && isCourierHost(host);
 
     const email = parsed.data.email.trim().toLowerCase();
     const admin = createAdminClient();
     const redirectTo = useVendorHost
       ? vendorUrl("/reset-password")
-      : `${siteUrl()}/reset-password`;
+      : useCourierHost
+        ? courierUrl("/reset-password")
+        : `${siteUrl()}/reset-password`;
 
     // The account whose password actually changes. Falls back to the typed
     // address, which is correct for a customer and for vendors registered before

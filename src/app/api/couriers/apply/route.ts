@@ -4,7 +4,7 @@ import { z } from "zod";
 
 const CourierApplicationSchema = z.object({
   vehicle_type: z.enum(["bike", "car", "bicycle"]),
-  nin: z.string().min(11).max(11),
+  nin: z.string().regex(/^\d{11}$/, "NIN must be exactly 11 digits"),
   guarantor_name: z.string().min(2),
   guarantor_phone: z.string().min(10),
   area_of_operation: z.string().optional(),

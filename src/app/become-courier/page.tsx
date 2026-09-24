@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { isCourierHost } from "@/lib/hosts";
 
 const benefits = [
   { icon: "💰", title: "Earn Extra Income", desc: "Make ₦2,000–₦8,000+ daily delivering for local businesses" },
@@ -16,7 +18,21 @@ const howItWorks = [
   { step: "6", title: "Get paid", desc: "Earnings added to your wallet instantly after completion" },
 ];
 
-export default function BecomeCourierPage() {
+export default async function BecomeCourierPage() {
+  // This page renders on both hosts: directly at /become-courier on the customer
+  // site, and as the `/` rewrite target on the courier hub. The post-login
+  // destination has to follow, or the hub leaks `/courier/dashboard` into the
+  // address bar at the exact moment a courier signs in — the thing its clean
+  // URLs exist to avoid. The dashboard's real route still works on both, so the
+  // link is always correct; only the address bar differs.
+  //
+  // `Apply Now` below stays a bare `/courier/register`: that path is identical
+  // on both hosts by design, so it needs no host logic.
+  const onCourierHost = isCourierHost((await headers()).get("host"));
+  const loginHref = onCourierHost
+    ? "/login?redirect=/dashboard"
+    : "/login?redirect=/courier/dashboard";
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
       {/* Hero */}
@@ -99,7 +115,7 @@ export default function BecomeCourierPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
           Already a courier?{" "}
           <Link
-            href="/login?redirect=/courier/dashboard"
+            href={loginHref}
             className="text-green-600 dark:text-green-400 font-semibold hover:underline"
           >
             Log in to your dashboard →

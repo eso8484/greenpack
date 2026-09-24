@@ -50,8 +50,9 @@ src/
 │   ├── vendor/dashboard/page.tsx   # Vendor dashboard (role: vendor/admin)
 │   ├── seller/                     # Seller management pages
 │   ├── courier/
-│   │   ├── layout.tsx              # Courier layout
-│   │   └── dashboard/page.tsx      # Courier dashboard (role: courier/admin)
+│   │   ├── layout.tsx              # Courier layout — Server Component (keeps `metadata`), renders CourierShell
+│   │   ├── register/page.tsx       # Courier application form — same path on all hosts
+│   │   └── dashboard/page.tsx      # Courier dashboard (role: courier/admin) — served at /dashboard on the hub
 │   ├── terms/page.tsx              # Terms of service
 │   ├── privacy/page.tsx            # Privacy policy
 │   └── api/
@@ -74,7 +75,8 @@ src/
 │       └── verify/                 # OTP verification endpoint
 ├── components/
 │   ├── ui/           # Button, Card, Badge, Rating, PriceTag, Input, EmptyState, Skeleton, Toaster
-│   ├── layout/       # Header, Footer, MobileNav, SearchBar, ThemeToggle
+│   ├── layout/       # Header, Footer, MobileNav, SearchBar, ThemeToggle, AppChrome
+│   ├── courier/      # CourierShell — the courier hub's own top bar (no sidebar; it is one page)
 │   ├── providers/    # ThemeProvider (next-themes wrapper)
 │   ├── auth/         # OTPInput, PasswordStrength
 │   ├── home/         # HeroSection, CategoryNav, FeaturedShops, HowItWorks
@@ -93,12 +95,12 @@ src/
 │   │   └── admin.ts  # Admin client (service_role key — server-only)
 │   ├── termii.ts     # Termii SMS helpers (sendSMS, notifyCourier*, notifyVendor*, notifyCustomer*)
 │   ├── vendor-identity.ts # Split vendor/customer accounts — the only home for the synthetic-address rule
-│   ├── hosts.ts      # Two-host helpers — isVendorHost(), vendorUrl(), siteUrl()
+│   ├── hosts.ts      # Multi-host helpers — isVendorHost(), isCourierHost(), vendorUrl(), courierUrl(), siteUrl()
 │   ├── utils.ts      # formatPrice, filterShops, cn(), BLUR_PLACEHOLDER, etc.
 │   └── constants.ts  # SITE_NAME, CURRENCY, CURRENCY_SYMBOL
 ├── hooks/            # useCart.ts, useSearch.ts
 ├── context/          # CartContext.tsx (useReducer: ADD, REMOVE, UPDATE, CLEAR)
-├── middleware.ts     # Auth + role-based route protection + the closed vendor host
+├── middleware.ts     # Auth + role-based route protection + the closed vendor and courier hosts
 └── types/            # index.ts (Shop, Service, Product, Review, CartItem, etc.)
 
 supabase/
@@ -130,11 +132,12 @@ supabase/
 | `/register` | Client | — | Customer registration |
 | `/signup` | Client | — | Customer signup — `?role=vendor` sends you to the vendor host's `/vendor/register` |
 | `/sell` | Server | — | Become a vendor landing page |
-| `/become-courier` | Server | — | Become a courier landing page |
+| `/become-courier` | Server | — | Become a courier landing page — on the courier host it is rewritten onto `/` |
 | `/profile` | Client | ✅ Required | Customer profile management |
 | `/vendor/dashboard` | Client | ✅ vendor/admin | Vendor dashboard — orders, revenue, listings |
 | `/seller` | Client | ✅ vendor/admin | Seller management pages |
-| `/courier/dashboard` | Client | ✅ courier/admin | Courier dashboard — available jobs, delivery tracking |
+| `/courier/dashboard` | Client | ✅ courier/admin | Courier dashboard — available jobs, delivery tracking; served at `/dashboard` on the courier host |
+| `/courier/register` | Client | — | Courier application form — the same path on every host |
 | `/admin/support` | Client | ✅ admin | Internal support agent console — queue, assignment, replies, resolution |
 | `/terms` | Server | — | Terms of service |
 | `/privacy` | Server | — | Privacy policy |
@@ -150,9 +153,15 @@ supabase/
   - `/admin` → `["admin"]`
 - Roles: `customer` | `vendor` | `courier` | `admin`
 
-### Two-Host Setup (vendor subdomain)
-The customer site and the vendor center are **one deployment serving two hostnames**:
-`greenpackdelight.com` and `vendor.greenpackdelight.com`. No separate app, no extra cost.
+### Multi-Host Setup (vendor center + courier hub)
+The customer site, the vendor center, and the courier hub are **one deployment serving three
+hostnames**: `greenpackdelight.com`, `vendor.greenpackdelight.com`, and
+`courier.greenpackdelight.com`. No separate app, no extra cost.
+
+The vendor center and the courier hub are built the same way — a small set of clean URLs
+rewritten onto existing routes behind a closed-host allow-list, with storefront chrome
+suppressed — so the vendor section below is the reference and the courier section that follows
+notes only where it deliberately differs.
 
 `src/middleware.ts` detects the vendor host (`isVendorHost` from `src/lib/hosts.ts`, which reads
 the `host` header — **never** `x-forwarded-host`, which clients can append to) and rewrites clean
@@ -182,11 +191,14 @@ store but the address bar. `/_next` is in the list deliberately: the matcher doe
 `/_next/webpack-hmr`, and redirecting it breaks HMR.
 
 **Chrome is decided by host, not path.** `src/app/layout.tsx` reads `headers()`, computes
-`isVendorHost`, and passes `onVendorHost` to `AppChrome` as a prop — not a client-side
-`window.location.hostname` read, which would flash the Header before hydration. `AppChrome`
-short-circuits to bare `children` when it is set. The path lists it keeps are for the **customer**
-host, where `/seller/*` still resolves directly and must not wear storefront chrome either:
-`STANDALONE_PREFIXES = ["/seller", "/admin/support"]` and `STANDALONE_EXACT = ["/vendor/register"]`.
+`isVendorHost` and `isCourierHost` from that one call, and passes `onVendorHost` / `onCourierHost`
+to `AppChrome` as props — not a client-side `window.location.hostname` read, which would flash the
+Header before hydration. `AppChrome` short-circuits to bare `children` when either is set. The path
+lists it keeps are for the **customer** host, where `/seller/*` and `/courier/*` still resolve
+directly and must not wear storefront chrome either: `STANDALONE_PREFIXES =
+["/seller", "/courier", "/admin/support"]` and `STANDALONE_EXACT = ["/vendor/register"]`.
+`/become-courier` is *not* under `/courier`, so the public pitch page keeps storefront chrome on the
+customer host — correct, it is a marketing page.
 
 Reading `headers()` costs nothing: the site is already fully dynamic (`db.ts` → `supabase/server.ts`
 → `await cookies()`), so the root layout's rendering mode is unchanged.
@@ -207,19 +219,82 @@ outside the allow-list, so they redirect to `/dashboard` there. Vendor registrat
 
 `/seller/*` also still resolves directly, so existing internal links keep working.
 
-**Why this exists:** Supabase session cookies are host-only, so each hostname gets an independent
-session. Logging into the vendor center no longer replaces the customer session.
+**The courier hub.** Same machinery, much smaller surface — a courier has one page of
+dashboard, not six sections of management, so there is nothing to rewrite beyond it:
 
-Rules that keep it working — breaking any of them silently re-couples the two hosts:
+| Courier-host URL | Renders |
+|---|---|
+| `/` | `/become-courier` (the pitch, *rewritten*, not redirected) |
+| `/dashboard` | `/courier/dashboard` |
+| `/courier/register` | the application form — same path on both hosts |
+| `/login` | the plain **customer** lane |
+| `/terms`, `/privacy` | not served here; `/courier/register` links them absolutely |
+
+`/` is a **rewrite** here, unlike the vendor host where it *redirects* to `/dashboard`. The
+vendor redirect exists because serving the *dashboard* at `/` would make it indistinguishable
+from the customer homepage. A marketing landing at `/` has no such ambiguity.
+
+**No `mode=courier` login lane.** Couriers have **no split identity** — same account, real
+email, `profiles.role` flipping `customer`→`courier` on admin approval (see
+`src/lib/vendor-identity.ts` for the vendor contrast). The customer lane is already correct, so
+`/login` on the courier host is not forced to anything.
+
+**No clean `/register` either.** Courier registration stays at `/courier/register` on both
+hosts, mirroring the `/vendor/register` precedent.
+
+`isCourierHostPathAllowed()` allows `/` and `/dashboard` (exact), `/courier/*`, `/login`,
+`/reset-password`, `/api/*`, `/not-found`, `/_next`, and the file-request fallback. Everything
+else redirects to `/dashboard`. `/become-courier` is in the exact list too: it is the rewrite
+*target* of `/`, so a visitor arriving on the hub from a stale absolute link to
+`courier.greenpackdelight.com/become-courier` should still see the pitch rather than a bounce.
+
+**The courier hub's clean names live in `COURIER_REWRITES`, and `rewriteTo` picks the map by
+host** — `onVendorHost ? VENDOR_REWRITES : onCourierHost ? COURIER_REWRITES : undefined`. That
+is what feeds `effectivePathname` (`/dashboard` → `/courier/dashboard`) and therefore what makes
+`ROLE_REQUIRED["/courier/dashboard"]` match on the hub. `isVendorHost` is tested first: the two
+can never both be true for one hostname (different first labels), so the order only matters if
+an env var is ever misconfigured to point at the other's host, and the vendor host is the older,
+more load-bearing one.
+
+**The `/courier/*` routes bring their own chrome.** `src/app/courier/layout.tsx` is a thin
+Server Component — it keeps the section's `metadata` — wrapping
+`src/components/courier/CourierShell.tsx`, which is the Client Component that renders the sticky
+top bar and the Logout button. The split is forced: a `"use client"` module cannot export
+`metadata`, and the shell needs `usePathname()` to render `/courier/register` **bare**. That
+comparison is exact and safe because `/courier/register` is never rewritten — only `/` and
+`/dashboard` are — so the rewritten dashboard path fails the equality and gets the shell.
+
+The shell exists because the courier dashboard previously had **no chrome of its own**: it
+inherited the storefront Header, and the storefront Header was where its sign-out lived.
+Suppressing that without a replacement would leave a signed-in courier with no way out.
+
+Two deliberate differences from the seller shell:
+
+- **It has a "← Back to GreenPack" link.** Rule 4 below says the vendor center has none; a
+  vendor's shopping session is a *different account*, whereas a courier's is the *same* one, so
+  stranding them would be gratuitous. `siteUrl("/")` is absolute, so it resolves on both hosts.
+- **Logout lands on `/login` with no `mode`**, because there is no courier lane to select.
+
+**Why this exists:** Supabase session cookies are host-only, so each hostname gets an independent
+session. Logging into the vendor center no longer replaces the customer session. For the courier
+hub that independence is a **side effect, not the goal** — a courier's account *is* their
+customer account, but the cookie still cannot cross, so after signing in on the hub they are a
+guest on `greenpackdelight.com` until they sign in there too. Widening the cookie to
+`.greenpackdelight.com` was considered and rejected: it would re-couple the vendor center.
+
+Rules that keep it working — breaking any of them silently re-couples the hosts:
 
 1. **Sign-out is always `scope: "local"`, never `"global"`.** Global revokes the refresh token
-   server-side for the whole user, which would sign them out of *both* hosts. Applies to
-   `src/app/seller/layout.tsx` and `src/context/AuthContext.tsx`.
-2. **Cross-host links must be absolute.** Use `vendorUrl()` / `siteUrl()` from `src/lib/hosts.ts`.
-   A bare `/` or `/dashboard` stays on whichever host rendered it.
+   server-side for the whole user, which would sign them out of *every* host. Applies to
+   `src/app/seller/layout.tsx`, `src/components/courier/CourierShell.tsx`, and
+   `src/context/AuthContext.tsx`.
+2. **Cross-host links must be absolute.** Use `vendorUrl()` / `courierUrl()` / `siteUrl()` from
+   `src/lib/hosts.ts`. A bare `/` or `/dashboard` stays on whichever host rendered it.
 3. **"Become a Vendor" / "Sell on GreenPack" links point at the vendor host and open in a new tab**
    (`vendorUrl("/sell")` + `target="_blank"`). They live in `Header`, `MobileNav`, `Footer`, and
-   `CTABanner` — change all four together or the entry points drift apart.
+   `CTABanner` — change all four together or the entry points drift apart. The courier
+   equivalents (`courierUrl("/")`) live in `Header`, `MobileNav`, and `Footer` — there is no
+   courier link in `CTABanner` — and also open in a new tab.
 4. **The vendor center has no link back to the customer site** — the "← Back to site" button was
    removed deliberately. The seller header's logo still points at `/`, which on the vendor host
    resolves to `/dashboard`.
@@ -231,7 +306,25 @@ Rules that keep it working — breaking any of them silently re-couples the two 
 6. **Post-login redirects stay on the host that owns the session.** A vendor's cookie only exists on
    the host they signed in on, so `src/app/login/page.tsx` picks `vendorUrl`'s clean `/dashboard`
    only when it is already on the vendor host, and `/seller/dashboard` otherwise. Jumping hosts
-   there lands them on a signed-out page.
+   there lands them on a signed-out page. The courier case is the same shape with one extra twist:
+   `/browse` — the default landing spot for a signed-in non-vendor — is outside the courier
+   allow-list, so on the hub the default becomes `siteUrl("/browse")`. Without that, a non-courier
+   signing in on the hub bounces through `/dashboard` (fails the role check) back to `/`, i.e. the
+   "become a courier" advert.
+7. **A page that renders on more than one host must read `headers()` to pick its links.**
+   `src/app/become-courier/page.tsx` is served directly on the customer host *and* as the `/`
+   rewrite target on the hub, so its "Log in to your dashboard" link has to follow:
+   `onCourierHost ? "/login?redirect=/dashboard" : "/login?redirect=/courier/dashboard"`.
+   Otherwise the hub leaks `/courier/dashboard` into the address bar at the exact moment a courier
+   signs in — the thing its clean URLs exist to avoid. Same rule for
+   `src/app/api/auth/reset/request/route.ts`, which must return a recovery link on the origin that
+   asked: GoTrue builds the session on whichever origin the link points at, so a reset started on
+   the hub that returns to the customer site leaves the hub signed out, which reads as the reset
+   having silently failed. `src/app/api/auth/callback/route.ts` needs it only for the default
+   `next` (`/dashboard` on either closed host — `/` is the pitch on the hub, so it would drop a
+   signed-in courier on the advert); its vendor-lane backstop does not extend to couriers, because
+   a courier sign-in can only ever be *started* on the hub — there is no `mode=courier` to carry
+   across hosts — so `origin` is already the host that owns the session.
 
 Vendor sign-out lands on `/login?mode=vendor`, and middleware forces that lane for any `/login`
 request on the vendor host, so a vendor never sees the customer sign-in copy.
@@ -245,35 +338,44 @@ one. This is the same trap as `usePathname()` reporting the browser path rather 
 target; the rule is that **anything a client component reads off the URL must be delivered by
 redirect, not rewrite.**
 
-**The vendor host also exempts `/login` from the guest-only bounce.** `AUTH_ONLY_GUEST` normally
+**Both closed hosts exempt `/login` from the guest-only bounce.** `AUTH_ONLY_GUEST` normally
 sends a signed-in visitor straight to their dashboard, and that is what the customer host still
-does. On the vendor host `/login` is the front door of a closed surface — every other route there
-redirects to `/dashboard` — so bouncing off it would leave signing out as the only way to reach it.
-The visible symptom is a link explicitly labelled "Log in to your dashboard" (on `/sell`) silently
-entering whichever account the cookie already holds, which reads as the site signing you in by
-itself. The exemption is `isVendorLoginPage` in `middleware.ts`; `/register` still bounces.
+does. On a closed host `/login` is the front door — every other route there redirects to
+`/dashboard` — so bouncing off it would leave signing out as the only way to reach it. The visible
+symptom is a link explicitly labelled "Log in to your dashboard" (on `/sell`, and on
+`/become-courier`) silently entering whichever account the cookie already holds, which reads as
+the site signing you in by itself. The exemption is `isClosedHostLoginPage =
+(onVendorHost || onCourierHost) && effectivePathname === "/login"` in `middleware.ts`; `/register`
+still bounces.
+
+The guest-only bounce's target is host-aware too: a signed-in **courier** leaving `/login` goes to
+`onCourierHost ? "/dashboard" : "/courier/dashboard"`, for the same clean-URL reason as rule 6.
 
 Auth matching in middleware runs against the **rewritten** path (`effectivePathname`), not the
 incoming one — otherwise `/` on the vendor host doesn't match `ROLE_REQUIRED["/seller/dashboard"]`
 and unauthenticated visitors get the dashboard shell.
 
-Env: `NEXT_PUBLIC_VENDOR_URL` and `NEXT_PUBLIC_SITE_URL` (both optional in production — the
-defaults in `hosts.ts` are the real domains). Locally set them to `http://vendor.localhost:3000`
-and `http://localhost:3000`; `vendor.localhost` is also listed in `allowedDevOrigins` in
-`next.config.ts`.
+Env: `NEXT_PUBLIC_VENDOR_URL`, `NEXT_PUBLIC_COURIER_URL`, and `NEXT_PUBLIC_SITE_URL` (all optional
+in production — the defaults in `hosts.ts` are the real domains). Locally set them to
+`http://vendor.localhost:3000`, `http://courier.localhost:3000`, and `http://localhost:3000`;
+`vendor.localhost` and `courier.localhost` are also listed in `allowedDevOrigins` in
+`next.config.ts` (a missing entry there shows up as unstyled headings or half-loaded pages in dev,
+because Next.js blocks the cross-origin dev CSS/HMR requests).
 
-**Supabase Redirect URLs — all four, and they are not interchangeable:**
+**Supabase Redirect URLs — all six, and they are not interchangeable:**
 
 ```
-http://localhost:3000/**            ← customer lane, local
-http://vendor.localhost:3000/**     ← vendor lane, local
-https://greenpackdelight.com/**     ← customer lane, production
-https://vendor.greenpackdelight.com/**  ← vendor lane, production
+http://localhost:3000/**                 ← customer lane, local
+http://vendor.localhost:3000/**          ← vendor lane, local
+http://courier.localhost:3000/**         ← courier hub, local
+https://greenpackdelight.com/**          ← customer lane, production
+https://vendor.greenpackdelight.com/**   ← vendor lane, production
+https://courier.greenpackdelight.com/**  ← courier hub, production
 ```
 
-Supabase matches the **full origin**, so `localhost` does not cover `vendor.localhost` — they are
-different hosts, and a wildcard on one does not cover the other. Each missing entry costs one lane
-in one environment.
+Supabase matches the **full origin**, so `localhost` does not cover `vendor.localhost` or
+`courier.localhost` — they are different hosts, and a wildcard on one does not cover the others.
+Each missing entry costs one host in one environment.
 
 The failure mode is quiet and easy to misread: an unlisted `redirectTo` is **not** rejected.
 GoTrue silently discards it and substitutes the project's **Site URL**, so a Google sign-in started
@@ -391,7 +493,7 @@ Server Components by default. Only add `"use client"` when the component needs:
 - Event handlers (onClick, onChange)
 - Browser APIs
 
-**Client components**: CartContext, SearchBar, MobileNav, FilterBar, VideoShowcase, ProductCard, ServiceCard, CartItem, CartItemList, CartSummary, ThemeToggle, FAQAccordion, CategoryCard, cart/page, checkout/page, help/page, wishlist/page, profile/page, login/page, register/page, signup/page, vendor/dashboard/page, courier/dashboard/page
+**Client components**: CartContext, SearchBar, MobileNav, FilterBar, VideoShowcase, ProductCard, ServiceCard, CartItem, CartItemList, CartSummary, ThemeToggle, FAQAccordion, CategoryCard, CourierShell, cart/page, checkout/page, help/page, wishlist/page, profile/page, login/page, register/page, signup/page, vendor/dashboard/page, courier/dashboard/page
 
 ### State Management
 - **Cart**: `src/context/CartContext.tsx` — React Context + `useReducer`
@@ -466,6 +568,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=     # Supabase anon/public key
 SUPABASE_SERVICE_ROLE_KEY=         # Supabase service role (server-only, never expose)
 TERMII_API_KEY=                    # Termii SMS API key
 SUPPORT_AGENT_API_KEY=             # Shared secret for backend agent event ingestion
+NEXT_PUBLIC_SITE_URL=              # Customer-site origin (optional; hosts.ts defaults to the real domain)
+NEXT_PUBLIC_VENDOR_URL=            # Vendor-center origin (optional; defaults to vendor.greenpackdelight.com)
+NEXT_PUBLIC_COURIER_URL=           # Courier-hub origin (optional; defaults to courier.greenpackdelight.com)
 ```
 
 ## Key Files Reference
@@ -479,12 +584,13 @@ SUPPORT_AGENT_API_KEY=             # Shared secret for backend agent event inges
 | `src/lib/supabase/admin.ts` | Admin/service-role client (server only) |
 | `src/lib/termii.ts` | Termii SMS notification helpers |
 | `src/lib/vendor-identity.ts` | Split vendor/customer account identity — the only place a vendor auth address is built or read |
-| `src/lib/hosts.ts` | Two-host helpers — `isVendorHost()`, `vendorUrl()`, `siteUrl()` |
+| `src/lib/hosts.ts` | Multi-host helpers — `isVendorHost()`, `isCourierHost()`, `vendorUrl()`, `courierUrl()`, `siteUrl()` |
 | `src/types/index.ts` | All TypeScript interfaces |
 | `src/context/CartContext.tsx` | Cart state provider |
 | `src/hooks/useCart.ts` | Cart hook |
-| `src/middleware.ts` | Auth + role-based route protection + the closed vendor host |
-| `src/components/layout/AppChrome.tsx` | Suppresses storefront Header/Footer on vendor and standalone routes |
+| `src/middleware.ts` | Auth + role-based route protection + the closed vendor and courier hosts |
+| `src/components/layout/AppChrome.tsx` | Suppresses storefront Header/Footer on the closed hosts and standalone routes |
+| `src/components/courier/CourierShell.tsx` | The courier hub's own top bar + Logout (its layout must stay a Server Component to export `metadata`) |
 | `src/app/globals.css` | Global styles, dark mode body, scrollbar |
 | `tailwind.config.ts` | Theme colors, dark mode config, animations |
 | `supabase/migrations/001_initial_schema.sql` | Core DB schema |

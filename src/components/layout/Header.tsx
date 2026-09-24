@@ -8,7 +8,7 @@ import ThemeToggle from "@/components/ui/ThemeToggle";
 import { useCart } from "@/hooks/useCart";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useAuth } from "@/hooks/useAuth";
-import { vendorUrl } from "@/lib/hosts";
+import { courierUrl, vendorUrl } from "@/lib/hosts";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -104,7 +104,7 @@ export default function Header() {
                 </Link>
                 {profile?.role === "courier" || profile?.role === "admin" ? (
                   <Link
-                    href="/courier/dashboard"
+                    href={courierUrl("/dashboard")}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"
@@ -113,7 +113,7 @@ export default function Header() {
                   </Link>
                 ) : (
                   <Link
-                    href="/become-courier"
+                    href={courierUrl("/")}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 transition-colors whitespace-nowrap"

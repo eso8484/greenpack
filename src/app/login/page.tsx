@@ -11,7 +11,7 @@ import OTPInput from "@/components/auth/OTPInput";
 import AuthBackdrop from "@/components/auth/AuthBackdrop";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
-import { isVendorHost, vendorUrl } from "@/lib/hosts";
+import { isCourierHost, isVendorHost, siteUrl, vendorUrl } from "@/lib/hosts";
 
 type LoginMethod = "email" | "phone";
 type LoginStage = "credentials" | "otp";
@@ -176,13 +176,19 @@ export default function LoginPage() {
 
     // Stay on the host that owns this session — cookies are host-only, so
     // sending a vendor to the clean vendor URL from the customer host would
-    // land them on a signed-out page.
+    // land them on a signed-out page. The courier hub works the same way, and
+    // for the same reason: its clean `/dashboard` only resolves there.
     const onVendorHost = isVendorHost(window.location.host);
+    const onCourierHost = isCourierHost(window.location.host);
 
-    let target = "/browse";
+    // The default landing spot is not servable on the courier hub — `/browse`
+    // is outside its allow-list, so a non-courier who signs in there would be
+    // bounced to `/dashboard`, fail the courier role check, and end up back on
+    // the pitch. Send them to the storefront outright instead.
+    let target = onCourierHost ? siteUrl("/browse") : "/browse";
     if (redirect) target = redirect;
     else if (role === "vendor") target = onVendorHost ? "/dashboard" : "/seller/dashboard";
-    else if (role === "courier") target = "/courier/dashboard";
+    else if (role === "courier") target = onCourierHost ? "/dashboard" : "/courier/dashboard";
     else if (role === "admin") target = "/admin";
 
     window.location.assign(target);
@@ -214,11 +220,12 @@ export default function LoginPage() {
 
       // Same host rule as the phone path above.
       const onVendorHost = isVendorHost(window.location.host);
+      const onCourierHost = isCourierHost(window.location.host);
 
-      let target = "/browse";
+      let target = onCourierHost ? siteUrl("/browse") : "/browse";
       if (redirect) target = redirect;
       else if (data.role === "vendor") target = onVendorHost ? "/dashboard" : "/seller/dashboard";
-      else if (data.role === "courier") target = "/courier/dashboard";
+      else if (data.role === "courier") target = onCourierHost ? "/dashboard" : "/courier/dashboard";
       else if (data.role === "admin") target = "/admin";
 
       // Hard redirect so server-side cookies are picked up on the next page.

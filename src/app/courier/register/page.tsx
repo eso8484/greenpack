@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import OTPInput from "@/components/auth/OTPInput";
 import PasswordStrength, { isPasswordStrong } from "@/components/auth/PasswordStrength";
+import { siteUrl } from "@/lib/hosts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -350,7 +351,11 @@ export default function CourierRegisterPage() {
             </p>
             <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
               <li>Our team reviews your application</li>
-              <li>We verify your NIN and guarantor details</li>
+              {/* Deliberately not "we verify your NIN": nothing here looks the
+                  NIN up against NIMC or any licensed aggregator. A person reads
+                  the submitted value in /admin/couriers and approves or rejects
+                  — so the copy says that, and nothing more. */}
+              <li>We check your NIN and guarantor details before approval</li>
               <li>Brief phone interview</li>
               <li>Account activated — start earning!</li>
             </ol>
@@ -655,11 +660,15 @@ export default function CourierRegisterPage() {
                     />
                     <span>
                       I agree to the{" "}
-                      <Link href="/terms" className="text-green-600 dark:text-green-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer">
+                      {/* Absolute, because /terms and /privacy are outside the
+                          courier host's allow-list: a relative link would be
+                          redirected to /dashboard (→ login) mid-application.
+                          The customer host renders them with proper chrome. */}
+                      <Link href={siteUrl("/terms")} className="text-green-600 dark:text-green-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer">
                         Terms &amp; Conditions
                       </Link>{" "}
                       and{" "}
-                      <Link href="/privacy" className="text-green-600 dark:text-green-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer">
+                      <Link href={siteUrl("/privacy")} className="text-green-600 dark:text-green-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer">
                         Privacy Policy
                       </Link>
                     </span>
