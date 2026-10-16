@@ -46,7 +46,22 @@ export async function PATCH(
     if (!access.ok) return access.response;
 
     const { courierId } = await params;
-    const body = await request.json();
+
+    // `couriers.id` IS the applicant's user id — the apply route inserts
+    // `id: user.id` (src/app/api/couriers/apply/route.ts). So an admin who once
+    // submitted the courier form has a row here keyed on their own uuid, and a
+    // reject would run the profile write below against the reviewer. That is not
+    // hypothetical: it demoted this project's only admin to `customer` on
+    // 2026-10-16, which the middleware's `hideIfUnauthorized` then rendered as a
+    // permanent 404 on every `/admin/*` path. Refuse it before parsing anything.
+    if (courierId === access.userId) {
+      return NextResponse.json(
+        { success: false, error: "You cannot review your own application." },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json().catch(() => null);
     const parsed = CourierReviewSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -68,6 +83,22 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Courier application not found" }, { status: 404 });
     }
 
+    // A courier review only ever legitimately moves a profile between the two
+    // roles it owns. Read first, write only if the current role is one of them:
+    // `profiles.role` is a single column, so an unconditional write would wipe a
+    // `vendor` or `admin` role from anyone who happened to use the courier form.
+    // Approved-and-also-a-vendor is a schema question, not a route patch — the
+    // approval is still recorded on the `couriers` row either way.
+    const { data: targetProfile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", courierId)
+      .maybeSingle();
+
+    const canSetRole =
+      !!targetProfile &&
+      (targetProfile.role === "customer" || targetProfile.role === "courier");
+
     const reviewedAt = new Date().toISOString();
     const nextStatus = parsed.data.action === "approve" ? "approved" : "rejected";
     const nextRole = parsed.data.action === "approve" ? "courier" : "customer";
@@ -88,17 +119,21 @@ export async function PATCH(
 
     if (error) throw error;
 
-    const { error: profileError } = await admin
-      .from("profiles")
-      .update({
-        role: nextRole,
-        updated_at: reviewedAt,
-      })
-      .eq("id", courierId);
+    if (canSetRole) {
+      const { error: profileError } = await admin
+        .from("profiles")
+        .update({
+          role: nextRole,
+          updated_at: reviewedAt,
+        })
+        .eq("id", courierId);
 
-    if (profileError) throw profileError;
+      if (profileError) throw profileError;
+    }
 
-    return NextResponse.json({ success: true, data });
+    // `roleUpdated` is additive: `data` stays the courier row, so existing
+    // callers are unaffected. It reports the one thing the panel cannot infer.
+    return NextResponse.json({ success: true, data, roleUpdated: canSetRole });
   } catch (err) {
     console.error("PATCH /api/admin/couriers/[courierId]", err);
     return NextResponse.json(

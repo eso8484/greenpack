@@ -1,14 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { faqItems } from "@/lib/data/faqs";
 import { formatPrice } from "@/lib/utils";
-import { WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/constants";
 
 type Message = {
   id: string;
@@ -965,99 +963,23 @@ export default function ContactSupportPage() {
     return null;
   }
 
+  // `chatOnly` is the only way this file renders. `/contact-support` reached
+  // without `?chatOnly=1` fires the `router.replace("/help?chat=1")` effect above
+  // and the guard returns null; the live support surface is the global
+  // `SupportWidget` (mounted in AppChrome), which `/help` opens by dispatching
+  // `greenpack:open-support`. The marketing hero, the four-card contact grid, and
+  // the launcher that used to sit below this line were guarded by `!chatOnly`, so
+  // they were unreachable by construction and have been removed rather than
+  // resurrected: a second contact panel competing with `SupportWidget` is a
+  // surface nobody navigates to.
   return (
-    <div className={chatOnly ? "min-h-screen bg-transparent" : "min-h-screen bg-[#f6f8f7] dark:bg-gray-900 pb-28"}>
-      {!chatOnly && (
-      <section className="relative overflow-hidden border-b border-green-200/60 dark:border-green-900/50 bg-[radial-gradient(circle_at_15%_20%,rgba(34,197,94,0.18),transparent_38%),radial-gradient(circle_at_85%_10%,rgba(21,128,61,0.22),transparent_36%),linear-gradient(180deg,#f0fdf4_0%,#f8fafc_100%)] dark:bg-[radial-gradient(circle_at_10%_15%,rgba(34,197,94,0.22),transparent_35%),radial-gradient(circle_at_85%_5%,rgba(22,101,52,0.3),transparent_35%),linear-gradient(180deg,#0b1220_0%,#0f172a_100%)]">
-        <div className="max-w-6xl mx-auto px-4 py-10 md:py-14">
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-            className="max-w-3xl"
-          >
-            <p className="inline-flex items-center gap-2 rounded-full bg-white/80 dark:bg-gray-800/80 px-4 py-1.5 text-xs font-semibold tracking-wide text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700">
-              Free Support Experience
-            </p>
-            <h1 className="mt-4 text-3xl md:text-5xl font-bold leading-tight text-gray-900 dark:text-white">
-              Smart Assistant + Live Agent Handoff
-            </h1>
-            <p className="mt-4 text-base md:text-lg text-gray-700 dark:text-gray-300 max-w-2xl">
-              The widget at the bottom-right works like modern ecommerce support chat. It now uses context from your support conversation and can reference your recent orders.
-            </p>
-          </motion.div>
-
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <a
-              href={whatsappUrl("Hi GreenPack Support, I need help with my account.")}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-xl border border-green-200 dark:border-green-800 bg-white dark:bg-gray-900 p-4 hover:-translate-y-0.5 transition-transform"
-            >
-              <p className="font-semibold text-gray-900 dark:text-white">WhatsApp</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{WHATSAPP_DISPLAY}</p>
-            </a>
-            <a
-              href="mailto:support@greenpackdelight.com"
-              className="rounded-xl border border-green-200 dark:border-green-800 bg-white dark:bg-gray-900 p-4 hover:-translate-y-0.5 transition-transform"
-            >
-              <p className="font-semibold text-gray-900 dark:text-white">Email Support</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">support@greenpackdelight.com</p>
-            </a>
-            <a
-              href="tel:+2348140119893"
-              className="rounded-xl border border-green-200 dark:border-green-800 bg-white dark:bg-gray-900 p-4 hover:-translate-y-0.5 transition-transform"
-            >
-              <p className="font-semibold text-gray-900 dark:text-white">Call Center</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">+234 814 011 9893</p>
-            </a>
-            <button
-              onClick={queueForLiveAgent}
-              className="rounded-xl border border-green-200 dark:border-green-800 bg-white dark:bg-gray-900 p-4 text-left hover:-translate-y-0.5 transition-transform"
-            >
-              <p className="font-semibold text-gray-900 dark:text-white">Connect Live Agent</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Join human support queue</p>
-            </button>
-          </div>
-        </div>
-      </section>
-      )}
-
-      {!chatOnly && (
-      <section className="max-w-6xl mx-auto px-4 py-8 md:py-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">How this works</p>
-            <ol className="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-400">
-              <li>1. Open the floating widget at the bottom-right.</li>
-              <li>2. Chat with assistant for context-aware support and order lookup.</li>
-              <li>3. Tap Connect Live Agent if still unresolved.</li>
-            </ol>
-          </div>
-          <div className="rounded-2xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 p-5">
-            <p className="text-sm font-semibold text-green-900 dark:text-green-200">Account context</p>
-            <p className="mt-2 text-sm text-green-800 dark:text-green-300">
-              {orders.length > 0
-                ? `I found ${orders.length} order${orders.length > 1 ? "s" : ""} on this account. Try: \"track my last order\" in chat.`
-                : "No recent orders found yet. You can still get support using your order reference or account email."}
-            </p>
-            <Link
-              href="/help"
-              className="inline-block mt-3 text-sm font-semibold text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200"
-            >
-              Go to Help Center
-            </Link>
-          </div>
-        </div>
-      </section>
-      )}
-
-      <div className={chatOnly ? "fixed inset-0 z-[70]" : "fixed right-3 bottom-3 md:right-5 md:bottom-5 z-[70] w-[calc(100vw-1.5rem)]"}>
+    <div className="min-h-screen bg-transparent">
+      <div className="fixed inset-0 z-[70]">
         {isWidgetOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className={chatOnly ? "relative h-full min-h-0 flex flex-col overflow-hidden border-0 bg-[#f4f8f5] dark:bg-gray-900" : `relative ml-auto min-h-0 flex flex-col overflow-hidden rounded-[28px] border border-green-200/80 dark:border-gray-700 bg-[#f4f8f5] dark:bg-gray-900 shadow-[0_24px_64px_rgba(0,0,0,0.16)] transition-[width,height] duration-300 ${isWideWidget ? "h-[min(560px,calc(100dvh-7rem))] w-[min(760px,calc(100vw-1.5rem))]" : "h-[min(650px,calc(100dvh-7rem))] w-[min(420px,calc(100vw-1.5rem))]"}`}
+            className="relative h-full min-h-0 flex flex-col overflow-hidden border-0 bg-[#f4f8f5] dark:bg-gray-900"
           >
             <div className="px-5 pt-4 pb-3 bg-[#f4f8f5] dark:bg-gray-900">
               <div className="flex items-center justify-between">
@@ -1347,21 +1269,6 @@ export default function ContactSupportPage() {
           </motion.div>
         )}
 
-        {!isWidgetOpen && !chatOnly && (
-          <button
-            onClick={() => setIsWidgetOpen(true)}
-            className="ml-auto flex items-center gap-2 rounded-full bg-green-600 text-white px-4 py-3 shadow-lg shadow-green-700/30 hover:bg-green-700"
-            aria-label="Open support chat"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h8M8 14h5m-9 7l1.405-1.405A2.032 2.032 0 017.158 19H19a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h2.159c.538 0 1.055.214 1.436.595L10 21z" />
-            </svg>
-            Chat Support
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7 7 7" />
-            </svg>
-          </button>
-        )}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import AuthBackdrop from "@/components/auth/AuthBackdrop";
+import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 
 type RecoveryStatus = "verifying" | "ready" | "success" | "error";
@@ -57,6 +58,7 @@ function getRecoveryErrorMessage(error: unknown): string {
 export default function ResetPasswordPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const { signOut } = useAuth();
 
   const [status, setStatus] = useState<RecoveryStatus>("verifying");
   const [statusMessage, setStatusMessage] = useState("Validating your password reset link…");
@@ -184,7 +186,15 @@ export default function ResetPasswordPage() {
 
     // End the recovery session so the user signs in fresh with the NEW
     // password (matches the expectation: "then I log in with my new password").
-    await supabase.auth.signOut();
+    //
+    // `useAuth().signOut` is the one place this is done correctly: it passes
+    // `scope: "local"`, which clears only THIS browser's session. A bare
+    // `signOut()` defaults to `scope: "global"`, which revokes the refresh token
+    // server-side for the whole user and drops them from every host at once —
+    // and `/reset-password` is served on all four (see **Multi-Host Setup**), so
+    // a vendor resetting their password here would have been signed out of the
+    // customer site and the courier hub as well. See CLAUDE.md rule 1.
+    await signOut();
     setSubmitting(false);
     setStatus("success");
     setStatusMessage("Password updated. Please sign in with your new password.");
