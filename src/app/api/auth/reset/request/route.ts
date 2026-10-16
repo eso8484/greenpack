@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendTransactionalEmail } from "@/lib/email";
+import { sendTransactionalEmail, emailContactText } from "@/lib/email";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import { courierUrl, isCourierHost, isVendorHost, vendorUrl } from "@/lib/hosts";
 import { resolveVendorAuthEmail } from "@/lib/vendor-identity";
+import {
+  CONTACT_EMAIL,
+  SUPPORT_EMAIL,
+  WHATSAPP_DISPLAY,
+  whatsappUrl,
+} from "@/lib/constants";
 
 const RequestSchema = z.object({
   email: z.string().email(),
@@ -28,6 +34,8 @@ function buildEmail(actionLink: string) {
     actionLink,
     "",
     "This link expires in 1 hour and can be used once. If you didn't request it, you can ignore this email — your password stays unchanged.",
+    "",
+    ...emailContactText(),
   ].join("\n");
 
   const html = `<!doctype html>
@@ -49,6 +57,18 @@ function buildEmail(actionLink: string) {
             </a>
             <p style="margin:20px 0 0;font-size:12px;line-height:1.6;color:#9ca3af">
               This link expires in 1 hour and can only be used once. If you didn't request it, you can safely ignore this email — your password stays unchanged.
+            </p>
+          </td></tr>
+          <tr><td style="padding:0 28px 24px">
+            <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#111827">Need help?</p>
+            <p style="margin:0 0 4px;font-size:12px;line-height:1.6;color:#4b5563">
+              Reach us for support at <a href="mailto:${SUPPORT_EMAIL}" style="color:#16a34a">${SUPPORT_EMAIL}</a>
+            </p>
+            <p style="margin:0 0 4px;font-size:12px;line-height:1.6;color:#4b5563">
+              For more information about GreenPack, write to <a href="mailto:${CONTACT_EMAIL}" style="color:#16a34a">${CONTACT_EMAIL}</a>
+            </p>
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#4b5563">
+              Or message us on WhatsApp: <a href="${whatsappUrl("Hi GreenPack, I need help.")}" style="color:#16a34a">${WHATSAPP_DISPLAY}</a>
             </p>
           </td></tr>
           <tr><td style="padding:16px 28px;border-top:1px solid #f3f4f6;font-size:11px;color:#9ca3af">

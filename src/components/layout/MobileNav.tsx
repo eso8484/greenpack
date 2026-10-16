@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import SearchBar from "./SearchBar";
-import { categories } from "@/lib/data/categories";
+import { categoriesInGroup, categoryGroups } from "@/lib/data/categories";
 import { useAuth } from "@/hooks/useAuth";
 import { courierUrl, vendorUrl } from "@/lib/hosts";
 import { useRouter } from "next/navigation";
@@ -193,22 +193,50 @@ export default function MobileNav({ open, onClose }: MobileNavProps) {
           </Link>
         </div>
 
-        {/* Categories */}
+        {/* Categories — grouped, and collapsed by default.
+
+            The flat list ran to 45 rows here, which buried everything below it
+            in the drawer. Nine native `<details>` keep it short, and the group
+            header is itself a link to `/browse?group=<slug>` so the group is
+            reachable without expanding. No state: the browser owns open/closed,
+            and the links inside still close the drawer on tap. */}
         <div className="px-4 pb-6">
           <h3 className="px-3 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
             Categories
           </h3>
           <div className="space-y-0.5">
-            {categories.map((cat) => (
-              <Link
-                key={cat.id}
-                href={`/browse?category=${cat.slug}`}
-                onClick={onClose}
-                className="flex items-center gap-3 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
-              >
-                <span className="text-lg">{cat.icon}</span>
-                <span>{cat.name}</span>
-              </Link>
+            {categoryGroups.map((group) => (
+              <details key={group.id} className="group">
+                <summary className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                  <span className="text-lg">{group.icon}</span>
+                  <span className="flex-1 leading-tight">{group.name}</span>
+                  <span className="material-symbols-outlined text-[18px] text-gray-400 transition-transform group-open:rotate-180">
+                    expand_more
+                  </span>
+                </summary>
+
+                <div className="mt-0.5 ml-4 space-y-0.5 border-l border-gray-100 dark:border-gray-700/60 pl-2">
+                  <Link
+                    href={`/browse?group=${group.slug}`}
+                    onClick={onClose}
+                    className="flex items-center gap-3 px-3 py-2 text-xs text-gray-500 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
+                  >
+                    <span className="text-base">↳</span>
+                    <span>All in this group</span>
+                  </Link>
+                  {categoriesInGroup(group.id).map((cat) => (
+                    <Link
+                      key={cat.id}
+                      href={`/browse?category=${cat.slug}`}
+                      onClick={onClose}
+                      className="flex items-center gap-3 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 rounded-lg transition-colors"
+                    >
+                      <span className="text-lg">{cat.icon}</span>
+                      <span className="line-clamp-1">{cat.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              </details>
             ))}
           </div>
         </div>

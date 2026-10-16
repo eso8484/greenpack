@@ -9,7 +9,7 @@ import { WishlistProvider } from "@/context/WishlistContext";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import Toaster from "@/components/ui/Toaster";
 import InactivityWatch from "@/components/auth/InactivityWatch";
-import { isCourierHost, isVendorHost } from "@/lib/hosts";
+import { isAdminHost, isCourierHost, isVendorHost } from "@/lib/hosts";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -27,11 +27,11 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Which host are we rendering for? The vendor centre, the courier hub, and the
-  // storefront are the same deployment, and the storefront Header must not appear
-  // on either subdomain — but a client-side hostname check would flash it before
-  // hydration, so the host is resolved here on the server and handed to AppChrome
-  // as a prop.
+  // Which host are we rendering for? The vendor centre, the courier hub, the
+  // admin console, and the storefront are the same deployment, and the storefront
+  // Header must not appear on any of the three subdomains — but a client-side
+  // hostname check would flash it before hydration, so the host is resolved here
+  // on the server and handed to AppChrome as a prop.
   //
   // This costs nothing: the app is already fully dynamic (db.ts reaches
   // supabase/server.ts, which awaits cookies()), so reading headers() adds no
@@ -39,6 +39,7 @@ export default async function RootLayout({
   const host = (await headers()).get("host");
   const onVendorHost = isVendorHost(host);
   const onCourierHost = isCourierHost(host);
+  const onAdminHost = isAdminHost(host);
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -56,7 +57,11 @@ export default async function RootLayout({
           <AuthProvider>
             <WishlistProvider>
               <CartProvider>
-                <AppChrome onVendorHost={onVendorHost} onCourierHost={onCourierHost}>
+                <AppChrome
+                  onVendorHost={onVendorHost}
+                  onCourierHost={onCourierHost}
+                  onAdminHost={onAdminHost}
+                >
                   {children}
                 </AppChrome>
                 <Toaster />

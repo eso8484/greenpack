@@ -8,7 +8,8 @@ import Input from "@/components/ui/Input";
 import ImageUpload from "@/components/ui/ImageUpload";
 import ImageGalleryUpload from "@/components/ui/ImageGalleryUpload";
 import AddressAutocomplete from "@/components/ui/AddressAutocomplete";
-import { categories } from "@/lib/data/categories";
+import { categories, categoriesInGroup, categoryGroups } from "@/lib/data/categories";
+import { shopImagesComplete } from "@/lib/utils";
 
 /** Generate a URL-safe slug from a shop name. */
 function slugify(name: string): string {
@@ -65,11 +66,31 @@ const EMPTY_FORM: ShopFormState = {
   gallery: [],
 };
 
+/**
+ * The gallery entries that will actually be stored — blanks dropped by the
+ * save, and by this helper, because both need the same answer.
+ *
+ * `shopImagesComplete()` counts array *length* rather than non-blank entries
+ * (migration 021 mirrors that deliberately, so the SQL and the TS agree). The
+ * save, however, filters blanks before sending. Those two facts only reconcile
+ * here: a form holding one empty row is `[""]`, which the predicate reads as
+ * present and the save stores as nothing. Passing the raw array to the
+ * predicate would show a listed shop that is not listed, so the notice and the
+ * payload both read this instead.
+ */
+const savedGalleryUrls = (gallery: string[]) =>
+  gallery.filter((url) => url.trim().length > 0);
+
 export default function ShopEditorPage() {
   const [shopId, setShopId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<ShopFormState>(EMPTY_FORM);
+  // Declared here rather than beside `updateField` below, where it used to sit:
+  // the load effect underneath calls this setter, and a state hook declared after
+  // the hook that closes over it is exactly the temporal-dead-zone hazard
+  // `react-hooks/immutability` rejects.
+  const [slugTouched, setSlugTouched] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,8 +169,6 @@ export default function ShopEditorPage() {
       cancelled = true;
     };
   }, []);
-
-  const [slugTouched, setSlugTouched] = useState(false);
 
   const updateField = (field: keyof ShopFormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -261,7 +280,7 @@ export default function ShopEditorPage() {
         images: {
           thumbnail: form.thumbnail.trim(),
           banner: form.banner.trim(),
-          gallery: form.gallery.filter((url) => url.trim().length > 0),
+          gallery: savedGalleryUrls(form.gallery),
         },
       };
       if (trimmedCategoryId) body.category_id = trimmedCategoryId;
@@ -317,6 +336,23 @@ export default function ShopEditorPage() {
   if (loading) {
     return <div className="text-sm text-gray-500 dark:text-gray-400">Loading shop profile...</div>;
   }
+
+  // Derived from the form on every render, never stored: the vendor is one
+  // keystroke away from a different answer, and state kept beside the form is
+  // state that can disagree with it. `shopImagesComplete()` is the same
+  // predicate the listing queries are built on (migration 021 mirrors it in
+  // SQL), so this notice cannot drift from what actually decides listing.
+  //
+  // Fed the sanitized values, not the raw form — see `savedGalleryUrls`. Both
+  // the verdict and the checklist below read it, so there is one answer to
+  // "what will this shop have" rather than a verdict and a payload that can
+  // disagree.
+  const savedGallery = savedGalleryUrls(form.gallery);
+  const isDisplayable = shopImagesComplete({
+    thumbnail: form.thumbnail.trim(),
+    banner: form.banner.trim(),
+    gallery: savedGallery,
+  });
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -390,10 +426,17 @@ export default function ShopEditorPage() {
                 className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white transition-colors focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
               >
                 <option value="">Select a category</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.name}
-                  </option>
+                {/* Grouped for the same reason as the vendor registration
+                    picker — see `vendor/register/page.tsx`. The value stays
+                    the leaf `cat.id`. */}
+                {categoryGroups.map((group) => (
+                  <optgroup key={group.id} label={`${group.icon} ${group.name}`}>
+                    {categoriesInGroup(group.id).map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.icon} {cat.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
@@ -404,6 +447,55 @@ export default function ShopEditorPage() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
             Shop Images
           </h2>
+
+          {isDisplayable ? (
+            <div className="mb-5 flex items-start gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+              <span className="material-symbols-outlined text-green-600 dark:text-green-400 mt-0.5">
+                check
+              </span>
+              <p className="text-sm text-green-800 dark:text-green-300">
+                Your shop has everything it needs and is visible to customers.
+              </p>
+            </div>
+          ) : (
+            <div className="mb-5 flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+              <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 mt-0.5">
+                visibility
+              </span>
+              <div className="text-sm text-amber-800 dark:text-amber-300">
+                <p className="font-medium">Your shop isn&apos;t listed yet.</p>
+                {/* "saves and stays editable" is the promise that makes this a
+                    notice rather than a wall: the save succeeds either way (see
+                    migration 021's column comment), and saying so is what stops
+                    a vendor from assuming the form failed. */}
+                <p className="mt-1">
+                  Your changes save either way. But customers can&apos;t find you in browse,
+                  search, or your category until all three of these are in place:
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {[
+                    { met: form.thumbnail.trim().length > 0, label: "A thumbnail — shown on listing cards" },
+                    { met: form.banner.trim().length > 0, label: "A banner — shown at the top of your shop page" },
+                    { met: savedGallery.length > 0, label: "At least one gallery image" },
+                  ].map(({ met, label }) => (
+                    <li key={label} className="flex items-start gap-2">
+                      {/* Colour, not just the glyph: the parent is amber, so a
+                          bare icon swap would leave a satisfied row looking
+                          identical to an outstanding one at a glance. */}
+                      <span
+                        className={`material-symbols-outlined text-base ${
+                          met ? "text-green-600 dark:text-green-400" : ""
+                        }`}
+                      >
+                        {met ? "check" : "remove"}
+                      </span>
+                      <span>{label}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
           <div className="space-y-5">
             <ImageUpload
               label="Shop Thumbnail (displayed in listings)"

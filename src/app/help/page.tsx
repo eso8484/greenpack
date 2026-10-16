@@ -7,6 +7,7 @@ import CategoryCard from "@/components/help/CategoryCard";
 import FAQAccordion from "@/components/help/FAQAccordion";
 import EmptyState from "@/components/ui/EmptyState";
 import { faqCategories, faqItems } from "@/lib/data/faqs";
+import { SUPPORT_EMAIL, WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/constants";
 import { FAQCategory } from "@/types";
 
 const quickActions = [
@@ -28,8 +29,16 @@ const quickActions = [
 ];
 
 const supportChannels = [
-  { label: "Live chat", value: "Average wait: 2 minutes", href: undefined },
-  { label: "Email", value: "support@greenpackdelight.com", href: "mailto:support@greenpackdelight.com" },
+  { label: "Live chat", value: "Average wait: 2 minutes", href: undefined, external: false },
+  { label: "Email", value: SUPPORT_EMAIL, href: `mailto:${SUPPORT_EMAIL}`, external: false },
+  // `external` because a wa.me link is a different origin: opening it in this
+  // tab would navigate away from the Help Center mid-read.
+  {
+    label: "WhatsApp",
+    value: WHATSAPP_DISPLAY,
+    href: whatsappUrl("Hi GreenPack, I need help."),
+    external: true,
+  },
 ];
 
 export default function HelpCenterPage() {
@@ -245,6 +254,8 @@ export default function HelpCenterPage() {
                   {channel.href ? (
                     <a
                       href={channel.href}
+                      target={channel.external ? "_blank" : undefined}
+                      rel={channel.external ? "noreferrer" : undefined}
                       className="mt-1 block text-gray-800 dark:text-gray-200 font-medium hover:text-green-600 dark:hover:text-green-400 transition-colors"
                     >
                       {channel.value}

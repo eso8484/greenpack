@@ -11,7 +11,7 @@ import OTPInput from "@/components/auth/OTPInput";
 import AuthBackdrop from "@/components/auth/AuthBackdrop";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
-import { isCourierHost, isVendorHost, siteUrl, vendorUrl } from "@/lib/hosts";
+import { adminUrl, isAdminHost, isCourierHost, isVendorHost, siteUrl, vendorUrl } from "@/lib/hosts";
 
 type LoginMethod = "email" | "phone";
 type LoginStage = "credentials" | "otp";
@@ -180,16 +180,23 @@ export default function LoginPage() {
     // for the same reason: its clean `/dashboard` only resolves there.
     const onVendorHost = isVendorHost(window.location.host);
     const onCourierHost = isCourierHost(window.location.host);
+    const onAdminHost = isAdminHost(window.location.host);
 
-    // The default landing spot is not servable on the courier hub — `/browse`
-    // is outside its allow-list, so a non-courier who signs in there would be
-    // bounced to `/dashboard`, fail the courier role check, and end up back on
-    // the pitch. Send them to the storefront outright instead.
-    let target = onCourierHost ? siteUrl("/browse") : "/browse";
+    // The default landing spot is not servable on the courier hub or the admin
+    // console — `/browse` is outside both allow-lists, so a non-courier signing
+    // in on the hub (or a non-admin on the console) would be bounced to that
+    // host's own destination, fail its role check, and end up back on the pitch
+    // or in a 404. Send them to the storefront outright instead. Same rule 6
+    // shape as the courier case, applied to the fourth host.
+    let target = onCourierHost || onAdminHost ? siteUrl("/browse") : "/browse";
     if (redirect) target = redirect;
     else if (role === "vendor") target = onVendorHost ? "/dashboard" : "/seller/dashboard";
     else if (role === "courier") target = onCourierHost ? "/dashboard" : "/courier/dashboard";
-    else if (role === "admin") target = "/admin";
+    // An admin's console is on the admin host, and this session's cookie is
+    // host-only — so off that host, sign in again there. `/admin` would be
+    // rewritten to exactly that URL by the middleware anyway (the customer host
+    // hands `/admin` over); naming it here just skips the extra hop.
+    else if (role === "admin") target = onAdminHost ? "/admin" : adminUrl("/login?redirect=/admin");
 
     window.location.assign(target);
   };
@@ -221,12 +228,13 @@ export default function LoginPage() {
       // Same host rule as the phone path above.
       const onVendorHost = isVendorHost(window.location.host);
       const onCourierHost = isCourierHost(window.location.host);
+      const onAdminHost = isAdminHost(window.location.host);
 
-      let target = onCourierHost ? siteUrl("/browse") : "/browse";
+      let target = onCourierHost || onAdminHost ? siteUrl("/browse") : "/browse";
       if (redirect) target = redirect;
       else if (data.role === "vendor") target = onVendorHost ? "/dashboard" : "/seller/dashboard";
       else if (data.role === "courier") target = onCourierHost ? "/dashboard" : "/courier/dashboard";
-      else if (data.role === "admin") target = "/admin";
+      else if (data.role === "admin") target = onAdminHost ? "/admin" : adminUrl("/login?redirect=/admin");
 
       // Hard redirect so server-side cookies are picked up on the next page.
       window.location.assign(target);

@@ -8,7 +8,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import OTPInput from "@/components/auth/OTPInput";
 import PasswordStrength, { isPasswordStrong } from "@/components/auth/PasswordStrength";
-import { categories } from "@/lib/data/categories";
+import { categories, categoriesInGroup, categoryGroups } from "@/lib/data/categories";
 import AddressAutocomplete, {
   type ResolvedAddress,
 } from "@/components/ui/AddressAutocomplete";
@@ -951,10 +951,18 @@ export default function VendorRegisterPage() {
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-white transition-colors focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-green-900"
                 >
                   <option value="">Select a category</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.icon} {cat.name}
-                    </option>
+                  {/* 45 leaves is a long scroll in a native picker, so it is
+                      grouped. `optgroup` is the one grouping a <select> has
+                      and it needs no JS — the <option> value is still the
+                      leaf `cat.id`, so the submitted payload is unchanged. */}
+                  {categoryGroups.map((group) => (
+                    <optgroup key={group.id} label={`${group.icon} ${group.name}`}>
+                      {categoriesInGroup(group.id).map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.icon} {cat.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </div>

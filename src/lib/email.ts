@@ -13,6 +13,12 @@
  */
 
 import { Resolver } from "node:dns/promises";
+import {
+  CONTACT_EMAIL,
+  SUPPORT_EMAIL,
+  WHATSAPP_DISPLAY,
+  whatsappUrl,
+} from "@/lib/constants";
 
 type SendInput = {
   to: string;
@@ -22,6 +28,51 @@ type SendInput = {
   /** Optional sender override (e.g. a no-reply address for auth emails). */
   from?: string;
 };
+
+/**
+ * The contact block every transactional email ends with.
+ *
+ * It lives here rather than in each route because four senders render it and
+ * three of them share a template: the addresses a recipient is told to write to
+ * are the same ones the site publishes, and both come from `src/lib/constants.ts`.
+ *
+ * Two shapes, because the senders do not share one. `emailContactHtml()` returns a
+ * block for the `max-width: 480px` div template that `verify/send-email`,
+ * `email-otp/start`, and `admin/outreach` all use. `reset/request` is a 440px
+ * table with its own padding and font scale, so it renders the same three lines
+ * inline against the same constants rather than dropping this block into a card
+ * it was not styled for. Its `text:` fallback still uses `emailContactText()`.
+ *
+ * The HTML is deliberately plain: inline styles only, no flexbox, no background
+ * images. These are auth and outreach mails — read in Gmail, Outlook, and Apple
+ * Mail, where the CSS support is a decade behind the browser.
+ */
+export function emailContactHtml(): string {
+  return `
+        <div style="border-top: 1px solid #e5e7eb; margin-top: 28px; padding-top: 16px;">
+          <p style="color: #111; font-size: 14px; font-weight: bold; margin: 0 0 8px;">Need help?</p>
+          <p style="color: #666; font-size: 13px; margin: 0 0 6px;">
+            Reach us for support at <a href="mailto:${SUPPORT_EMAIL}" style="color: #22c55e;">${SUPPORT_EMAIL}</a>
+          </p>
+          <p style="color: #666; font-size: 13px; margin: 0 0 6px;">
+            For more information about GreenPack, write to <a href="mailto:${CONTACT_EMAIL}" style="color: #22c55e;">${CONTACT_EMAIL}</a>
+          </p>
+          <p style="color: #666; font-size: 13px; margin: 0;">
+            Or message us on WhatsApp: <a href="${whatsappUrl("Hi GreenPack, I need help.")}" style="color: #22c55e;">${WHATSAPP_DISPLAY}</a>
+          </p>
+        </div>
+  `;
+}
+
+/** The plain-text half of `emailContactHtml()`, as lines ready to join. */
+export function emailContactText(): string[] {
+  return [
+    "Need help?",
+    `  Support: ${SUPPORT_EMAIL}`,
+    `  More about GreenPack: ${CONTACT_EMAIL}`,
+    `  WhatsApp: ${WHATSAPP_DISPLAY} — ${whatsappUrl("Hi GreenPack, I need help.")}`,
+  ];
+}
 
 function resolvedFrom(override?: string): string {
   return (

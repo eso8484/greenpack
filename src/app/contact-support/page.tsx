@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { faqItems } from "@/lib/data/faqs";
 import { formatPrice } from "@/lib/utils";
+import { WHATSAPP_DISPLAY, whatsappUrl } from "@/lib/constants";
 
 type Message = {
   id: string;
@@ -988,13 +989,13 @@ export default function ContactSupportPage() {
 
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <a
-              href="https://wa.me/2348000000000?text=Hi%20GreenPack%20Support%2C%20I%20need%20help%20with%20my%20account."
+              href={whatsappUrl("Hi GreenPack Support, I need help with my account.")}
               target="_blank"
               rel="noreferrer"
               className="rounded-xl border border-green-200 dark:border-green-800 bg-white dark:bg-gray-900 p-4 hover:-translate-y-0.5 transition-transform"
             >
               <p className="font-semibold text-gray-900 dark:text-white">WhatsApp</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Fast support on chat</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{WHATSAPP_DISPLAY}</p>
             </a>
             <a
               href="mailto:support@greenpackdelight.com"

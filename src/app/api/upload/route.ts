@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  ALLOWED_TYPES,
+  MAX_SIZE_BYTES,
+  SHOP_ASSETS_BUCKET,
+  extFromName,
+  sniffImageType,
+} from "@/lib/image-bytes";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_SIZE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const BUCKET = "shop-assets";
+const BUCKET = SHOP_ASSETS_BUCKET;
 
 function safeFolder(input: string | null): string {
   if (!input) return "misc";
@@ -16,41 +21,6 @@ function safeFolder(input: string | null): string {
     .replace(/\/+/g, "/")
     .replace(/^\/+|\/+$/g, "")
     .slice(0, 100) || "misc";
-}
-
-function extFromName(name: string): string {
-  const dot = name.lastIndexOf(".");
-  if (dot < 0) return "jpg";
-  return name.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "jpg";
-}
-
-/**
- * Detect the real image type from magic bytes. The client-supplied `file.type`
- * is trivially spoofable, so we never trust it for the content check — a file
- * disguised as image/png but actually HTML/SVG would be rejected here.
- */
-function sniffImageType(buf: Buffer): string | null {
-  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
-    return "image/jpeg";
-  }
-  if (
-    buf.length >= 8 &&
-    buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 &&
-    buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a
-  ) {
-    return "image/png";
-  }
-  if (buf.length >= 6 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) {
-    return "image/gif";
-  }
-  if (
-    buf.length >= 12 &&
-    buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 && // "RIFF"
-    buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50 // "WEBP"
-  ) {
-    return "image/webp";
-  }
-  return null;
 }
 
 export async function POST(request: Request) {

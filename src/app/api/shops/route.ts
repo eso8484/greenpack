@@ -1,19 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { z } from "zod";
-
-const CreateShopSchema = z.object({
-  name: z.string().min(2),
-  slug: z.string().min(2).regex(/^[a-z0-9-]+$/),
-  description: z.string().optional(),
-  short_description: z.string().optional(),
-  category_id: z.string().optional(),
-  category_name: z.string().optional(),
-  location: z.record(z.string(), z.unknown()).optional(),
-  contact: z.record(z.string(), z.unknown()).optional(),
-  hours: z.record(z.string(), z.unknown()).optional(),
-  tags: z.array(z.string()).optional(),
-});
+import { CreateShopSchema } from "@/lib/shop-schema";
 
 export async function GET(request: Request) {
   try {
@@ -40,6 +27,13 @@ export async function GET(request: Request) {
         `name.ilike.%${query}%,description.ilike.%${query}%,short_description.ilike.%${query}%`
       );
     }
+
+    // The display rule. Last of the filters and deliberately ahead of the
+    // `.range()` below: this endpoint paginates, so filtering after the cut
+    // would return a short page while displayable shops sit just past it.
+    // `images_complete` is the generated column from migration 021; the mock
+    // twin is shopImagesComplete() in utils.ts.
+    dbQuery = dbQuery.eq("images_complete", true);
 
     switch (sort) {
       case "rating":

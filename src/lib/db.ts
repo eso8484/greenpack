@@ -61,6 +61,7 @@ function mapShop(row: any): Shop {
     tags: row.tags ?? [],
     isVerified: row.is_verified ?? false,
     isFeatured: row.is_featured ?? false,
+    isElite: row.is_elite ?? false,
     createdAt: row.created_at ?? new Date().toISOString(),
   };
 }
@@ -119,11 +120,18 @@ function mapReview(row: any): Review {
 
 export async function dbGetShops(filters?: {
   query?: string;
-  categoryId?: string | null;
+  /**
+   * The member ids of whichever category scope is active. A leaf arrives as a
+   * one-element array; a group arrives as all of its leaves. One field rather
+   * than a `categoryId` plus a `categoryIds`, so there is no way to set both
+   * and have to decide which wins down here.
+   */
+  categoryIds?: string[] | null;
   city?: string;
   sortBy?: string;
   verifiedOnly?: boolean;
   featured?: boolean;
+  elite?: boolean;
   limit?: number;
 }): Promise<Shop[]> {
   if (!SUPABASE_CONFIGURED) {
@@ -131,7 +139,7 @@ export async function dbGetShops(filters?: {
     const { filterShops } = await import("./utils");
     return filterShops(shops, {
       query: filters?.query ?? "",
-      categoryId: filters?.categoryId ?? null,
+      categoryIds: filters?.categoryIds ?? null,
       sortBy:
         (filters?.sortBy as
           | "relevance"
@@ -153,19 +161,40 @@ export async function dbGetShops(filters?: {
       `name.ilike.%${filters.query}%,description.ilike.%${filters.query}%`
     );
   }
-  if (filters?.categoryId) dbQuery = dbQuery.eq("category_id", filters.categoryId);
+  if (filters?.categoryIds?.length) {
+    dbQuery = dbQuery.in("category_id", filters.categoryIds);
+  }
   if (filters?.verifiedOnly) dbQuery = dbQuery.eq("is_verified", true);
   if (filters?.featured) dbQuery = dbQuery.eq("is_featured", true);
+  if (filters?.elite) dbQuery = dbQuery.eq("is_elite", true);
   if (filters?.city) {
     dbQuery = dbQuery.or(
       `location->>city.ilike.%${filters.city}%,location->>state.ilike.%${filters.city}%`
     );
   }
 
+  // The display rule: a shop needs a thumbnail, a banner, and at least one
+  // gallery image to be listed. In SQL, not in JS — `.limit()` below cuts the
+  // page, and filtering after the cut would hand back a short or empty page while
+  // more displayable shops sit just past it. `images_complete` is the generated
+  // column from migration 021; `shopImagesComplete()` in utils.ts is its twin and
+  // the mock path's half of this same rule, so the two must agree.
+  dbQuery = dbQuery.eq("images_complete", true);
+
+  // Elite is the primary key, the requested sort the secondary — so an elite shop
+  // leads under every sort while each tier keeps the order the visitor asked for.
+  // PostgREST applies chained `.order()` calls in sequence, which is the multi-key
+  // sort this needs (there is no cross-call transaction to lean on, and none is
+  // needed). With nothing approved every row is `is_elite = false`, so this
+  // collapses to exactly the previous single-key ordering.
   if (filters?.sortBy === "rating") {
-    dbQuery = dbQuery.order("rating", { ascending: false });
+    dbQuery = dbQuery
+      .order("is_elite", { ascending: false })
+      .order("rating", { ascending: false });
   } else {
-    dbQuery = dbQuery.order("created_at", { ascending: false });
+    dbQuery = dbQuery
+      .order("is_elite", { ascending: false })
+      .order("created_at", { ascending: false });
   }
 
   if (filters?.limit) dbQuery = dbQuery.limit(filters.limit);

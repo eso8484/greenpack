@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isCourierHost, isVendorHost } from "@/lib/hosts";
+import { adminUrl, isAdminHost, isCourierHost, isVendorHost, siteUrl } from "@/lib/hosts";
 
 // Routes that require authentication (any role).
 // `/vendor/register` is public — both guests and signed-in users land on the
@@ -21,6 +21,7 @@ const ROLE_REQUIRED: Record<string, string[]> = {
   "/seller/products": ["vendor", "admin"],
   "/seller/services": ["vendor", "admin"],
   "/seller/payout": ["vendor", "admin"],
+  "/seller/elite": ["vendor", "admin"],
   "/courier/dashboard": ["courier", "admin"],
   "/admin": ["admin"],
 };
@@ -30,7 +31,7 @@ const ROLE_REQUIRED: Record<string, string[]> = {
 // clean form, so `vendor.greenpackdelight.com/products` renders the products
 // page without the customer site's route prefix leaking into vendor URLs.
 //
-// These six keys mirror STANDALONE_EXACT in src/components/layout/AppChrome.tsx
+// These seven keys mirror STANDALONE_EXACT in src/components/layout/AppChrome.tsx
 // — keep the two lists in step. That list is what suppresses the customer
 // Header/Footer, and because it contains BOTH the clean path and (via the
 // `/seller` prefix) the underlying route, it holds whether usePathname()
@@ -46,6 +47,7 @@ const VENDOR_REWRITES = new Map<string, string>([
   ["/services", "/seller/services"],
   ["/products", "/seller/products"],
   ["/payout", "/seller/payout"],
+  ["/elite", "/seller/elite"],
   ["/onboarding", "/seller/onboarding"],
 ]);
 
@@ -146,6 +148,100 @@ function isCourierHostPathAllowed(pathname: string): boolean {
   return lastSegment.includes(".");
 }
 
+// The admin console's allow-list. The structural difference from the two hosts
+// above is that there is nothing to rewrite: `/admin/*` keeps its own path on
+// this host, so there is no ADMIN_REWRITES map and no EXACT list — every allowed
+// path is a prefix.
+//
+// `/` is deliberately ABSENT. The console has no front door: a request for the
+// host's root falls through to the closed-host block below and lands on `/admin`,
+// which 404s for anyone who is not signed in as an admin. That is the intended
+// greeting for a stranger who has found the hostname in a Certificate
+// Transparency log.
+const ADMIN_HOST_ALLOWED_PREFIXES = [
+  "/admin", // all four console pages, matched by ROLE_REQUIRED["/admin"]
+  "/login", // the customer lane — an admin signs in here like anyone else
+  "/reset-password",
+  "/api", // the console's own API routes; they self-check requireAdmin()
+  "/not-found", // the rewrite target for every 404 on this host
+  "/_next", // HMR + data requests; redirecting these breaks the dev server
+];
+
+function isAdminHostPathAllowed(pathname: string): boolean {
+  if (
+    ADMIN_HOST_ALLOWED_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    )
+  ) {
+    return true;
+  }
+
+  // A file request (robots.txt, manifest.webmanifest, …) rather than a page.
+  const lastSegment = pathname.slice(pathname.lastIndexOf("/") + 1);
+  return lastSegment.includes(".");
+}
+
+// ── The gate ─────────────────────────────────────────────────────────────────
+//
+// A device door, not an IP door. It exists because the requirement behind it was
+// "sometimes my IP or home network can change, which prevents my IP from reaching
+// the panel" — and an IP allow-list is precisely the thing that breaks when a
+// network changes. Nothing here consults an address.
+//
+// Two independent proofs guard the console, and neither subsumes the other:
+//
+//   Door A  the gate cookie  — this browser was granted access, long ago
+//   Door B  the Supabase session + ROLE_REQUIRED["/admin"] — this session is an admin
+//
+// Door B is the existing hideIfUnauthorized behaviour and is untouched. Door A is
+// the cookie set by visiting /gate/<secret> once per device. Clearing the cookie
+// locks an admin out; revoking the session is a separate act. Both must hold.
+//
+// An unset ADMIN_GATE_SECRET locks the console rather than opening it — the
+// opposite of rateLimit() in src/lib/rate-limit.ts, which deliberately fails
+// OPEN. The two must not be assumed to agree.
+const ADMIN_GATE_COOKIE = "gp_admin_gate";
+const ADMIN_GATE_PATH = "/gate";
+
+// Exemptions are mechanical, not policy: Next's own asset/HMR requests must pass
+// or dev breaks, and a file request is not a page.
+function adminGateExempt(pathname: string): boolean {
+  if (pathname.startsWith("/_next")) return true;
+  const last = pathname.slice(pathname.lastIndexOf("/") + 1);
+  return last.includes(".");
+}
+
+// Constant-time compare. A plain `===` leaks the secret one byte at a time to
+// anyone willing to measure the response — and this comparison is reachable by
+// the public, on a URL whose whole job is to be unguessable.
+function gateSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// The cookie's value is an HMAC of a FIXED string keyed on the secret — never the
+// secret itself. A leaked cookie therefore grants access without disclosing the
+// URL that mints it, and rotating the secret invalidates every enrolled device at
+// once. The version suffix is what makes a future change of scheme a rotation
+// rather than a silent reinterpretation of existing cookies.
+async function adminGateValue(secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode("gp-admin-gate-v1")
+  );
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -155,6 +251,7 @@ export async function middleware(request: NextRequest) {
   const host = request.headers.get("host");
   const onVendorHost = isVendorHost(host);
   const onCourierHost = isCourierHost(host);
+  const onAdminHost = isAdminHost(host);
 
   // Resolve the host's clean URLs onto the real routes BEFORE any auth matching
   // runs. Matching against the incoming path instead would let `/dashboard` slip
@@ -250,6 +347,100 @@ export async function middleware(request: NextRequest) {
     return withAuthCookies(NextResponse.redirect(url));
   }
 
+  // ── The admin host ─────────────────────────────────────────────────────────
+  //
+  // The gate runs FIRST, ahead of the closed-host block below, so an ungated
+  // visitor learns nothing about the host's shape — not even which paths redirect
+  // where. Everything it refuses is answered with the same 404 rewrite
+  // hideIfUnauthorized already uses, so "not allowed in" and "no such route" are
+  // indistinguishable from outside.
+  if (onAdminHost) {
+    const secret = process.env.ADMIN_GATE_SECRET;
+
+    // Enrolment. A correct secret mints the cookie; anything else — a wrong
+    // secret, an empty one, a bare /gate — gets the ordinary 404. A distinct
+    // error here would confirm the path exists and turn the secret into something
+    // guessable by oracle, which is exactly what a shared secret must not be.
+    if (pathname === ADMIN_GATE_PATH || pathname.startsWith(`${ADMIN_GATE_PATH}/`)) {
+      const provided = pathname.slice(ADMIN_GATE_PATH.length + 1);
+      if (secret && provided && gateSafeEqual(provided, secret)) {
+        const url = request.nextUrl.clone();
+        // Land on /login?redirect=/admin, not on /admin. A freshly enrolled
+        // browser is usually signed out on this host, and /admin without an
+        // admin session is a deliberate 404 (hideIfUnauthorized) — so going
+        // straight there greets a *successful* enrolment with "page not found",
+        // which reads as the gate having failed. /login is right either way:
+        // signed out it renders the form, and a signed-in admin is forwarded on
+        // by the guest-only bounce, which this host deliberately does not exempt.
+        // This is the same URL the customer-host hand-off uses.
+        url.pathname = "/login";
+        url.search = "?redirect=/admin";
+        const res = withAuthCookies(NextResponse.redirect(url));
+        // Set AFTER withAuthCookies() so the two never contend for the response.
+        res.cookies.set(ADMIN_GATE_COOKIE, await adminGateValue(secret), {
+          httpOnly: true,
+          secure: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 400, // the browser ceiling; the cookie is the door key
+        });
+        return res;
+      }
+
+      const url = request.nextUrl.clone();
+      url.pathname = "/not-found";
+      return withAuthCookies(NextResponse.rewrite(url, { status: 404 }));
+    }
+
+    // The gate itself. An unset secret yields expected === "", which no cookie
+    // can equal, so the host serves 404s and nothing else — including /login.
+    // Fail CLOSED: a missing env var must never be the thing that opens the door.
+    if (!adminGateExempt(pathname)) {
+      const expected = secret ? await adminGateValue(secret) : "";
+      const presented = request.cookies.get(ADMIN_GATE_COOKIE)?.value ?? "";
+      if (!expected || !gateSafeEqual(presented, expected)) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/not-found";
+        return withAuthCookies(NextResponse.rewrite(url, { status: 404 }));
+      }
+    }
+  }
+
+  // Close the admin host. There is no `/dashboard` equivalent to send people to —
+  // `/admin` is the one destination that produces a useful next step, and for a
+  // signed-out visitor it 404s by way of hideIfUnauthorized, which is the point.
+  //
+  // This runs on the *incoming* pathname, so `/` on this host is judged as `/`
+  // (not allowed, no rewrite target) and is swept up here exactly like `/browse`.
+  if (onAdminHost && !isAdminHostPathAllowed(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin";
+    url.search = "";
+    return withAuthCookies(NextResponse.redirect(url));
+  }
+
+  // The console used to live at greenpackdelight.com/admin. It does not any more,
+  // and the old path hands over rather than 404s.
+  //
+  // It routes through the admin host's own /login rather than straight to the
+  // path, because session cookies are host-only: someone signed in on the
+  // customer host is a *guest* on the admin host, so a direct jump would show him
+  // a 404 at the exact moment he asked for his console. Through /login it is
+  // correct either way — already signed in there, /login forwards straight on;
+  // not signed in, he signs in once.
+  //
+  // The three-host guard is explicit. Without it this would fire on a closed host
+  // too and fight the blocks above for the same request.
+  if (
+    !onVendorHost &&
+    !onCourierHost &&
+    !onAdminHost &&
+    pathname.startsWith("/admin")
+  ) {
+    const url = new URL(adminUrl(`/login?redirect=${pathname}`));
+    return withAuthCookies(NextResponse.redirect(url));
+  }
+
   // Redirect signed-in users away from guest-only auth pages.
   //
   // The closed hosts' `/login` is the one exception. That page is the front door
@@ -263,6 +454,14 @@ export async function middleware(request: NextRequest) {
   //
   // The customer host keeps the conventional behaviour: a signed-in shopper is
   // sent on to the store rather than shown a login form.
+  //
+  // The admin host is deliberately NOT added to isClosedHostLoginPage. For the
+  // vendor centre and the courier hub, /login *is* the front door and bouncing off
+  // it would leave signing out as the only way back. The console's front door is
+  // /admin, so /login can stay conventional — and that is load-bearing: it is what
+  // lets the hand-off above auto-forward an admin who is already signed in on the
+  // admin host. Adding the exemption later would silently reintroduce the "sign in
+  // again" step, which is the bug the hand-off exists to remove.
   const isGuestOnlyPath = AUTH_ONLY_GUEST.some((route) => effectivePathname === route || effectivePathname.startsWith(`${route}/`));
   const isClosedHostLoginPage =
     (onVendorHost || onCourierHost) && effectivePathname === "/login";
@@ -273,11 +472,29 @@ export async function middleware(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
+    // The admin host is the only closed host /login is not exempted on, so it is
+    // the only one where this bounce can fire somewhere other than the customer
+    // site — and two of its outcomes leave the host entirely. A signed-in
+    // non-admin belongs on the storefront, and an admin whose session lives on the
+    // customer host is a guest on the admin host, so he needs the host's own
+    // sign-in door. Both return an absolute URL rather than a cloned same-host
+    // path, for the same reason rule 6 exists for vendors and couriers.
+    if (onAdminHost && profile?.role !== "admin") {
+      return withAuthCookies(NextResponse.redirect(new URL(siteUrl("/browse"))));
+    }
+    if (!onAdminHost && profile?.role === "admin") {
+      return withAuthCookies(
+        NextResponse.redirect(new URL(adminUrl("/login?redirect=/admin")))
+      );
+    }
+
     const url = request.nextUrl.clone();
     // On a closed host the dashboard lives at its clean URL, so send people there
     // rather than exposing the /seller or /courier prefix in the address bar.
     if (profile?.role === "vendor") url.pathname = onVendorHost ? "/dashboard" : "/seller/dashboard";
     else if (profile?.role === "courier") url.pathname = onCourierHost ? "/dashboard" : "/courier/dashboard";
+    // Reachable now only on the admin host: the two early returns above take an
+    // admin off every other host and take everyone else off this one.
     else if (profile?.role === "admin") url.pathname = "/admin";
     else url.pathname = "/browse";
     url.search = "";

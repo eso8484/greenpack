@@ -1,4 +1,16 @@
 // === CATEGORY ===
+// The taxonomy is two levels: a handful of `CategoryGroup`s, each owning a set
+// of `Category` leaves. Only the leaf carries a `shopCount`, and only the leaf
+// id is ever stored on a shop — the grouping is a view concern.
+export interface CategoryGroup {
+  id: string;
+  name: string;
+  /** Must stay disjoint from every `Category.slug` — see `categories.ts`. */
+  slug: string;
+  icon: string;
+  description: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -6,6 +18,7 @@ export interface Category {
   icon: string;
   description: string;
   shopCount: number;
+  groupId: string;
 }
 
 // === SHOP / VENDOR ===
@@ -53,6 +66,14 @@ export interface Shop {
   tags: string[];
   isVerified: boolean;
   isFeatured: boolean;
+  /**
+   * The elite tier — leads the homepage's promoted list and wears the "Elite
+   * Partner" pill. Set only by admin approval of an elite application; a vendor
+   * cannot write it (see the guard trigger in 018_elite_vendors.sql). It is
+   * placement, not a judgement: an elite shop keeps every section and search
+   * result a non-elite one has, it just also leads the promoted list.
+   */
+  isElite: boolean;
   createdAt: string;
 }
 
@@ -129,7 +150,11 @@ export interface CustomerInfo {
 // === SEARCH & FILTER ===
 export interface SearchFilters {
   query: string;
-  categoryId: string | null;
+  /**
+   * The member ids of the active category scope — one id for a leaf, all of a
+   * group's leaves for a group. Null when browsing unfiltered.
+   */
+  categoryIds: string[] | null;
   sortBy: "relevance" | "rating" | "price_low" | "price_high" | "newest";
   verifiedOnly: boolean;
 }

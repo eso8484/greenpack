@@ -133,11 +133,14 @@ export default function AdminCouriersPage() {
                 Review and approve courier registrations
               </p>
             </div>
+            {/* Points at /admin, which now lists the queues and links on to
+                the support console. It used to go straight to /admin/support,
+                which would now be a link that skips the page you came from. */}
             <a
-              href="/admin/support"
+              href="/admin"
               className="text-sm text-green-600 dark:text-green-400 hover:underline"
             >
-              ← Support Console
+              ← Admin
             </a>
           </div>
 

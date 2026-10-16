@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { BLUR_PLACEHOLDER } from "@/lib/utils";
+import MakeImageWithGoogle from "./MakeImageWithGoogle";
 
 interface ImageUploadProps {
   value: string;
@@ -161,6 +162,7 @@ export default function ImageUpload({
           {error && (
             <p className="text-xs text-red-500 mt-1 break-words">{error}</p>
           )}
+          <MakeImageWithGoogle />
         </div>
       </div>
     </div>

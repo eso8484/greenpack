@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { geocodeAddress } from "@/lib/geocode";
+import { UpdateShopSchema } from "@/lib/shop-schema";
 
 export async function GET(
   _request: Request,
@@ -79,6 +80,21 @@ export async function PUT(
       return NextResponse.json({ success: false, error: "Shop not found or not yours" }, { status: 404 });
     }
 
+    // Validate before anything mutates — deliberately ahead of the role
+    // promotion below, not beside the `.update()` it feeds. The promotion flips
+    // a `customer` to `vendor` and that write is not rolled back, so validating
+    // afterwards would leave an account promoted by a request whose save was
+    // then rejected: the vendor role, and none of the shop edit that justified
+    // it. Ownership first (it needs `existing`), body second, side effects last.
+    const body = await request.json();
+    const parsed = UpdateShopSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
     // Recover shops created by an earlier onboarding attempt that did not get
     // as far as flipping the account role. The authenticated owner is allowed
     // to edit this shop already; promoting before the edit makes the account
@@ -114,11 +130,16 @@ export async function PUT(
       );
     }
 
-    const body = await request.json();
-
+    // Columns come from `parsed.data`, never from `body`. The spread that used
+    // to be here (`{ ...body }`) made every column on `shops` writable by key
+    // injection from a vendor's own session: `trg_guard_shop_elite` covers only
+    // `is_elite`, `is_verified`, and `is_featured`, which left `rating`,
+    // `review_count`, and `owner_id` reachable. `UpdateShopSchema` strips
+    // unknown keys, so `parsed.data` is exactly the writable set — see its
+    // header before relaxing that.
     const { data, error } = await supabase
       .from("shops")
-      .update({ ...body, updated_at: new Date().toISOString() })
+      .update({ ...parsed.data, updated_at: new Date().toISOString() })
       .eq("id", shopId)
       .eq("owner_id", user.id)
       .select()

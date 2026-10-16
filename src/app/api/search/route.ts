@@ -93,13 +93,17 @@ export async function GET(request: Request) {
         import("@/lib/data/products"),
       ]);
 
+      // `shops` came from dbGetShops, so it is already the displayable set —
+      // and `shopById` is built from it. A service whose shop is not in that
+      // map would link to a shop page that hides itself from non-owners, so it
+      // is dropped rather than shown with no shop name.
       const shopById = new Map(shops.map((shop) => [shop.id, shop]));
       for (const service of services) {
         const relevance = scoreMatch(query, [
           { value: service.name, weight: 10 },
           { value: service.description, weight: 5 },
         ]);
-        if (relevance > 0) {
+        if (relevance > 0 && shopById.has(service.shopId)) {
           results.push({
             id: service.id,
             type: "service",
@@ -115,7 +119,7 @@ export async function GET(request: Request) {
           { value: product.name, weight: 10 },
           { value: product.description, weight: 5 },
         ]);
-        if (relevance > 0) {
+        if (relevance > 0 && shopById.has(product.shopId)) {
           results.push({
             id: product.id,
             type: "product",
@@ -134,15 +138,22 @@ export async function GET(request: Request) {
     const supabase = await createClient();
 
     const [servicesRes, productsRes] = await Promise.all([
+      // Filtering the embedded `shops` resource narrows the parent rows, so a
+      // service whose shop is not yet displayable does not surface at all —
+      // its result would link straight to a shop page that hides itself from
+      // non-owners. Before `.limit(60)`, for the same reason dbGetShops puts
+      // its own gate before `.limit()`.
       supabase
         .from("services")
         .select("id, shop_id, name, description, price, price_type, duration, category_id, image, is_available, shops(name)")
         .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+        .eq("shops.images_complete", true)
         .limit(60),
       supabase
         .from("products")
         .select("id, shop_id, name, description, price, original_price, image, category_id, in_stock, quantity, shops(name)")
         .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+        .eq("shops.images_complete", true)
         .limit(60),
     ]);
 

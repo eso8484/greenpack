@@ -20,6 +20,8 @@ export type HeroDeal = {
   reviewCount: number;
   isVerified: boolean;
   isFeatured: boolean;
+  /** Elite Partner — reviewed and approved by GreenPack. Leads the carousel. */
+  isElite?: boolean;
   /** Real "% off" computed from product originalPrice vs price (when available). */
   discountPct?: number;
 };
@@ -31,6 +33,7 @@ function dealBadge(deal: HeroDeal): { label: string; icon: string } {
   if (deal.discountPct && deal.discountPct > 0) {
     return { label: `Up to ${deal.discountPct}% off`, icon: "sell" };
   }
+  if (deal.isElite) return { label: "Elite partner", icon: "workspace_premium" };
   if (deal.isFeatured) return { label: "Featured deal", icon: "workspace_premium" };
   if (deal.rating >= 4.5) return { label: "Top rated", icon: "star" };
   if (deal.isVerified) return { label: "Verified shop", icon: "verified" };
@@ -361,11 +364,21 @@ export default function HeroSection({ deals = [] }: { deals?: HeroDeal[] }) {
       {/* ── Controls ── */}
       {slideCount > 1 && (
         <>
+          {/* `lg:left-28`, not `left-3`, because the homepage's `CategoryRail`
+              occupies `left-3` from `top-8` down ~475px — squarely over this
+              button's `top-1/2` — and is `z-40` against this `z-30`, so it would
+              paint over it and swallow the click. The rail is `hidden lg:flex`,
+              so below `lg` the plain `left-3` is still correct and the shift is
+              scoped to the breakpoint where the two actually meet. (The rail
+              used to sit at `right-3`, which cost the *next* arrow exactly the
+              same way; moving it left is what makes both arrows reachable.
+              It is `absolute` now rather than `fixed`, but it overlaps the hero
+              either way — both are out of flow, and the overlap is the same.) */}
           <button
             type="button"
             onClick={() => goTo(slide - 1)}
             aria-label="Previous slide"
-            className="absolute left-3 top-1/2 z-30 hidden -translate-y-1/2 md:flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur hover:bg-black/50 transition-colors"
+            className="absolute left-3 top-1/2 z-30 hidden -translate-y-1/2 lg:left-28 md:flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-white backdrop-blur hover:bg-black/50 transition-colors"
           >
             <span className="material-symbols-outlined">chevron_left</span>
           </button>

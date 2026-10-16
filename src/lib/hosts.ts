@@ -1,15 +1,23 @@
 /**
- * Host helpers for the three-host setup.
+ * Host helpers for the four-host setup.
  *
- * The customer site, the vendor center, and the courier hub are served by the
- * same Next.js deployment, but reached on different hostnames. That matters for
- * auth: the Supabase session cookie is host-only (nothing in this app sets a
- * `Domain` attribute), so each host keeps its own independent session. For the
- * vendor center that is the whole point — signing in as a vendor must never
- * replace the customer session. For the courier hub it is a side effect: a
- * courier's account *is* their customer account, but the cookie still cannot
- * cross, so signing in on the hub leaves them a guest on the main site until
- * they sign in there too.
+ * The customer site, the vendor center, the courier hub, and the admin console
+ * are served by the same Next.js deployment, but reached on different hostnames.
+ * That matters for auth: the Supabase session cookie is host-only (nothing in
+ * this app sets a `Domain` attribute), so each host keeps its own independent
+ * session. For the vendor center that is the whole point — signing in as a
+ * vendor must never replace the customer session. For the courier hub it is a
+ * side effect: a courier's account *is* their customer account, but the cookie
+ * still cannot cross, so signing in on the hub leaves them a guest on the main
+ * site until they sign in there too.
+ *
+ * The admin console is the fourth, and it is the only one whose isolation is a
+ * *security* property rather than a tidiness one: two hostnames are two
+ * JavaScript origins, so an XSS on the storefront cannot script the console.
+ * That containment is not exclusion — the certificate is published to
+ * Certificate Transparency logs the day it is issued, so the hostname is public.
+ * What keeps the public off the host is `ADMIN_GATE_SECRET` and the gate in
+ * `src/middleware.ts`, not the URL.
  *
  * Anything linking between hosts must therefore use an absolute URL. A bare
  * `/dashboard` stays on whichever host rendered it.
@@ -27,6 +35,10 @@ export const COURIER_ORIGIN =
 export const SITE_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://greenpackdelight.com";
 
+/** Origin of the admin console. Override locally with NEXT_PUBLIC_ADMIN_URL. */
+export const ADMIN_ORIGIN =
+  process.env.NEXT_PUBLIC_ADMIN_URL ?? "https://admin.greenpackdelight.com";
+
 /**
  * The hostname an origin points at, lowercased — or "" when the env var is
  * malformed. A blank result is not an error state: `isSubdomainHost` below still
@@ -43,6 +55,7 @@ function configuredHostname(origin: string): string {
 
 const CONFIGURED_VENDOR_HOSTNAME = configuredHostname(VENDOR_ORIGIN);
 const CONFIGURED_COURIER_HOSTNAME = configuredHostname(COURIER_ORIGIN);
+const CONFIGURED_ADMIN_HOSTNAME = configuredHostname(ADMIN_ORIGIN);
 
 /** `vendor.localhost:3000` → `vendor.localhost` */
 function hostnameOf(host: string): string {
@@ -50,9 +63,9 @@ function hostnameOf(host: string): string {
 }
 
 /**
- * The rule both subdomains share: match the configured hostname, and also any
- * host whose first label is `label`, so `vendor.localhost` works in dev with no
- * configuration. Kept in one place so the two can't drift into disagreeing about
+ * The rule all three subdomains share: match the configured hostname, and also
+ * any host whose first label is `label`, so `vendor.localhost` works in dev with
+ * no configuration. Kept in one place so they can't drift into disagreeing about
  * ports, casing, or trailing whitespace.
  *
  * `configured` and `label` always belong to the same subdomain, so they cannot
@@ -92,6 +105,17 @@ export function isCourierHost(host: string | null | undefined): boolean {
   return isSubdomainHost(host, CONFIGURED_COURIER_HOSTNAME, "courier");
 }
 
+/**
+ * Is this request for the admin console?
+ *
+ * Unlike the other two, this host carries no rewrite map — `/admin/*` keeps its
+ * path there, so the check only ever gates access and neither rewrites nor
+ * suppresses anything by path. See `src/middleware.ts`.
+ */
+export function isAdminHost(host: string | null | undefined): boolean {
+  return isSubdomainHost(host, CONFIGURED_ADMIN_HOSTNAME, "admin");
+}
+
 /** Absolute URL on the vendor center. */
 export function vendorUrl(path = "/"): string {
   return new URL(path, VENDOR_ORIGIN).toString();
@@ -100,6 +124,11 @@ export function vendorUrl(path = "/"): string {
 /** Absolute URL on the courier hub. */
 export function courierUrl(path = "/"): string {
   return new URL(path, COURIER_ORIGIN).toString();
+}
+
+/** Absolute URL on the admin console. */
+export function adminUrl(path = "/"): string {
+  return new URL(path, ADMIN_ORIGIN).toString();
 }
 
 /** Absolute URL on the customer site. */

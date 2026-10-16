@@ -2,15 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import Button from "@/components/ui/Button";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, shopImagesComplete } from "@/lib/utils";
 
 interface SellerShop {
   id: string;
   name: string;
   rating: number;
   review_count: number;
+  // Present on the row `/api/seller/shop` returns (`select("*")`) but absent
+  // from the type until now, because nothing here read it. The listing rule
+  // below does, so it had to be named: `shopImagesComplete()` takes the raw
+  // JSONB shape, and an untyped `images` would make the banner's verdict a
+  // guess about a field the compiler was not tracking.
+  images?: {
+    thumbnail?: string | null;
+    banner?: string | null;
+    gallery?: unknown;
+  } | null;
 }
 
 interface SellerOrder {
@@ -160,6 +169,17 @@ export default function SellerDashboard() {
     return <div className="text-sm text-gray-500 dark:text-gray-400">Loading dashboard...</div>;
   }
 
+  // The publish step, read from the shop the API just returned rather than
+  // from anything this page stores. `shopImagesComplete()` is the same
+  // predicate the listing queries are built on, so a shop that is listed is
+  // exactly a shop this says is listed — the two cannot disagree.
+  //
+  // `shop === null` is deliberately *not* treated as "not listed". The loader
+  // reaches that state both when the vendor has no shop yet and when the fetch
+  // failed, and those want opposite messages. Saying nothing is the only
+  // truthful option when the answer is unknown.
+  const shopIsListed = shop ? shopImagesComplete(shop.images) : null;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -180,6 +200,51 @@ export default function SellerDashboard() {
           </Link>
         </div>
       </div>
+
+      {/*
+        Above the stat tiles, not below them. A vendor whose shop is not listed
+        sees four zeroes and no explanation; the explanation is the one thing on
+        this page that is both actionable and invisible everywhere else. The
+        listed state gets a deliberately lighter treatment — it is a
+        confirmation, not a task, and matching the warning's weight would make
+        it compete for attention it has not earned.
+      */}
+      {shopIsListed === false && shop && (
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-5">
+          <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 shrink-0">
+            visibility
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              {shop.name} isn&apos;t listed yet
+            </p>
+            {/* "Saved" is the load-bearing word: the shop is stored and
+                editable, and a vendor who assumes the save failed will retype
+                everything instead of adding the one image that is missing. */}
+            <p className="text-sm text-amber-800 dark:text-amber-300 mt-1">
+              Everything you&apos;ve saved is safe. But customers can&apos;t find you in
+              browse, search, or your category until your shop has a thumbnail, a banner,
+              and at least one gallery image.
+            </p>
+          </div>
+          <Link href="/seller/shop" className="shrink-0">
+            <Button size="sm" variant="outline">
+              Finish your shop
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      {shopIsListed === true && (
+        <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl px-5 py-3">
+          <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-base">
+            check
+          </span>
+          <p className="text-sm text-green-800 dark:text-green-300">
+            Your shop is listed and visible to customers.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm">
@@ -211,6 +276,37 @@ export default function SellerDashboard() {
           </p>
         </div>
       </div>
+
+      {/*
+        Elite Partner is advertised here to every vendor, deliberately with no
+        condition on it. The tier only reads as open if the way in is visible
+        from the page every vendor already lands on — an entry point that
+        appeared for some shops and not others would be the discrimination the
+        tier is built to avoid. The link goes to /seller/elite, which is where
+        the criteria and the form live; nothing on this card grants anything.
+      */}
+      <Link
+        href="/seller/elite"
+        className="flex items-center gap-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:border-green-300 dark:hover:border-green-700 transition-colors"
+      >
+        <span className="w-10 h-10 shrink-0 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+          <span className="material-symbols-outlined text-green-600 dark:text-green-400 text-[22px]">
+            workspace_premium
+          </span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-gray-900 dark:text-white">
+            Become an Elite Partner
+          </span>
+          <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Homepage placement for shops that have earned it. Free to apply, reviewed by a
+            person, open to every vendor.
+          </span>
+        </span>
+        <span className="material-symbols-outlined text-gray-400 shrink-0">
+          chevron_right
+        </span>
+      </Link>
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
         <div className="flex items-center justify-between p-6 pb-4">

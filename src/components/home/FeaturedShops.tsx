@@ -36,7 +36,7 @@ export default function FeaturedShops({ shops }: FeaturedShopsProps) {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-        {shops.slice(0, 6).map((shop) => (
+        {shops.map((shop) => (
           <ShopCard key={shop.id} shop={shop} />
         ))}
       </div>

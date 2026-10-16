@@ -30,14 +30,69 @@ export function truncateText(text: string, maxLength: number): string {
   return text.slice(0, maxLength).trimEnd() + "...";
 }
 
+/**
+ * A shop is displayable only with a thumbnail, a banner, and at least one
+ * gallery image — the platform's image rule, in one place.
+ *
+ * It accepts a raw `shops.images` row, a mapped `Shop["images"]`, or the shop
+ * editor's form fields, because all three share a shape on purpose: the rule is
+ * asked at the display boundary, in the mock readers, and in the save handler,
+ * and three shapes would mean three subtly different predicates.
+ *
+ * It is the JS twin of the `shops.images_complete` generated column in
+ * migration 021. The two must agree. The SQL is what the Supabase path filters
+ * on (a `.eq("images_complete", true)`, so the rule runs before `.limit()` and
+ * `.range()` rather than after them); this is what the mock path filters on, so
+ * behaviour does not change when `NEXT_PUBLIC_SUPABASE_URL` is unset.
+ */
+export function shopImagesComplete(
+  images?: {
+    thumbnail?: string | null;
+    banner?: string | null;
+    gallery?: unknown;
+  } | null
+): boolean {
+  return Boolean(
+    images?.thumbnail?.trim() &&
+      images?.banner?.trim() &&
+      Array.isArray(images.gallery) &&
+      images.gallery.length >= 1
+  );
+}
+
 export function getShopsByCategory(categoryId: string): Shop[] {
-  return shops.filter((s) => s.categoryId === categoryId);
+  return shops.filter(
+    (s) => s.categoryId === categoryId && shopImagesComplete(s.images)
+  );
 }
 
 export function getFeaturedShops(): Shop[] {
-  return shops.filter((s) => s.isFeatured);
+  return shops.filter((s) => s.isFeatured && shopImagesComplete(s.images));
 }
 
+/**
+ * Identity lookup, deliberately **not** filtered by the image rule.
+ *
+ * The rule is a *display* rule, so it is applied where shops are listed. This
+ * function answers "what is shop X", and an identity lookup that refused to
+ * answer for an incomplete shop would be the wrong shape: the shop is saved and
+ * real, and the vendor editing it needs to read back what they saved.
+ *
+ * ⚠️ The consequence, stated plainly because it is easy to assume otherwise:
+ * **an incomplete shop is still reachable at `/shop/[shopId]` by anyone holding
+ * the URL.** `src/app/shop/[shopId]/page.tsx` calls this and then `notFound()`
+ * on null alone — there is no completeness check and no ownership test on that
+ * page, so an unlisted shop renders (with `mapShop`'s placehold.co fallbacks
+ * standing in for the missing images) to a stranger who guesses the slug. It is
+ * unlisted in the sense that decides discovery — browse, search, category, and
+ * the homepage all exclude it — not in the sense of being unreachable.
+ *
+ * That is the current behaviour, not an endorsement. Gating it is a small change,
+ * not a refactor: the owner is already on the mapped row as `shop.owner`
+ * (`mapShop` sets it from `owner_id`), so the page can compare it against the
+ * session user and weigh ownership against completeness. That comparison is the
+ * only place the two can be weighed against each other.
+ */
 export function getShopById(shopId: string): Shop | undefined {
   return shops.find((s) => s.id === shopId);
 }
@@ -64,10 +119,11 @@ export function searchShops(query: string): Shop[] {
   const q = query.toLowerCase();
   return shops.filter(
     (s) =>
-      s.name.toLowerCase().includes(q) ||
-      s.description.toLowerCase().includes(q) ||
-      s.categoryName.toLowerCase().includes(q) ||
-      s.tags.some((t) => t.toLowerCase().includes(q))
+      shopImagesComplete(s.images) &&
+      (s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        s.categoryName.toLowerCase().includes(q) ||
+        s.tags.some((t) => t.toLowerCase().includes(q)))
   );
 }
 
@@ -75,17 +131,25 @@ export function filterShops(
   allShops: Shop[],
   {
     query,
-    categoryId,
+    categoryIds,
     sortBy,
     verifiedOnly,
   }: {
     query?: string;
-    categoryId?: string | null;
+    categoryIds?: string[] | null;
     sortBy?: string;
     verifiedOnly?: boolean;
   }
 ): Shop[] {
-  let filtered = [...allShops];
+  // The image rule comes first, so everything below narrows an already-legal set.
+  // It is not redundant with the Supabase path's `.eq("images_complete", true)`
+  // for the same reason the elite-first sort below is not redundant with the
+  // chained `.order("is_elite", …)`: this is the mock path's half of one rule, and
+  // the two must agree or behaviour diverges the moment NEXT_PUBLIC_SUPABASE_URL
+  // is unset. (Note `allShops` can also arrive already-filtered on the Supabase
+  // path, where dbGetShops() has done it in SQL — re-asking is cheap and keeps
+  // the invariant local.)
+  let filtered = allShops.filter((s) => shopImagesComplete(s.images));
 
   if (query) {
     const q = query.toLowerCase();
@@ -98,8 +162,8 @@ export function filterShops(
     );
   }
 
-  if (categoryId) {
-    filtered = filtered.filter((s) => s.categoryId === categoryId);
+  if (categoryIds?.length) {
+    filtered = filtered.filter((s) => categoryIds.includes(s.categoryId));
   }
 
   if (verifiedOnly) {
@@ -119,6 +183,17 @@ export function filterShops(
     default:
       break;
   }
+
+  // Elite first, as the outer key — and deliberately applied *after* the switch,
+  // not before. `Array.prototype.sort` is stable (ES2019), so returning 0 within a
+  // tier preserves the rating/newest order just applied. Sorted before it, the
+  // later sort would be stable in the other direction: elite would only win ties,
+  // and a 4.9 non-elite would still jump a 3.0 elite.
+  //
+  // This is the mock path's half of the same rule `dbGetShops()` applies with a
+  // chained `.order("is_elite", ...)`; the two must agree or behaviour diverges the
+  // moment NEXT_PUBLIC_SUPABASE_URL is unset.
+  filtered.sort((a, b) => Number(b.isElite) - Number(a.isElite));
 
   return filtered;
 }

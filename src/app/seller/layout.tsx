@@ -11,9 +11,14 @@ import { createClient } from "@/lib/supabase/client";
 // with the prefix stripped so the active-link highlight survives both.
 const normalizePath = (path: string) => path.replace(/^\/seller/, "") || "/";
 
+// `shortLabel` is what the mobile bottom nav renders. Six items at `px-3` with
+// "Payout Account" and "Elite Partner" as written would wrap or overflow on a
+// 360px screen; the desktop sidebar has room for the full names, the tab bar
+// does not. Every entry carries one so the array stays a single shape.
 const sidebarLinks = [
     {
         label: "Dashboard",
+        shortLabel: "Home",
         href: "/seller/dashboard",
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,6 +28,7 @@ const sidebarLinks = [
     },
     {
         label: "My Shop",
+        shortLabel: "Shop",
         href: "/seller/shop",
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -32,6 +38,7 @@ const sidebarLinks = [
     },
     {
         label: "Services",
+        shortLabel: "Services",
         href: "/seller/services",
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,6 +48,7 @@ const sidebarLinks = [
     },
     {
         label: "Products",
+        shortLabel: "Products",
         href: "/seller/products",
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,10 +58,23 @@ const sidebarLinks = [
     },
     {
         label: "Payout Account",
+        shortLabel: "Payout",
         href: "/seller/payout",
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm11 8h2" />
+            </svg>
+        ),
+    },
+    {
+        // Visible to every vendor, elite or not. The entry point has to be
+        // here for the tier to read as open rather than invitation-only.
+        label: "Elite Partner",
+        shortLabel: "Elite",
+        href: "/seller/elite",
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" />
             </svg>
         ),
     },
@@ -167,23 +188,36 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
                 </aside>
 
                 {/* Mobile Bottom Nav */}
+                {/*
+                  Six tabs on a 360px screen is 60px each, which `justify-around`
+                  with per-item `px-3` cannot fit — "Payout Account" and "Elite
+                  Partner" would wrap to two lines and push the bar taller. So
+                  the row is `flex-1` per item (an even six-way split, no
+                  rounding slack), the padding drops to `px-1`, and each label
+                  renders its `shortLabel` inside a truncating span. The
+                  truncation is a backstop, not the mechanism: the short labels
+                  are chosen to fit, so nothing should actually ellipsise.
+                */}
                 <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
-                    <div className="flex justify-around py-2">
+                    <div className="flex py-2">
                         {sidebarLinks.map((link) => {
                             const isActive = normalizePath(pathname) === normalizePath(link.href);
                             return (
                                 <Link
                                     key={link.href}
                                     href={link.href}
+                                    title={link.label}
                                     className={cn(
-                                        "flex flex-col items-center gap-1 px-3 py-1 text-xs font-medium transition-colors",
+                                        "flex flex-1 min-w-0 flex-col items-center gap-1 px-1 py-1 text-xs font-medium transition-colors",
                                         isActive
                                             ? "text-green-600 dark:text-green-400"
                                             : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                                     )}
                                 >
                                     {link.icon}
-                                    {link.label}
+                                    <span className="w-full truncate text-center">
+                                        {link.shortLabel}
+                                    </span>
                                 </Link>
                             );
                         })}

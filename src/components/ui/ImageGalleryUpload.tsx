@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { BLUR_PLACEHOLDER } from "@/lib/utils";
+import MakeImageWithGoogle from "./MakeImageWithGoogle";
 
 interface ImageGalleryUploadProps {
   value: string[];
@@ -225,6 +226,12 @@ export default function ImageGalleryUpload({
           ))}
         </ul>
       )}
+
+      {/* Offered only while a slot is free. The reason is narrower than it used to be —
+          there is no longer a request in flight to race the last slot for — but it is
+          still real: with the gallery full, this would send the vendor off to make an
+          image and then show them no way to add it. */}
+      {remainingSlots > 0 && <MakeImageWithGoogle />}
     </div>
   );
 }

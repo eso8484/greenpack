@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { categories } from "@/lib/data/categories";
+import { shopImagesComplete } from "@/lib/utils";
 
 /**
  * Lightweight autocomplete endpoint for the header + hero search bars.
@@ -64,7 +65,16 @@ export async function GET(request: Request) {
         import("@/lib/data/products"),
       ]);
 
-      const shopMatches: Suggestion[] = shops
+      // The display rule, applied once and reused. Every suggestion below that
+      // carries a shop link is gated on this set, services and products
+      // included: /shop/[shopId] applies the same rule to anyone who is not the
+      // owner, so a suggestion pointing at a hidden shop is a dead link — worse
+      // than no suggestion at all. See shopImagesComplete() in utils.ts.
+      const displayableShops = shops.filter((shop) =>
+        shopImagesComplete(shop.images)
+      );
+
+      const shopMatches: Suggestion[] = displayableShops
         .filter(
           (shop) =>
             shop.name.toLowerCase().includes(normalized) ||
@@ -82,7 +92,11 @@ export async function GET(request: Request) {
         }));
 
       const serviceMatches: Suggestion[] = services
-        .filter((service) => service.name.toLowerCase().includes(normalized))
+        .filter(
+          (service) =>
+            service.name.toLowerCase().includes(normalized) &&
+            displayableShops.some((s) => s.id === service.shopId)
+        )
         .slice(0, 3)
         .map((service) => {
           const shop = shops.find((s) => s.id === service.shopId);
@@ -95,7 +109,11 @@ export async function GET(request: Request) {
         });
 
       const productMatches: Suggestion[] = products
-        .filter((product) => product.name.toLowerCase().includes(normalized))
+        .filter(
+          (product) =>
+            product.name.toLowerCase().includes(normalized) &&
+            displayableShops.some((s) => s.id === product.shopId)
+        )
         .slice(0, 3)
         .map((product) => {
           const shop = shops.find((s) => s.id === product.shopId);
@@ -128,16 +146,27 @@ export async function GET(request: Request) {
         .or(
           `name.ilike.%${safeQuery}%,short_description.ilike.%${safeQuery}%,category_name.ilike.%${safeQuery}%`
         )
+        // The display rule, before `.limit(6)` — filtering after the cut would
+        // return a short page while displayable shops sit just past it. Same
+        // generated column migration 021 adds and dbGetShops() filters on.
+        .eq("images_complete", true)
         .limit(6),
+      // Same rule on the services and products queries. Filtering an embedded
+      // many-to-one resource narrows the *parent* rows (the pattern is already
+      // used in orders/[orderId]/route.ts), so a service whose shop is not yet
+      // displayable simply does not surface — and the filter runs before
+      // `.limit(3)`, for the same reason it does on the shops query.
       supabase
         .from("services")
         .select("id, name, shops(name, slug)")
         .ilike("name", `%${safeQuery}%`)
+        .eq("shops.images_complete", true)
         .limit(3),
       supabase
         .from("products")
         .select("id, name, image, shops(name, slug)")
         .ilike("name", `%${safeQuery}%`)
+        .eq("shops.images_complete", true)
         .limit(3),
     ]);
 

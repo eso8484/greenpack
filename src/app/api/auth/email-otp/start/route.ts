@@ -7,6 +7,8 @@ import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import {
   sendTransactionalEmail,
   transactionalEmailConfigured,
+  emailContactHtml,
+  emailContactText,
 } from "@/lib/email";
 import { EMAIL_LOGO_URL } from "@/lib/constants";
 
@@ -211,9 +213,16 @@ export async function POST(request: Request) {
             <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #111;">${code}</span>
           </div>
           <p style="color: #999; font-size: 13px; text-align: center;">This code expires in 10 minutes. If you didn't request it, ignore this email and change your password.</p>
+${emailContactHtml()}
         </div>
       `,
-      text: `Your Green Pack Delight login code: ${code}\n\nThis code expires in 10 minutes.`,
+      text: [
+        `Your Green Pack Delight login code: ${code}`,
+        "",
+        "This code expires in 10 minutes.",
+        "",
+        ...emailContactText(),
+      ].join("\n"),
     });
 
     if (!ok) {

@@ -40,15 +40,30 @@ export default function ShopTile({ shop, variant = "grid", badge }: ShopTileProp
         {/* gradient scrim for legibility of overlaid chips */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
 
-        {shop.isVerified && (
-          <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm">
-            <span className="material-symbols-outlined text-green-500 text-[13px] fill-1">
-              verified
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-wide text-gray-800 dark:text-gray-200">
-              Certified
-            </span>
-          </span>
+        {(shop.isElite || shop.isVerified) && (
+          <div className="absolute top-2 left-2 flex flex-col items-start gap-1">
+            {shop.isElite && (
+              <span className="inline-flex items-center gap-1 bg-green-600/95 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm">
+                <span className="material-symbols-outlined text-white text-[13px] fill-1">
+                  workspace_premium
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-white">
+                  Elite Partner
+                </span>
+              </span>
+            )}
+
+            {shop.isVerified && (
+              <span className="inline-flex items-center gap-1 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm">
+                <span className="material-symbols-outlined text-green-500 text-[13px] fill-1">
+                  verified
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-gray-800 dark:text-gray-200">
+                  Certified
+                </span>
+              </span>
+            )}
+          </div>
         )}
 
         {badge && (

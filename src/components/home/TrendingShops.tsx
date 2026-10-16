@@ -7,10 +7,11 @@ interface TrendingShopsProps {
 }
 
 /**
- * Horizontal "deals" rail of top-rated shops. Presentational — receives an
- * already-sorted list of real shops from the page. The "Top rated" badge is
- * applied to the highest-rated entries only (and only when they actually have
- * a rating), so nothing is fabricated.
+ * Horizontal "deals" rail. Presentational — receives an already-sorted list of
+ * real shops from the page, which orders elite first and then by rating. The
+ * "Top rated" badge is applied to the first three entries *only when they
+ * actually clear 4.5*, so hoisting a lower-rated elite shop to the front can
+ * never mislabel it.
  */
 export default function TrendingShops({ shops }: TrendingShopsProps) {
   if (!shops.length) return null;
@@ -23,8 +24,11 @@ export default function TrendingShops({ shops }: TrendingShopsProps) {
             <span className="material-symbols-outlined text-[14px] fill-1">local_fire_department</span>
             Trending now
           </span>
+          {/* "Popular", not "Top rated": elite shops lead this rail, so a 3.0
+              elite could sit above a 4.9 non-elite and the old heading would be
+              a false claim. This one is true under either ordering. */}
           <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-            Top rated near you
+            Popular near you
           </h2>
         </div>
         <Link

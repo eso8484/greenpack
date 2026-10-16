@@ -2,28 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { geocodeAddress } from "@/lib/geocode";
-import { z } from "zod";
-
-const CreateShopSchema = z.object({
-  name: z.string().min(1).max(255),
-  slug: z.string().min(1).max(255).regex(/^[a-z0-9-]+$/),
-  description: z.string().max(2000).optional(),
-  short_description: z.string().max(500).optional(),
-  category_id: z.string().min(1),
-  category_name: z.string(),
-  location: z.record(z.string(), z.unknown()).optional(),
-  contact: z.record(z.string(), z.unknown()).optional(),
-  hours: z.record(z.string(), z.unknown()).optional(),
-  images: z.record(z.string(), z.unknown()).optional(),
-  video: z.record(z.string(), z.unknown()).optional(),
-  tags: z.array(z.string()).optional(),
-  // Top-level coordinates. Vendors who clicked "Use My Location" already have
-  // these; otherwise we attempt server-side geocoding from location.address.
-  lat: z.number().min(-90).max(90).nullish(),
-  lng: z.number().min(-180).max(180).nullish(),
-});
-
-const UpdateShopSchema = CreateShopSchema.partial();
+import { CreateShopSchema, UpdateShopSchema } from "@/lib/shop-schema";
 
 export async function GET() {
   try {

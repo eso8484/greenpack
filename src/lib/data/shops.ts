@@ -1,5 +1,11 @@
 import type { Shop } from "@/types";
 
+// Every mock shop is `isElite: false`, and it must stay that way. The elite tier
+// is earned through a reviewed application, so seeding one here would put a
+// badge on a shop nobody approved — and because the homepage's promoted list
+// leads with elite shops, it would invent homepage placement out of mock data.
+// The homepage is byte-identical to its pre-elite self until a real shop is
+// approved against the live database.
 export const shops: Shop[] = [
   {
     id: "shop-1",
@@ -42,6 +48,7 @@ export const shops: Shop[] = [
     tags: ["laundry", "dry cleaning", "ironing", "same-day"],
     isVerified: true,
     isFeatured: true,
+    isElite: false,
     createdAt: "2025-06-15",
   },
   {
@@ -85,6 +92,7 @@ export const shops: Shop[] = [
     tags: ["barber", "haircut", "grooming", "beard", "facial"],
     isVerified: true,
     isFeatured: true,
+    isElite: false,
     createdAt: "2025-04-10",
   },
   {
@@ -128,6 +136,7 @@ export const shops: Shop[] = [
     tags: ["phone repair", "screen fix", "battery", "gadgets"],
     isVerified: true,
     isFeatured: true,
+    isElite: false,
     createdAt: "2025-05-20",
   },
   {
@@ -171,6 +180,7 @@ export const shops: Shop[] = [
     tags: ["fashion", "tailoring", "adire", "african wear", "aso-oke"],
     isVerified: true,
     isFeatured: true,
+    isElite: false,
     createdAt: "2025-03-01",
   },
   {
@@ -214,6 +224,7 @@ export const shops: Shop[] = [
     tags: ["food", "restaurant", "nigerian", "catering", "jollof"],
     isVerified: true,
     isFeatured: false,
+    isElite: false,
     createdAt: "2025-07-01",
   },
   {
@@ -257,6 +268,7 @@ export const shops: Shop[] = [
     tags: ["electrician", "wiring", "installation", "repairs", "emergency"],
     isVerified: true,
     isFeatured: false,
+    isElite: false,
     createdAt: "2025-08-12",
   },
   {
@@ -300,6 +312,7 @@ export const shops: Shop[] = [
     tags: ["phones", "laptops", "accessories", "gadgets", "electronics"],
     isVerified: true,
     isFeatured: true,
+    isElite: false,
     createdAt: "2025-02-15",
   },
   {
@@ -343,6 +356,7 @@ export const shops: Shop[] = [
     tags: ["beauty", "skincare", "makeup", "spa", "facial"],
     isVerified: true,
     isFeatured: true,
+    isElite: false,
     createdAt: "2025-01-20",
   },
   {
@@ -382,6 +396,7 @@ export const shops: Shop[] = [
     tags: ["laundry", "express", "self-service", "delivery"],
     isVerified: false,
     isFeatured: false,
+    isElite: false,
     createdAt: "2025-09-05",
   },
   {
@@ -422,6 +437,7 @@ export const shops: Shop[] = [
     tags: ["plumbing", "pipes", "leaks", "drains", "emergency"],
     isVerified: true,
     isFeatured: false,
+    isElite: false,
     createdAt: "2025-10-01",
   },
 ];
