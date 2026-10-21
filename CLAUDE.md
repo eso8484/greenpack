@@ -120,6 +120,7 @@ src/
 │   │   └── admin.ts  # Admin client (service_role key — server-only)
 │   ├── termii.ts     # Termii SMS helpers (sendSMS, notifyCourier*, notifyVendor*, notifyCustomer*)
 │   ├── vendor-identity.ts # Split vendor/customer accounts — the only home for the synthetic-address rule
+│   ├── account-identity.ts # Role-scoped registration gate — pre-OTP conflict check per lane + courier attach resolver
 │   ├── hosts.ts      # Multi-host helpers — isVendorHost(), isCourierHost(), isAdminHost(), vendorUrl(), courierUrl(), adminUrl(), siteUrl()
 │   ├── utils.ts      # formatPrice, filterShops, cn(), BLUR_PLACEHOLDER, etc.
 │   └── constants.ts  # SITE_NAME, CURRENCY, CURRENCY_SYMBOL
@@ -656,6 +657,62 @@ Vendors registered before migration 017 keep signing in on their real-email row:
 them a `profiles.email`, so `findVendorIdentity()` finds them, and their `authEmail` comes back as
 the real address. They are not split, and not broken.
 
+### Registration Identity (role-scoped email gate)
+`src/lib/account-identity.ts` is the one home for the question every registration form asks before
+anything expensive happens: **"does this address already belong to an account in the lane being
+applied for?"** It is deliberately one column per lane, because the three accounts a person can
+hold are not the same account:
+
+| Lane | Is a conflict | Is **not** a conflict |
+|---|---|---|
+| customer | a customer or courier role; a legacy (pre-017) vendor that owns the typed address | — |
+| vendor | any vendor identity (`findVendorIdentity()`) | a customer account on the same email — that is the split-identity feature |
+| courier | a `courier` role; an **approved** or **pending** `couriers.application_status`; a legacy vendor | a plain customer account — it is the account the application attaches to |
+
+An **admin** address is refused with a generic message in every lane, before the lane rules: saying
+"that is an admin" would turn the registration form into a directory of the console's operators.
+
+Two exported shapes:
+
+- `checkRegistrationEmail(email, role)` — the gate. Called by **`/api/verify/send-email`** *before*
+  the OTP is generated and mailed, so a conflict costs neither the person's time nor our mail
+  quota. That route accepts `role` (absent or unrecognised → `customer`, which is what every caller
+  predating the field was) and, on the vendor lane, `slug` — a taken shop URL is the same kind of
+  form-field conflict, and `/api/vendor/register` can only report it after a code has been fetched
+  and typed. On the courier lane the response's `existingAccount` lets the page say *before* the
+  code that the application will join an account the address already has.
+- `findConsumerAccount(email)` — resolves the reusable customer account for the attach path. It
+  requires both `profiles.role = 'customer'` **and** that the row's auth user is keyed on the typed
+  address; a split vendor's profile also carries the visible address, and attaching a courier
+  application to a vendor login would put delivery work under the wrong account.
+
+Both read through `createAdminClient()`: the caller is a signed-out form, so there is no session for
+RLS and `profiles` is not world-readable. This makes the check an enumeration oracle **by
+construction** — the caller learns an address is taken in a given lane. That is the requested
+behaviour, kept as narrow as possible (role-scoped answers, generic admin refusal) and still behind
+the route's two rate limiters.
+
+**The courier attach path.** `/api/courier/register` resolves first, then either creates or
+attaches. `auth.users.email` is unique, so a second auth row for an address that already has one
+can never exist — attaching is the only way to register an existing customer as a courier. Three
+properties are load-bearing:
+
+1. **The typed password is discarded, never applied.** Applying it would silently change a
+   customer's password from a courier form — including on a typo. The OTP has already proved
+   control of the mailbox, so a session is minted the way a password reset mints one
+   (`generateLink({ type: "magiclink" })` → `verifyOtp`, after a **local** sign-out), and the stored
+   password is left alone.
+2. **The existing profile is not overwritten.** Name, phone, and date of birth are filled only where
+   blank; replacing saved data because someone applied to deliver would be real loss.
+3. **The UI is told.** The response carries `attached`, and the page explains that the application
+   was attached and the existing password is unchanged.
+
+**Couriers sign in on the customer lane.** `/api/auth/email-otp/start` and `/complete` both admit
+`role = courier` when `mode = customer`. There is deliberately no `mode=courier` (a courier's
+account *is* their customer account), so that lane is the only door they have; excluding them locked
+approved couriers out of their own hub and told them they were vendors. The two gates are
+defense-in-depth and must stay in step.
+
 ### Database Access Layer (`src/lib/db.ts`)
 Single source of truth for all data queries. Auto-detects Supabase config:
 - **Supabase configured** → queries `shops`, `services`, `products`, `reviews` tables
@@ -1018,6 +1075,7 @@ ADMIN_GATE_SECRET=                 # The admin console's door key — server-onl
 | `src/lib/supabase/admin.ts` | Admin/service-role client (server only) |
 | `src/lib/termii.ts` | Termii SMS notification helpers |
 | `src/lib/vendor-identity.ts` | Split vendor/customer account identity — the only place a vendor auth address is built or read |
+| `src/lib/account-identity.ts` | Role-scoped registration gate — the pre-OTP email conflict check per lane, and the customer-account resolver the courier attach path uses |
 | `src/lib/hosts.ts` | Multi-host helpers — `isVendorHost()`, `isCourierHost()`, `isAdminHost()`, `vendorUrl()`, `courierUrl()`, `adminUrl()`, `siteUrl()` |
 | `src/types/index.ts` | All TypeScript interfaces |
 | `src/context/CartContext.tsx` | Cart state provider |

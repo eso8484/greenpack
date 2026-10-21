@@ -82,6 +82,12 @@ export default function CourierRegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
+  // Set by /api/verify/send-email when this address already belongs to a
+  // customer account. The application will be attached to that account rather
+  // than creating a new one, so say so before the code is typed.
+  const [existingAccount, setExistingAccount] = useState(false);
+  // Set by /api/courier/register when it took the attach path.
+  const [attached, setAttached] = useState(false);
 
   const updateCourier = (field: keyof CourierForm, value: string) =>
     setCourier((prev) => ({ ...prev, [field]: value }));
@@ -204,7 +210,7 @@ export default function CourierRegisterPage() {
       const res = await fetch("/api/verify/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: account.email }),
+        body: JSON.stringify({ email: account.email, role: "courier" }),
       });
       const data = await res.json();
 
@@ -213,6 +219,7 @@ export default function CourierRegisterPage() {
         return;
       }
 
+      setExistingAccount(!!data.existingAccount);
       setStep("verify-email");
       startResendTimer();
       toast.success("Verification code sent to your email!");
@@ -247,7 +254,7 @@ export default function CourierRegisterPage() {
         }),
       });
 
-      let data: { success?: boolean; error?: unknown } = {};
+      let data: { success?: boolean; error?: unknown; attached?: boolean } = {};
       try {
         data = await res.json();
       } catch {
@@ -255,8 +262,15 @@ export default function CourierRegisterPage() {
       }
 
       if (res.status === 409) {
-        toast.error("An account with this email already exists.");
-        setError("An account with this email already exists. Please sign in instead.");
+        // Post-OTP refusals are the narrow residue the pre-OTP check cannot see
+        // (an approved/under-review application, or a profile whose email is
+        // NULL). The route's own copy says what to do next — prefer it.
+        const conflict =
+          typeof data.error === "string"
+            ? data.error
+            : "This email already has a courier application. Sign in to track it.";
+        toast.error(conflict);
+        setError(conflict);
         setStep("form");
         setLoading(false);
         return;
@@ -279,6 +293,7 @@ export default function CourierRegisterPage() {
         throw new Error(errMsg);
       }
 
+      setAttached(!!data.attached);
       setStep("success");
     } catch (err) {
       console.error("Courier register error:", err);
@@ -295,13 +310,14 @@ export default function CourierRegisterPage() {
       const res = await fetch("/api/verify/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: account.email }),
+        body: JSON.stringify({ email: account.email, role: "courier" }),
       });
       const data = await res.json();
       if (!data.success) {
         setError(data.error || "Failed to resend code.");
         return;
       }
+      setExistingAccount(!!data.existingAccount);
       toast.success("New code sent!");
       startResendTimer();
     } catch {
@@ -345,6 +361,19 @@ export default function CourierRegisterPage() {
             We&apos;ll review your application and contact you within{" "}
             <strong>24 hours</strong> via phone or WhatsApp.
           </p>
+          {attached && (
+            // One email, one account: the application was added to the account
+            // this address already had, and the typed password was discarded.
+            // Saying so here is the only place the person can learn it.
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-8 text-left">
+              <p className="text-sm text-amber-800 dark:text-amber-300">
+                You already had a GreenPack account on this email, so we attached
+                your courier application to it.{" "}
+                <strong>Your existing password is unchanged</strong> — sign in
+                with it next time.
+              </p>
+            </div>
+          )}
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-8 text-left">
             <p className="text-sm font-semibold text-green-700 dark:text-green-400 mb-2">
               What happens next?
@@ -410,6 +439,16 @@ export default function CourierRegisterPage() {
               Enter the 6-digit code sent to your email
             </p>
 
+            {existingAccount && (
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                <p className="text-sm text-green-700 dark:text-green-400 text-center">
+                  This email already has a GreenPack account. Your courier
+                  application will be added to it — your existing password stays
+                  the same.
+                </p>
+              </div>
+            )}
+
             <OTPInput onComplete={handleOTPVerify} disabled={loading} />
 
             {error && (
@@ -424,7 +463,11 @@ export default function CourierRegisterPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                {step === "submitting" ? "Creating your account and application..." : "Verifying..."}
+                {step === "submitting"
+                  ? existingAccount
+                    ? "Attaching your application to your account..."
+                    : "Creating your account and application..."
+                  : "Verifying..."}
               </div>
             )}
 

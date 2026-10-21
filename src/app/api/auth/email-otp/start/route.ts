@@ -103,10 +103,15 @@ export async function POST(request: Request) {
     }
 
     // ─── Step 1b: role-gate — separate customer and vendor login flows ─────
-    // Customer login only accepts role=customer; vendor login accepts vendor
-    // (and admin, who can act in either lane). If the role doesn't match the
-    // selected mode we sign out and return a directive error so the UI can
-    // route the user to the right place. Admins pass either mode.
+    // Customer login accepts customer **and courier**; vendor login accepts
+    // vendor (and admin, who can act in either lane). A courier's account *is*
+    // their customer account — `profiles.role` merely flips from `customer` to
+    // `courier` on admin approval — and there is deliberately no `mode=courier`
+    // lane, so the customer lane is the only door a courier has. Excluding them
+    // locked approved couriers out of their own hub and told them they were
+    // vendors. If the role doesn't match the selected mode we sign out and
+    // return a directive error so the UI can route the user to the right place.
+    // Admins pass either mode.
     const admin = createAdminClient();
     const { data: profile } = await admin
       .from("profiles")
@@ -118,7 +123,7 @@ export async function POST(request: Request) {
     const isAdmin = role === "admin";
     const matchesMode =
       isAdmin ||
-      (loginMode === "customer" && role === "customer") ||
+      (loginMode === "customer" && (role === "customer" || role === "courier")) ||
       (loginMode === "vendor" && role === "vendor");
 
     if (!matchesMode) {

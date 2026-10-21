@@ -100,11 +100,13 @@ export async function POST(request: Request) {
 
     // Defense-in-depth — even though /start already gated on role, re-check
     // here in case the user's role was changed between OTP issue and
-    // completion (e.g. a parallel admin promotion / demotion).
+    // completion (e.g. a parallel admin promotion / demotion). Keep both gates
+    // in step: a courier is admitted on the customer lane, because that is the
+    // only lane they have and their account is their customer account.
     const isAdmin = role === "admin";
     const matchesMode =
       isAdmin ||
-      (loginMode === "customer" && role === "customer") ||
+      (loginMode === "customer" && (role === "customer" || role === "courier")) ||
       (loginMode === "vendor" && role === "vendor");
 
     if (!matchesMode) {

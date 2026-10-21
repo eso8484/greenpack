@@ -115,7 +115,7 @@ export default function SignUpPage() {
       const res = await fetch("/api/verify/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email }),
+        body: JSON.stringify({ email: form.email, role: "customer" }),
       });
       const data = await res.json();
 
@@ -206,7 +206,7 @@ export default function SignUpPage() {
       const res = await fetch("/api/verify/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email }),
+        body: JSON.stringify({ email: form.email, role: "customer" }),
       });
       const data = await res.json();
 

@@ -351,7 +351,14 @@ export default function VendorRegisterPage() {
       const res = await fetch("/api/verify/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: account.email }),
+        // The shop URL travels with the email check: a taken slug is a
+        // form-field conflict, and /api/vendor/register can only report it
+        // after the code has been fetched and typed.
+        body: JSON.stringify({
+          email: account.email,
+          role: "vendor",
+          slug: shop.slug.trim(),
+        }),
       });
       const data = await res.json();
 
@@ -424,9 +431,16 @@ export default function VendorRegisterPage() {
       }
 
       if (res.status === 409) {
-        // Email already registered
-        toast.error("An account with this email already exists.");
-        setError("An account with this email already exists.");
+        // Two different conflicts land here — the email is already a vendor,
+        // or the shop URL was taken by someone else while this form was open.
+        // The server distinguishes them, so show what it said rather than
+        // flattening both into "account already exists".
+        const conflict =
+          typeof data.error === "string"
+            ? data.error
+            : "An account with this email already exists.";
+        toast.error(conflict);
+        setError(conflict);
         setStep("form");
         setLoading(false);
         return;
@@ -467,7 +481,14 @@ export default function VendorRegisterPage() {
       const res = await fetch("/api/verify/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: account.email }),
+        // The shop URL travels with the email check: a taken slug is a
+        // form-field conflict, and /api/vendor/register can only report it
+        // after the code has been fetched and typed.
+        body: JSON.stringify({
+          email: account.email,
+          role: "vendor",
+          slug: shop.slug.trim(),
+        }),
       });
       const data = await res.json();
       if (!data.success) {
